@@ -1,0 +1,87 @@
+'use client';
+
+import React from 'react';
+import { SuggestionItem } from '@/lib/ranking';
+import { CheckSquare, Zap, Tag, Plus, MessageSquare, FileText } from 'lucide-react';
+
+interface SuggestionListProps {
+  items: SuggestionItem[];
+  selectedIndex: number;
+  onSelect: (item: SuggestionItem) => void;
+}
+
+export const SuggestionList: React.FC<SuggestionListProps> = ({
+  items,
+  selectedIndex,
+  onSelect,
+}) => {
+  const listRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (!listRef.current) return;
+    const itemsContainer = listRef.current.firstElementChild as HTMLElement | null;
+    if (itemsContainer && itemsContainer.children[selectedIndex]) {
+      const selectedEl = itemsContainer.children[selectedIndex] as HTMLElement;
+      selectedEl.scrollIntoView({ block: 'nearest' });
+    }
+  }, [selectedIndex]);
+
+  if (items.length === 0) return null;
+
+  return (
+    <div ref={listRef} className="z-50 w-64 max-h-56 overflow-y-auto rounded-md bg-white border border-zinc-200/90 p-1 shadow-lg text-xs font-sans animate-in fade-in duration-75 select-none">
+      <div className="space-y-0.5">
+        {items.map((item, idx) => {
+          const isSelected = idx === selectedIndex;
+
+          let icon = <Tag className="h-3.5 w-3.5 text-indigo-500 shrink-0" />;
+          if (item.id.startsWith('create-')) {
+            if (item.itemType === 'todo') {
+              icon = <Plus className="h-3.5 w-3.5 text-emerald-600 shrink-0" />;
+            } else if (item.itemType === 'decision') {
+              icon = <Plus className="h-3.5 w-3.5 text-orange-500 shrink-0" />;
+            } else if (item.itemType === 'note') {
+              icon = <Plus className="h-3.5 w-3.5 text-amber-600 shrink-0" />;
+            } else {
+              icon = <Plus className="h-3.5 w-3.5 text-indigo-500 shrink-0" />;
+            }
+          } else if (item.primitiveType === 'todo' || item.itemType === 'todo') {
+            icon = <CheckSquare className="h-3.5 w-3.5 text-emerald-600 shrink-0" />;
+          } else if (item.primitiveType === 'decision' || item.itemType === 'decision') {
+            icon = <Zap className="h-3.5 w-3.5 text-orange-500 shrink-0" />;
+          } else if (item.primitiveType === 'note' || item.itemType === 'note') {
+            icon = <FileText className="h-3.5 w-3.5 text-amber-600 shrink-0" />;
+          } else if (item.itemType === 'message') {
+            icon = <MessageSquare className="h-3.5 w-3.5 text-sky-600 shrink-0" />;
+          } else if (item.itemType === 'entity') {
+            icon = <Tag className="h-3.5 w-3.5 text-indigo-500 shrink-0" />;
+          }
+
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                onSelect(item);
+              }}
+              className={`w-full text-left px-2 py-1.5 rounded flex items-center justify-between gap-2 transition-colors ${
+                isSelected
+                  ? 'bg-zinc-100 text-zinc-950 font-semibold'
+                  : 'text-zinc-700 hover:bg-zinc-50'
+              }`}
+            >
+              <div className="flex items-center gap-2 truncate min-w-0">
+                {icon}
+                <span className="truncate">{item.title}</span>
+              </div>
+              <span className="text-[10px] font-mono text-zinc-400 shrink-0 opacity-80">
+                {item.scopeLabel}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+};

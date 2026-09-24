@@ -1,0 +1,262 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #09090b;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+body {
+  background: #ffffff;
+  color: #09090b;
+  font-family: var(--font-sans);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom Minimal Scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #e4e4e7;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #d4d4d8;
+}
+
+/* ProseMirror / Tiptap Custom Styles - Crisp Black Text on White */
+.ProseMirror {
+  outline: none !important;
+  color: #09090b !important;
+  background-color: #ffffff !important;
+  font-family: var(--font-sans);
+}
+
+.ProseMirror p.is-editor-empty:first-child::before {
+  color: #a1a1aa;
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+.ProseMirror h1 {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #09090b !important;
+  margin-top: 0.75rem;
+  margin-bottom: 0.5rem;
+  letter-spacing: -0.02em;
+}
+
+.ProseMirror h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #09090b !important;
+  margin-top: 0.75rem;
+  margin-bottom: 0.375rem;
+}
+
+.ProseMirror h3 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #09090b !important;
+  margin-top: 0.625rem;
+  margin-bottom: 0.25rem;
+}
+
+.ProseMirror code {
+  font-family: var(--font-mono);
+  background: #f4f4f5;
+  color: #27272a;
+  padding: 0.15rem 0.4rem;
+  border-radius: 0.375rem;
+  font-size: 0.8125rem;
+}
+
+/* Clean Plastic Mention Pill Node Styling */
+.page-mention-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.25;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+  box-shadow: inset 0 1.5px 0 rgba(255, 255, 255, 0.65), 0 1px 2px rgba(0, 0, 0, 0.05);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  margin: 0 0.125rem;
+  user-select: text;
+  vertical-align: baseline;
+  max-width: 320px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.page-mention-pill .pill-full {
+  display: none;
+}
+
+.page-mention-pill .pill-short {
+  display: inline;
+  white-space: nowrap;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.page-mention-pill:hover,
+.page-mention-pill.is-hover-locked,
+.group:hover .page-mention-pill {
+  filter: brightness(0.96);
+  transform: translateY(-0.5px);
+  max-width: none;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  z-index: 20;
+  position: relative;
+}
+
+.page-mention-pill:hover .pill-full,
+.page-mention-pill.is-hover-locked .pill-full,
+.group:hover .page-mention-pill .pill-full {
+  display: inline;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.page-mention-pill:hover .pill-short,
+.page-mention-pill.is-hover-locked .pill-short,
+.group:hover .page-mention-pill .pill-short {
+  display: none;
+}
+
+/* Disable hover untruncation on pills while text is being selected in Page View or Chat View */
+body.is-selecting-text .page-mention-pill:hover,
+body.is-selecting-text .group:hover .page-mention-pill {
+  filter: none !important;
+  transform: none !important;
+  max-width: 320px !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  z-index: auto !important;
+  position: static !important;
+}
+
+body.is-selecting-text .page-mention-pill:hover .pill-full,
+body.is-selecting-text .group:hover .page-mention-pill .pill-full {
+  display: none !important;
+}
+
+body.is-selecting-text .page-mention-pill:hover .pill-short,
+body.is-selecting-text .group:hover .page-mention-pill .pill-short {
+  display: inline !important;
+}
+
+/* Disable hover-to-untruncate ONLY inside Mentions panel cards */
+.mentions-card-container .page-mention-pill,
+.mentions-card-container:hover .page-mention-pill,
+.mentions-card-container .page-mention-pill:hover,
+.mentions-panel-excerpt .page-mention-pill,
+.mentions-panel-excerpt .page-mention-pill:hover {
+  filter: none !important;
+  transform: none !important;
+  max-width: none !important;
+  white-space: nowrap !important;
+  position: static !important;
+}
+
+.mentions-card-container .pill-full,
+.mentions-card-container:hover .pill-full,
+.mentions-card-container .page-mention-pill:hover .pill-full,
+.mentions-panel-excerpt .pill-full,
+.mentions-panel-excerpt .page-mention-pill:hover .pill-full {
+  display: none !important;
+}
+
+.mentions-card-container .pill-short,
+.mentions-card-container:hover .pill-short,
+.mentions-card-container .page-mention-pill:hover .pill-short,
+.mentions-panel-excerpt .pill-short,
+.mentions-panel-excerpt .page-mention-pill:hover .pill-short {
+  display: inline !important;
+  white-space: nowrap !important;
+}
+
+/* When in edit mode, all pills are untruncated */
+.is-editing .page-mention-pill,
+[data-editing="true"] .page-mention-pill {
+  max-width: none !important;
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+}
+
+.is-editing .page-mention-pill .pill-short,
+[data-editing="true"] .page-mention-pill .pill-short {
+  display: none !important;
+}
+
+.is-editing .page-mention-pill .pill-full,
+[data-editing="true"] .page-mention-pill .pill-full {
+  display: inline !important;
+  white-space: normal !important;
+  word-break: break-word !important;
+}
+
+/* Deleted Page Mention Pill Styling (Muted Gray, Strikethrough, No Hover Action, Cursor Not Allowed) */
+.page-mention-pill.deleted-mention-pill,
+.deleted-mention-pill,
+[data-deleted="true"] {
+  background-color: #e4e4e7 !important;
+  color: #71717a !important;
+  border-color: #d4d4d8 !important;
+  text-decoration: line-through !important;
+  cursor: not-allowed !important;
+  filter: none !important;
+  transform: none !important;
+  box-shadow: none !important;
+  pointer-events: none !important;
+}
+
+.page-mention-pill.deleted-mention-pill:hover,
+.group:hover .page-mention-pill.deleted-mention-pill,
+.page-mention-pill[data-deleted="true"]:hover,
+.group:hover .page-mention-pill[data-deleted="true"] {
+  filter: none !important;
+  transform: none !important;
+  background-color: #e4e4e7 !important;
+  color: #71717a !important;
+  cursor: not-allowed !important;
+}
+
+.page-mention-pill.deleted-mention-pill .pill-full,
+.page-mention-pill.deleted-mention-pill:hover .pill-full,
+.page-mention-pill[data-deleted="true"] .pill-full,
+.page-mention-pill[data-deleted="true"]:hover .pill-full {
+  display: none !important;
+}
+
+.page-mention-pill.deleted-mention-pill .pill-short,
+.page-mention-pill.deleted-mention-pill:hover .pill-short,
+.page-mention-pill[data-deleted="true"] .pill-short,
+.page-mention-pill[data-deleted="true"]:hover .pill-short {
+  display: inline !important;
+  text-decoration: line-through !important;
+}
