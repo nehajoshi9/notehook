@@ -325,4 +325,52 @@ describe('AI Scribe Architecture & Prefix Caching Tests', () => {
     assert.equal(matchAuth.length, 1);
     assert.equal(matchAuth[0].id, 'p-auth');
   });
+
+  it('9. Deduplicates message pages (e.g. m3) already in active history buffer, but injects older messages outside buffer', async () => {
+    // Create 16 message turns: m1 is old (dropped from 15-turn window), m2..m16 are active
+    const messages: Page[] = [];
+    for (let i = 1; i <= 16; i++) {
+      messages.push({
+        id: `msg-${i}`,
+        short_id: `m${i}`,
+        type: 'message',
+        role: 'assistant',
+        title: `Topic ${i}`,
+        user_prompt: `User question ${i}`,
+        content: `Answer body for turn ${i}`,
+        created_at: new Date(Date.UTC(2026, 8, 20, 10, i, 0)).toISOString(),
+      });
+    }
+
+    // 1. Mentioning @m3 (which is inside the 15-turn active verbatim buffer)
+    const resultRecent = await generateScribeResponse(
+      'What did you say in [@m3]?',
+      [],
+      dummySettings,
+      undefined,
+      [],
+      messages,
+      []
+    );
+    // Since m3 is already present verbatim in active history, it must NOT be duplicate-injected into Tier 4
+    assert.equal(
+      resultRecent.injectedContext,
+      undefined,
+      'Recent message m3 must not be re-injected since it is already in verbatim history'
+    );
+
+    // 2. Mentioning @m1 (which is turn 1, outside the 15-turn buffer)
+    const resultOld = await generateScribeResponse(
+      'What did you say in [@m1]?',
+      [],
+      dummySettings,
+      undefined,
+      [],
+      messages,
+      []
+    );
+    // Since m1 fell out of the 15-turn window, it MUST be injected into Tier 4 on-demand
+    assert.ok(resultOld.injectedContext, 'Old message m1 outside history buffer must be injected on-demand');
+    assert.match(resultOld.injectedContext, /Answer body for turn 1/);
+  });
 });

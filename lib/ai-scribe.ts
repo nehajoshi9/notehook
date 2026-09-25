@@ -363,6 +363,11 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
   // Set of page IDs that are already present verbatim in history and have NOT changed since that turn
   const alreadyVerbatimUnchangedIds = new Set<string>();
 
+  // 1. Any message turn already in the active verbatim history buffer is already present verbatim to the LLM
+  for (const turn of pastTurns) {
+    alreadyVerbatimUnchangedIds.add(turn.id);
+  }
+
   // Process past turns:
   // If an injected page in a past turn was modified after that turn, remove its stale reference block
   const processedPastTurns = pastTurns.map((turn) => {
