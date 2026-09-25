@@ -58,6 +58,9 @@ interface PlanetContextType {
   toggleTodoDone: (id: string) => void;
   toggleTodoStarred: (id: string) => void;
 
+  pinnedPageIds: string[];
+  togglePinPage: (id: string) => boolean;
+
   addManualMention: (sourceNoteId: string, targetTitleOrId: string, snippet?: string) => Mention;
   removeMention: (mentionId: string) => void;
   executeRetroactiveLinking: (pageId: string, noteIds: string[]) => number;
@@ -79,6 +82,7 @@ const STORAGE_KEYS = {
   MENTIONS: 'scribe_mentions_v6',
   AI_SETTINGS: 'scribe_ai_settings_v6',
   WORKSPACE_NAME: 'scribe_workspace_name_v6',
+  PINNED_PAGES: 'scribe_pinned_pages_v6',
 };
 
 export function generateShortId(type: Page['type'], currentPages: Page[]): string {
@@ -100,6 +104,7 @@ export function generateShortId(type: Page['type'], currentPages: Page[]): strin
 export const PlanetProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [pages, setPages] = useState<Page[]>([]);
   const [mentions, setMentions] = useState<Mention[]>([]);
+  const [pinnedPageIds, setPinnedPageIds] = useState<string[]>([]);
   const [workspaceName, setWorkspaceNameState] = useState('My Workspace');
   const [isLoaded, setIsLoaded] = useState(false);
 
@@ -168,6 +173,16 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const storedMentions = localStorage.getItem(STORAGE_KEYS.MENTIONS);
       const storedAi = localStorage.getItem(STORAGE_KEYS.AI_SETTINGS);
       const storedWorkspace = localStorage.getItem(STORAGE_KEYS.WORKSPACE_NAME);
+      const storedPinned = localStorage.getItem(STORAGE_KEYS.PINNED_PAGES);
+
+      if (storedPinned) {
+        try {
+          const parsedPinned = JSON.parse(storedPinned);
+          if (Array.isArray(parsedPinned)) setPinnedPageIds(parsedPinned);
+        } catch (e) {
+          console.error('Failed to parse pinned pages', e);
+        }
+      }
 
       if (storedWorkspace) {
         setWorkspaceNameState(sanitizeWorkspaceName(storedWorkspace));
@@ -258,7 +273,8 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     localStorage.setItem(STORAGE_KEYS.MENTIONS, JSON.stringify(mentions));
     localStorage.setItem(STORAGE_KEYS.AI_SETTINGS, JSON.stringify(aiSettings));
     localStorage.setItem(STORAGE_KEYS.WORKSPACE_NAME, workspaceName);
-  }, [pages, mentions, aiSettings, workspaceName, isLoaded]);
+    localStorage.setItem(STORAGE_KEYS.PINNED_PAGES, JSON.stringify(pinnedPageIds));
+  }, [pages, mentions, aiSettings, workspaceName, pinnedPageIds, isLoaded]);
 
   // Derived filtered page lists
   const messages = pages.filter((p) => p.type === 'message');
@@ -722,6 +738,25 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setPages((prev) => prev.map((p) => (p.id === id ? { ...p, starred: !p.starred } : p)));
   };
 
+  const togglePinPage = (id: string): boolean => {
+    const page = pages.find((p) => p.id === id);
+    if (!page || (page.type !== 'entity' && page.type !== 'decision' && page.type !== 'note')) {
+      return false;
+    }
+
+    if (pinnedPageIds.includes(id)) {
+      setPinnedPageIds((prev) => prev.filter((pid) => pid !== id));
+      return false;
+    } else {
+      if (pinnedPageIds.length >= 3) {
+        // Enforce maximum of 3 pinned knowledge pages
+        return false;
+      }
+      setPinnedPageIds((prev) => [...prev, id]);
+      return true;
+    }
+  };
+
   const addManualMention = (sourceNoteId: string, targetTitleOrId: string, snippet?: string): Mention => {
     let targetPage = pages.find(
       (p) =>
@@ -804,7 +839,8 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           setAiStreamingText((prev) => prev + chunk);
         },
         mentions,
-        pages
+        pages,
+        pinnedPageIds
       );
 
       // Create single Turn Message Page containing both prompt & response content
@@ -916,6 +952,8 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         deleteEntityVersion,
         toggleTodoDone,
         toggleTodoStarred,
+        pinnedPageIds,
+        togglePinPage,
         addManualMention,
         removeMention,
         executeRetroactiveLinking,

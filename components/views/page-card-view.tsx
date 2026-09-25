@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { usePlanet } from '@/lib/context';
 import { EntityVersion } from '@/lib/types';
-import { Tag, CheckSquare, Square, Zap, ArrowLeft, FileText, MessageSquare, Star, Bookmark, Trash2, Search, ChevronUp, ChevronDown, X, Check } from 'lucide-react';
+import { Tag, CheckSquare, Square, Zap, ArrowLeft, FileText, MessageSquare, Star, Bookmark, Trash2, Search, ChevronUp, ChevronDown, X, Check, Pin } from 'lucide-react';
 import { convertScribeTextToHtml, findPageForPill, isCursorInsideReference, getCaretOffsetFromPoint, normalizeRawContentToCanonicalBrackets, scrollToMentionOrElement, selectMarkdownBlock, clearMarkdownBlockSelection, syncMultiBlockSelection, handleGutterRangeClick, handleGutterMouseDown, clearAllGutterSelections, htmlToMarkdown, parseScribeMarkup } from '@/lib/scribe-parser';
 import { getPastelColorForTitle } from '@/lib/color';
 import { getMentionSnippetsForPage, MentionHighlightedText, matchesExplicitReference } from '@/lib/mentions';
@@ -248,6 +248,8 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
     createNotePage,
     createTodoPage,
     createDecisionPage,
+    pinnedPageIds,
+    togglePinPage,
   } = usePlanet();
 
   const targetPage = pages.find((p) => p.id === pageId || p.title.toLowerCase() === pageId.toLowerCase());
@@ -1190,6 +1192,28 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
           </div>
 
           <div className="flex items-center gap-2">
+            {(targetPage.type === 'entity' || targetPage.type === 'decision' || targetPage.type === 'note') && (
+              <button
+                type="button"
+                onClick={() => {
+                  const wasPinned = pinnedPageIds.includes(targetPage.id);
+                  const ok = togglePinPage(targetPage.id);
+                  if (!ok && !wasPinned) {
+                    alert('You can pin a maximum of 3 knowledge pages for AI session prefix caching.');
+                  }
+                }}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border transition-all shadow-2xs cursor-pointer select-none ${
+                  pinnedPageIds.includes(targetPage.id)
+                    ? 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100'
+                    : 'bg-white text-zinc-600 border-zinc-200 hover:border-zinc-300 hover:text-zinc-950 hover:bg-zinc-50'
+                }`}
+                title={pinnedPageIds.includes(targetPage.id) ? 'Pinned to AI context (click to unpin)' : 'Pin to AI context (max 3)'}
+              >
+                <Pin className={`w-3 h-3 ${pinnedPageIds.includes(targetPage.id) ? 'fill-amber-600 text-amber-700' : 'text-zinc-400'}`} />
+                <span>{pinnedPageIds.includes(targetPage.id) ? 'Pinned' : 'Pin to AI'}</span>
+              </button>
+            )}
+
             {targetPage.type === 'message' && (
               <button
                 type="button"

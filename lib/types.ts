@@ -31,6 +31,7 @@ export interface Page {
   versions?: EntityVersion[];
   canonical_version_id?: string;
   current_version_num?: number;
+  pinned?: boolean; // Pinned to AI context for prefix caching (max 3 knowledge pages)
 }
 
 // Unified Mention Model (Sentence/excerpt level granularity)

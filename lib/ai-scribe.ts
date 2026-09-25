@@ -92,20 +92,87 @@ export function buildReferencedContextSystemPromptSection(referencedPages: Page[
   return `\n\n=== REFERENCED CONTEXT FOR THIS TURN ===\nThe user's prompt in this turn explicitly references the following workspace page(s). Use this injected context to inform your answer:\n\n${blocks.join('\n\n')}\n=== END REFERENCED CONTEXT ===`;
 }
 
+export function buildPinnedKnowledgeSection(allPages: Page[], pinnedPageIds: string[] = []): string {
+  if (!pinnedPageIds || pinnedPageIds.length === 0) return '';
+
+  const pinnedPages = allPages
+    .filter((p) => pinnedPageIds.includes(p.id) && (p.type === 'entity' || p.type === 'decision' || p.type === 'note'))
+    .sort((a, b) => (a.short_id || a.title).localeCompare(b.short_id || b.title));
+
+  if (pinnedPages.length === 0) return '';
+
+  const blocks = pinnedPages.map((page) => {
+    let pageContent = (page.content || '').trim();
+    if (page.type === 'entity' && page.versions && page.versions.length > 0) {
+      const canonicalVersion = page.versions.find(
+        (v) => v.id === page.canonical_version_id || v.is_canonical
+      );
+      const activeVersion = canonicalVersion || page.versions[page.versions.length - 1];
+      if (activeVersion && activeVersion.content) {
+        pageContent = `${pageContent}\n\n[Active Version "${activeVersion.title}"]: ${activeVersion.content.trim()}`;
+      }
+    }
+    const shortIdStr = page.short_id ? ` [@${page.short_id}]` : '';
+    return `### PINNED ${page.type.toUpperCase()}: [@${page.title}]${shortIdStr}\nContent:\n${pageContent}`;
+  });
+
+  return `\n\n=== PINNED SESSION KNOWLEDGE (GROUND TRUTH ANCHORS) ===\nThe architect has pinned the following high-priority page(s) for this working session. Treat these as active system constraints:\n\n${blocks.join('\n\n')}\n=== END PINNED SESSION KNOWLEDGE ===`;
+}
+
+export function buildKnowledgeCatalogueSection(allPages: Page[], pinnedPageIds: string[] = []): string {
+  const knowledgePages = allPages
+    .filter((p) => (p.type === 'entity' || p.type === 'decision' || p.type === 'note') && !pinnedPageIds.includes(p.id))
+    .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+    .slice(0, 25)
+    .sort((a, b) => (a.short_id || a.title).localeCompare(b.short_id || b.title));
+
+  if (knowledgePages.length === 0) return '';
+
+  const lines = knowledgePages.map((p) => {
+    const shortId = p.short_id ? `[@${p.short_id}] ` : '';
+    const cleanTitle = p.title.replace(/^@/, '').trim();
+    let snippet = (p.content || '').replace(/\s+/g, ' ').trim();
+    if (snippet.length > 100) snippet = snippet.slice(0, 97) + '...';
+    return `- ${shortId}[@${cleanTitle}] (${p.type}): ${snippet || 'Architectural page'}`;
+  });
+
+  return `\n\n=== WORKSPACE KNOWLEDGE CATALOGUE (TOP 25) ===\nThe workspace contains the following knowledge pages. If relevant, you may reference them by [@title] or short ID:\n${lines.join('\n')}\n=== END WORKSPACE CATALOGUE ===`;
+}
+
+export function buildDynamicReferencedSection(referencedPages: Page[]): string {
+  if (!referencedPages || referencedPages.length === 0) return '';
+
+  const sorted = [...referencedPages].sort((a, b) => (a.short_id || a.title).localeCompare(b.short_id || b.title));
+
+  const blocks = sorted.map((page) => {
+    let pageContent = (page.content || '').trim();
+    if (page.type === 'entity' && page.versions && page.versions.length > 0) {
+      const canonicalVersion = page.versions.find(
+        (v) => v.id === page.canonical_version_id || v.is_canonical
+      );
+      const activeVersion = canonicalVersion || page.versions[page.versions.length - 1];
+      if (activeVersion && activeVersion.content) {
+        pageContent = `${pageContent}\n\n[Active Version "${activeVersion.title}"]: ${activeVersion.content.trim()}`;
+      }
+    }
+    const shortIdStr = page.short_id ? ` (ID: ${page.short_id})` : '';
+    const userPromptMeta = page.user_prompt ? `\nUser Prompt Framing: "${page.user_prompt}"` : '';
+    return `--- REFERENCED PAGE: [@${page.title}]${shortIdStr} [type: ${page.type}] ---${userPromptMeta}\nContent:\n${pageContent}`;
+  });
+
+  return `=== REFERENCED CONTEXT FOR THIS TURN ===\n${blocks.join('\n\n')}\n=== END REFERENCED CONTEXT ===`;
+}
+
 export async function generateScribeResponse(
   userPrompt: string,
   existingEntities: Page[],
   aiSettings: AISettings,
   onChunk?: (chunk: string) => void,
   mentions: Mention[] = [],
-  allPages: Page[] = []
+  allPages: Page[] = [],
+  pinnedPageIds: string[] = []
 ): Promise<{ text: string; parsedItems: ReturnType<typeof parseScribeMarkup> }> {
-  const top25Titles = getTopRecentEntityTitles(existingEntities, mentions);
-  const entityListStr = top25Titles.map((t) => `[@${t}]`).join(', ');
-
-  const referencedPages = getReferencedPagesFromPrompt(userPrompt, allPages.length > 0 ? allPages : existingEntities);
-  const referencedContextSection = buildReferencedContextSystemPromptSection(referencedPages);
-
+  // TIER 1: Invariant System Contract (100% frozen)
   const baseSystemPrompt = `Role: Engineering intelligence engine for Notehook, a Git-backed architectural workspace. Human reviews and commits all state.
 
 CRITICAL TAGGING CONTRACT (STRICTLY CONSERVATIVE):
@@ -143,16 +210,28 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
   - [@decision: Cap PostgreSQL max connection pool at 20]
   - [@todo: Update DATABASE_POOL_MAX in environment variables]"`;
 
-  const systemPrompt = `${baseSystemPrompt}${referencedContextSection}`;
+  // TIER 2: Pinned Knowledge Session Anchors (Session-wide cacheable)
+  const pinnedSection = buildPinnedKnowledgeSection(allPages, pinnedPageIds);
 
-  // Sliding window of the last 6 to 8 conversation turns from previous message pages
-  const MAX_HISTORY_TURNS = 8;
+  // TIER 3: Top 25 Knowledge Catalogue (Deterministically sorted, cacheable)
+  const catalogueSection = buildKnowledgeCatalogueSection(allPages, pinnedPageIds);
+
+  // CACHED SYSTEM PREFIX: Tier 1 + Tier 2 + Tier 3 (Evaluated at request head, 100% stable)
+  const cachedSystemPrompt = `${baseSystemPrompt}${pinnedSection}${catalogueSection}`;
+
+  // TIER 4: Dynamic Turn References (exclude any already pinned in Tier 2)
+  const allReferenced = getReferencedPagesFromPrompt(userPrompt, allPages.length > 0 ? allPages : existingEntities);
+  const dynamicReferenced = allReferenced.filter((p) => !pinnedPageIds.includes(p.id));
+  const dynamicRefSection = buildDynamicReferencedSection(dynamicReferenced);
+
+  // TIER 5: Verbatim Conversation History (Last 15 completed turns)
+  const MAX_VERBATIM_TURNS = 15;
   const pastTurns = allPages
     .filter((p) => p.type === 'message' && p.user_prompt?.trim() && p.content?.trim())
     .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
-    .slice(-MAX_HISTORY_TURNS);
+    .slice(-MAX_VERBATIM_TURNS);
 
-  // Gemini contents (alternating user and model roles, concluding with current userPrompt)
+  // Gemini contents: Alternating user/model history concluding with current prompt + dynamic references
   const geminiContents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> = [];
   for (const turn of pastTurns) {
     geminiContents.push({
@@ -164,14 +243,20 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
       parts: [{ text: turn.content.trim() }],
     });
   }
+
+  // TIER 6: Current User Turn
+  const finalTurnText = dynamicRefSection
+    ? `${dynamicRefSection}\n\n${userPrompt.trim()}`
+    : userPrompt.trim();
+
   geminiContents.push({
     role: 'user',
-    parts: [{ text: userPrompt.trim() }],
+    parts: [{ text: finalTurnText }],
   });
 
-  // OpenAI messages (system prompt, alternating past turns, concluding with current userPrompt)
+  // OpenAI messages: System prompt with Tier 1+2+3, history, and current turn
   const openAiMessages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
-    { role: 'system', content: systemPrompt },
+    { role: 'system', content: cachedSystemPrompt },
   ];
   for (const turn of pastTurns) {
     openAiMessages.push({
@@ -185,7 +270,7 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
   }
   openAiMessages.push({
     role: 'user',
-    content: userPrompt.trim(),
+    content: finalTurnText,
   });
 
   const apiKey = aiSettings.apiKey || process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
@@ -213,7 +298,7 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              system_instruction: { parts: [{ text: systemPrompt }] },
+              system_instruction: { parts: [{ text: cachedSystemPrompt }] },
               contents: geminiContents,
             }),
           }
@@ -260,7 +345,7 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              system_instruction: { parts: [{ text: systemPrompt }] },
+              system_instruction: { parts: [{ text: cachedSystemPrompt }] },
               contents: geminiContents,
             }),
           }

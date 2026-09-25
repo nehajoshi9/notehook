@@ -2,16 +2,17 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { usePlanet, generateShortId } from '@/lib/context';
-import { Send, Loader2, Tag, CheckSquare, Zap, Plus, FileText } from 'lucide-react';
+import { Send, Loader2, Tag, CheckSquare, Zap, Plus, FileText, Pin } from 'lucide-react';
 import { getRankedSuggestions, SuggestionItem } from '@/lib/ranking';
 import { isCursorInsideReference, parseScribeMarkup, normalizeRawContentToCanonicalBrackets, htmlToMarkdown } from '@/lib/scribe-parser';
 import { SuggestionList } from './suggestion-list';
 
 export const AIChatInput: React.FC = () => {
-  const { submitUserTurn, isAiGenerating, aiStreamingText, pages, rightPane, createEntityPage, createNotePage, createTodoPage, createDecisionPage } = usePlanet();
+  const { submitUserTurn, isAiGenerating, aiStreamingText, pages, rightPane, createEntityPage, createNotePage, createTodoPage, createDecisionPage, pinnedPageIds, togglePinPage } = usePlanet();
   const isDualPane = rightPane.type !== 'empty';
 
   const upcomingShortId = generateShortId('message', pages);
+  const pinnedPages = pages.filter((p) => pinnedPageIds.includes(p.id));
 
   const [prompt, setPrompt] = useState('');
   const [cursorPos, setCursorPos] = useState(0);
@@ -272,16 +273,42 @@ export const AIChatInput: React.FC = () => {
 
   return (
     <div className={`p-3 md:p-4 bg-white border-t border-zinc-200 flex flex-col items-center select-none shrink-0 relative ${isDualPane ? 'pl-9 md:pl-12' : ''}`}>
-      <div className="w-full max-w-3xl flex items-end gap-2.5 relative">
-        {/* Display-only upcoming message ID chip placed outside to the left of the text box */}
-        <div className="shrink-0 self-start mt-2 select-none pointer-events-none" title="Upcoming message ID">
-          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-mono font-medium bg-zinc-100/90 text-zinc-500 border border-zinc-200/90 shadow-2xs select-none">
-            [@{upcomingShortId}]
-          </span>
-        </div>
+      <div className="w-full max-w-3xl flex flex-col gap-1.5 relative">
+        {pinnedPages.length > 0 && (
+          <div className="flex items-center gap-1.5 px-1 text-[11px] text-zinc-500 overflow-x-auto select-none">
+            <span className="inline-flex items-center gap-1 font-semibold text-amber-900 bg-amber-50/90 px-2 py-0.5 rounded-full border border-amber-200/90 text-[10px]">
+              <Pin className="w-2.5 h-2.5 fill-amber-600 text-amber-600" />
+              Pinned Context ({pinnedPages.length}/3)
+            </span>
+            {pinnedPages.map((p) => (
+              <span
+                key={p.id}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-mono text-[10px] bg-zinc-100 text-zinc-700 border border-zinc-200/90 shadow-2xs"
+              >
+                <span>[@{p.short_id || p.title}]</span>
+                <button
+                  type="button"
+                  onClick={() => togglePinPage(p.id)}
+                  className="hover:text-red-600 text-zinc-400 font-bold ml-0.5 cursor-pointer"
+                  title={`Unpin [@${p.short_id || p.title}]`}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
 
-        {/* Clean Standard Chat Input Bar */}
-        <form id="chat-input-form" data-chat-input="true" onSubmit={handleSubmit} className="flex-1 relative flex items-end bg-white border border-zinc-300 focus-within:border-zinc-900 rounded-2xl px-4 py-2 shadow-2xs transition-all">
+        <div className="w-full flex items-end gap-2.5 relative">
+          {/* Display-only upcoming message ID chip placed outside to the left of the text box */}
+          <div className="shrink-0 self-start mt-2 select-none pointer-events-none" title="Upcoming message ID">
+            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-mono font-medium bg-zinc-100/90 text-zinc-500 border border-zinc-200/90 shadow-2xs select-none">
+              [@{upcomingShortId}]
+            </span>
+          </div>
+
+          {/* Clean Standard Chat Input Bar */}
+          <form id="chat-input-form" data-chat-input="true" onSubmit={handleSubmit} className="flex-1 relative flex items-end bg-white border border-zinc-300 focus-within:border-zinc-900 rounded-2xl px-4 py-2 shadow-2xs transition-all">
           {/* @ Trigger Autocomplete Suggestion Popover */}
           {isTypingAt && suggestions.length > 0 && (
             <div
@@ -328,5 +355,6 @@ export const AIChatInput: React.FC = () => {
         </form>
       </div>
     </div>
-  );
+  </div>
+);
 };
