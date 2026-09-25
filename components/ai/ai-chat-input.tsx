@@ -272,9 +272,16 @@ export const AIChatInput: React.FC = () => {
 
   return (
     <div className={`p-3 md:p-4 bg-white border-t border-zinc-200 flex flex-col items-center select-none shrink-0 relative ${isDualPane ? 'pl-9 md:pl-12' : ''}`}>
-      <div className="w-full max-w-3xl flex flex-col gap-2 relative">
+      <div className="w-full max-w-3xl flex items-end gap-2.5 relative">
+        {/* Display-only upcoming message ID chip placed outside to the left of the text box */}
+        <div className="shrink-0 self-start mt-2 select-none pointer-events-none" title="Upcoming message ID">
+          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-mono font-medium bg-zinc-100/90 text-zinc-500 border border-zinc-200/90 shadow-2xs select-none">
+            [@{upcomingShortId}]
+          </span>
+        </div>
+
         {/* Clean Standard Chat Input Bar */}
-        <form id="chat-input-form" data-chat-input="true" onSubmit={handleSubmit} className="relative flex items-end bg-white border border-zinc-300 focus-within:border-zinc-900 rounded-2xl px-4 py-2 shadow-2xs transition-all">
+        <form id="chat-input-form" data-chat-input="true" onSubmit={handleSubmit} className="flex-1 relative flex items-end bg-white border border-zinc-300 focus-within:border-zinc-900 rounded-2xl px-4 py-2 shadow-2xs transition-all">
           {/* @ Trigger Autocomplete Suggestion Popover */}
           {isTypingAt && suggestions.length > 0 && (
             <div
@@ -289,14 +296,7 @@ export const AIChatInput: React.FC = () => {
             </div>
           )}
 
-          <div className="flex items-end w-full relative min-h-[28px] gap-2">
-            {/* Display-only upcoming message ID chip */}
-            <div className="shrink-0 self-start mt-1 select-none pointer-events-none" title="Upcoming message ID">
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-mono font-medium bg-zinc-100/90 text-zinc-500 border border-zinc-200/90 shadow-2xs select-none">
-                [@{upcomingShortId}]
-              </span>
-            </div>
-
+          <div className="flex items-end w-full relative min-h-[28px]">
             <textarea
               ref={inputRef}
               rows={1}
