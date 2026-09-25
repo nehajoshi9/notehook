@@ -260,7 +260,18 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
         const page = allPages.find((p) => p.id === refId);
         if (!page) continue;
 
-        const pageUpdatedTime = new Date(page.updated_at || page.created_at).getTime();
+        let latestVersionTime = 0;
+        if (page.versions && page.versions.length > 0) {
+          for (const v of page.versions) {
+            const vTime = new Date(v.updated_at || v.created_at).getTime();
+            if (vTime > latestVersionTime) latestVersionTime = vTime;
+          }
+        }
+
+        const pageUpdatedTime = Math.max(
+          new Date(page.updated_at || page.created_at).getTime(),
+          latestVersionTime
+        );
         const hasChanged = pageUpdatedTime > turnTime;
 
         if (hasChanged) {
