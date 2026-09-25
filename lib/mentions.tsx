@@ -2,14 +2,28 @@ import React from 'react';
 import { Page } from './types';
 import { convertScribeTextToHtml } from './scribe-parser';
 
-export function matchesExplicitReference(text: string, targetTitle: string): boolean {
-  if (!text || !targetTitle) return false;
-  const cleanTarget = targetTitle.replace(/^@/, '').trim();
-  if (!cleanTarget) return false;
+export function matchesExplicitReference(text: string, targetTitle: string, targetShortId?: string): boolean {
+  if (!text) return false;
 
-  const escaped = cleanTarget.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
-  const regex = new RegExp(`\\[@(todo:|decision:|note:)?\\s*${escaped}\\s*\\]`, 'i');
-  return regex.test(text);
+  if (targetTitle) {
+    const cleanTarget = targetTitle.replace(/^@/, '').trim();
+    if (cleanTarget) {
+      const escaped = cleanTarget.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+      const regex = new RegExp(`\\[@(todo:|decision:|note:|message:)?\\s*${escaped}\\s*\\]`, 'i');
+      if (regex.test(text)) return true;
+    }
+  }
+
+  if (targetShortId) {
+    const cleanShort = targetShortId.trim();
+    if (cleanShort) {
+      const escapedShort = cleanShort.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+      const shortRegex = new RegExp(`\\[@${escapedShort}\\]`, 'i');
+      if (shortRegex.test(text)) return true;
+    }
+  }
+
+  return false;
 }
 
 interface ScribeToken {
@@ -20,7 +34,7 @@ interface ScribeToken {
 
 export function tokenizeScribeText(text: string): ScribeToken[] {
   const tokens: ScribeToken[] = [];
-  const tagRegex = /\[@(todo:|decision:|note:)?\s*([^\]]+)\]/gi;
+  const tagRegex = /\[@(todo:|decision:|note:|message:)?\s*([^\]]+)\]/gi;
 
   let lastIndex = 0;
   let match: RegExpExecArray | null;
@@ -67,10 +81,11 @@ export function tokenizeScribeText(text: string): ScribeToken[] {
   return tokens;
 }
 
-export function getMentionSnippetsForPage(page: Page, targetTitle: string): string[] {
-  if (!targetTitle) return [];
-  const cleanTarget = targetTitle.replace(/^@/, '').trim();
-  if (!cleanTarget) return [];
+export function getMentionSnippetsForPage(page: Page, targetTitle: string, targetShortId?: string): string[] {
+  if (!targetTitle && !targetShortId) return [];
+
+  const cleanTarget = (targetTitle || '').replace(/^@/, '').trim();
+  const cleanShortId = (targetShortId || '').trim();
 
   const textToSearch = `${page.user_prompt || ''} ${page.content || ''}`.trim();
   if (!textToSearch) return [];
@@ -78,13 +93,19 @@ export function getMentionSnippetsForPage(page: Page, targetTitle: string): stri
   const tokens = tokenizeScribeText(textToSearch);
   if (tokens.length === 0) return [];
 
-  const escaped = cleanTarget.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
-  const targetRegex = new RegExp(`\\[@(todo:|decision:|note:)?\\s*${escaped}\\s*\\]`, 'i');
-
   const matchIndices: number[] = [];
+
+  const escapedTitle = cleanTarget ? cleanTarget.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&') : null;
+  const titleRegex = escapedTitle ? new RegExp(`\\[@(todo:|decision:|note:|message:)?\\s*${escapedTitle}\\s*\\]`, 'i') : null;
+
+  const escapedShort = cleanShortId ? cleanShortId.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&') : null;
+  const shortRegex = escapedShort ? new RegExp(`\\[@${escapedShort}\\]`, 'i') : null;
+
   tokens.forEach((tok, idx) => {
-    if (tok.isPill && targetRegex.test(tok.text)) {
-      matchIndices.push(idx);
+    if (tok.isPill) {
+      if ((titleRegex && titleRegex.test(tok.text)) || (shortRegex && shortRegex.test(tok.text))) {
+        matchIndices.push(idx);
+      }
     }
   });
 

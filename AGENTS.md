@@ -1,7 +1,7 @@
 # AGENTS.md — Notehook Spec & Guidelines
 
 ## 1. Project Overview & Philosophy
-Notehook (formerly Planet Scribe) is a lightweight navigation and dual-pane knowledge layer over long AI-assisted conversations. Important decisions and action items are surfaced automatically, entity specs are human-curated and versioned, and sacred notes are kept isolated from AI modifications — all within a clean, unbroken chat experience.
+Notehook is a lightweight navigation and dual-pane knowledge layer over long AI-assisted conversations. Important decisions and action items are surfaced automatically, entity specs are human-curated and versioned, and sacred notes are kept isolated from AI modifications — all within a clean, unbroken chat experience.
 
 - **Core Goal**: Allow users to return to a long conversation and find specific decisions, tasks, entities, or sacred notes faster than scrolling or Ctrl+F.
 - **Scope**: Dual-pane workspace (Chat Feed in Pane 1; Detail cards, Todo board, Entity specs, Decision logs, and Sacred Notes in Pane 2).
@@ -25,7 +25,7 @@ All raw text representations maintain canonical bracket syntax:
 - `[@todo: Task Description]`
 - `[@decision: Architectural Decision]`
 - `[@note: Note Title]`
-- `[@Message Title]`
+- `[@message: Message Title]`
 
 ### Rendering by Type & Pill Colors
 - `message` (conversation page turn): rendered with `#e0f2fe` (Pastel Blue) pill color, icon `📄`.

@@ -42,58 +42,54 @@ export function compareAutocompleteOptions(
 
 /**
  * Deterministic Ranking Engine for Unified Pages:
- * Explicit @ trigger -> can suggest primitives & creating new pages.
- * Implicit 3-char trigger -> ONLY suggests existing known pages/entities.
+ * Ranks primitives & existing pages when typing @ or selecting text.
  */
 export function getRankedSuggestions(
   query: string,
   pages: Page[],
-  currentPage: Page | null,
-  isExplicitAtTrigger: boolean = false
+  _currentPage: Page | null = null
 ): SuggestionItem[] {
   const cleanQuery = query.toLowerCase().trim().replace(/^@/, '');
   const suggestions: SuggestionItem[] = [];
 
-  // Primitive creation shortcuts (only on explicit @ trigger or typing todo/decision/note)
-  if (isExplicitAtTrigger || cleanQuery.startsWith('todo') || cleanQuery.startsWith('decision') || cleanQuery.startsWith('note')) {
-    if (!cleanQuery || 'todo'.startsWith(cleanQuery)) {
-      suggestions.push({
-        id: 'primitive-todo',
-        title: '@todo',
-        type: 'primitive',
-        primitiveType: 'todo',
-        itemType: 'todo',
-        description: 'Insert inline task item',
-        score: 400,
-        scopeLabel: 'Task',
-      });
-    }
+  // Primitive creation shortcuts
+  if (!cleanQuery || 'todo'.startsWith(cleanQuery)) {
+    suggestions.push({
+      id: 'primitive-todo',
+      title: '@todo',
+      type: 'primitive',
+      primitiveType: 'todo',
+      itemType: 'todo',
+      description: 'Insert inline task item',
+      score: 400,
+      scopeLabel: 'Task',
+    });
+  }
 
-    if (!cleanQuery || 'decision'.startsWith(cleanQuery)) {
-      suggestions.push({
-        id: 'primitive-decision',
-        title: '@decision',
-        type: 'primitive',
-        primitiveType: 'decision',
-        itemType: 'decision',
-        description: 'Insert decision badge',
-        score: 390,
-        scopeLabel: 'Decision',
-      });
-    }
+  if (!cleanQuery || 'decision'.startsWith(cleanQuery)) {
+    suggestions.push({
+      id: 'primitive-decision',
+      title: '@decision',
+      type: 'primitive',
+      primitiveType: 'decision',
+      itemType: 'decision',
+      description: 'Insert decision badge',
+      score: 390,
+      scopeLabel: 'Decision',
+    });
+  }
 
-    if (!cleanQuery || 'note'.startsWith(cleanQuery)) {
-      suggestions.push({
-        id: 'primitive-note',
-        title: '@note',
-        type: 'primitive',
-        primitiveType: 'note' as any,
-        itemType: 'note',
-        description: 'Insert user note',
-        score: 385,
-        scopeLabel: 'Note',
-      });
-    }
+  if (!cleanQuery || 'note'.startsWith(cleanQuery)) {
+    suggestions.push({
+      id: 'primitive-note',
+      title: '@note',
+      type: 'primitive',
+      primitiveType: 'note' as any,
+      itemType: 'note',
+      description: 'Insert user note',
+      score: 385,
+      scopeLabel: 'Note',
+    });
   }
 
   // Match known pages by Page sub-type (Entity vs Note vs Message vs Todo vs Decision)
@@ -146,11 +142,10 @@ export function getRankedSuggestions(
     return compareAutocompleteOptions(a.title, b.title, cleanQuery);
   });
 
-  // 3. Create items when typing a non-existent page/todo/decision/note name
-  if (isExplicitAtTrigger && cleanQuery) {
+  // Create items when typing a non-existent page/todo/decision name
+  if (cleanQuery) {
     const isTodoQuery = cleanQuery.startsWith('todo:') || cleanQuery.startsWith('todo ');
     const isDecisionQuery = cleanQuery.startsWith('decision:') || cleanQuery.startsWith('decision ');
-    const isNoteQuery = cleanQuery.startsWith('note:') || cleanQuery.startsWith('note ');
 
     if (isTodoQuery) {
       const taskTitle = query.replace(/^[\[@]*todo:?\s*/i, '').trim();
@@ -178,20 +173,6 @@ export function getRankedSuggestions(
           description: `Create new decision "${decisionTitle}"`,
           score: 450,
           scopeLabel: 'New Decision',
-        });
-      }
-    } else if (isNoteQuery) {
-      const noteTitle = query.replace(/^[\[@]*note:?\s*/i, '').trim();
-      if (noteTitle) {
-        suggestions.unshift({
-          id: `create-note-${normalizeAutocompleteKey(noteTitle)}`,
-          title: formatCanonicalRawTag('note', noteTitle),
-          type: 'page',
-          itemType: 'note',
-          primitiveType: 'note' as any,
-          description: `Create new note "${noteTitle}"`,
-          score: 450,
-          scopeLabel: 'New Note',
         });
       }
     } else if (cleanQuery !== 'todo' && cleanQuery !== 'decision' && cleanQuery !== 'note') {
@@ -225,16 +206,6 @@ export function getRankedSuggestions(
           description: `Create new decision "${formattedTitle}"`,
           score: 330,
           scopeLabel: 'New Decision',
-        });
-        suggestions.push({
-          id: `create-note-${normalizeAutocompleteKey(formattedTitle)}`,
-          title: formatCanonicalRawTag('note', formattedTitle),
-          type: 'page',
-          itemType: 'note',
-          primitiveType: 'note' as any,
-          description: `Create new note "${formattedTitle}"`,
-          score: 320,
-          scopeLabel: 'New Note',
         });
       }
     }

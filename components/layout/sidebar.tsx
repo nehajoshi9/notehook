@@ -37,25 +37,10 @@ function cleanTextForSearch(text: string, pages?: any[]): string {
   // 1. Remove code blocks
   clean = clean.replace(/```[\s\S]*?```/g, ' ').replace(/`[^`]+`/g, ' ');
 
-  // 2. Remove explicit dead tags [dead@...]
-  clean = clean.replace(/\[dead@(?:(todo|decision|note|message):)?\s*([^\]]+)\]/gi, '');
-
-  // 3. Process living and implicit dead tags [@todo: ...] / [@...]
-  clean = clean.replace(/\[@(todo|decision|note|message):\s*([^\]]+)\]/gi, (match, tagType, tagTitle) => {
-    const full = tagTitle.trim();
-    if (pages && !isPageExistsInStore(tagType, full, pages)) {
-      return ''; // Strip dead link!
-    }
-    return full;
-  });
-
-  clean = clean.replace(/\[@(?!(?:todo|decision|note|message):)([^\]]+)\]/gi, (match, tagTitle) => {
-    const full = tagTitle.trim();
-    if (pages && !isPageExistsInStore('entity', full, pages)) {
-      return ''; // Strip dead link!
-    }
-    return full;
-  });
+  // 2. Preserve contents of explicit legacy dead tags [dead@...] and [@...] tags for search matching
+  clean = clean.replace(/\[dead@(?:(todo|decision|note|message):)?\s*([^\]]+)\]/gi, '$2');
+  clean = clean.replace(/\[@(todo|decision|note|message):\s*([^\]]+)\]/gi, '$2');
+  clean = clean.replace(/\[@(?!(?:todo|decision|note|message):)([^\]]+)\]/gi, '$1');
 
   // Strip markdown headers & sanitize extra whitespace
   clean = clean.replace(/^#+\s+/gm, '').replace(/\s+/g, ' ').trim();
@@ -167,6 +152,7 @@ export const Sidebar: React.FC = () => {
     rightPane,
     clearAllData,
     deletePage,
+    toggleTodoDone,
     toggleTodoStarred,
     createEntityPage,
     createNotePage,
@@ -270,8 +256,8 @@ export const Sidebar: React.FC = () => {
                 <X className="h-3 w-3" />
               </button>
             ) : (
-              <span className="text-[10px] font-mono text-zinc-400 bg-white px-1.5 py-0.5 rounded border border-zinc-200/80 shrink-0 ml-1">
-                {isMac ? '⌘⇧F' : 'Ctrl+Shift+F'}
+              <span className="text-[11px] font-sans font-medium text-zinc-500 bg-white px-1.5 py-0.5 rounded border border-zinc-200/80 shrink-0 ml-1 leading-none tracking-tight select-none">
+                {isMac ? '⌘⇧F' : '^⇧F'}
               </span>
             )}
           </div>
@@ -467,11 +453,20 @@ export const Sidebar: React.FC = () => {
                       >
                         <div className="flex items-center justify-between w-full min-w-0">
                           <div className="flex items-center gap-2 truncate min-w-0 pr-1">
-                            {todo.done ? (
-                              <CheckSquare className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                            ) : (
-                              <Square className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                            )}
+                            <span
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleTodoDone(todo.id);
+                              }}
+                              className="p-0.5 rounded hover:bg-zinc-200/70 transition-colors shrink-0 cursor-pointer"
+                              title={todo.done ? 'Mark as active' : 'Mark as complete'}
+                            >
+                              {todo.done ? (
+                                <CheckSquare className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                              ) : (
+                                <Square className="h-3.5 w-3.5 text-emerald-600 hover:text-emerald-700 shrink-0" />
+                              )}
+                            </span>
                             <span className={`truncate ${todo.done ? 'line-through text-zinc-400' : ''}`}>
                               {renderHighlightedText(todo.title, searchQuery)}
                             </span>

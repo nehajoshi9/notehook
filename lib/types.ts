@@ -16,6 +16,7 @@ export interface EntityVersion {
 // Unified Page Model (Superclass of everything in the system)
 export interface Page {
   id: string;
+  short_id?: string; // Unique Page ID, e.g. "e3", "m4", "n1", "d2", "t5"
   type: PageType;
   title: string; // short title (40-50 chars max, editable)
   content: string; // full text / body

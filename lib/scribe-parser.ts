@@ -1,5 +1,12 @@
 import { Page, MentionSource } from './types';
 import { getPastelColorForTitle } from './color';
+import { Marked } from 'marked';
+import katex from 'katex';
+
+const marked = new Marked({
+  gfm: true,
+  breaks: true,
+});
 
 export interface ParsedItem {
   type: 'entity' | 'todo' | 'decision' | 'note';
@@ -100,6 +107,21 @@ export function truncateTitleWords(titleText: string, maxWords: number): string 
 }
 
 /**
+ * Untags reference tags from a text string, converting [@tag: Name] or @Name into plain text Name.
+ */
+export function untagReferences(text: string): string {
+  if (!text) return '';
+  let clean = text;
+  // 1. Untag bracket tags [@todo: task], [@decision: rule], [@note: title], [@entity]
+  clean = clean.replace(/\[@(todo|decision|note|message):\s*([^\]]+)\]/gi, '$2');
+  clean = clean.replace(/\[@([^\]]+)\]/g, '$1');
+  // 2. Untag unbracketed @tags: @todo: task, @decision: rule, @note: title, @entity
+  clean = clean.replace(/@(?:todo|decision|note|message):\s*([^\s@\[\]]+)/gi, '$1');
+  clean = clean.replace(/@([a-zA-Z0-9_\-\.]+)/g, '$1');
+  return clean.replace(/\s+/g, ' ').trim();
+}
+
+/**
  * Formats item title without truncating raw text with ellipsis
  */
 export function formatItemTitle(text: string, _maxLen?: number): string {
@@ -114,7 +136,7 @@ export function formatItemTitle(text: string, _maxLen?: number): string {
  * - Todo: [@todo: Task Description]
  * - Decision: [@decision: Architectural Decision]
  * - Note: [@note: Note Title]
- * - Message: [@Message Title]
+ * - Message: [@message: Message Title]
  */
 export function formatCanonicalRawTag(
   type: 'entity' | 'todo' | 'decision' | 'note' | 'message',
@@ -129,6 +151,7 @@ export function formatCanonicalRawTag(
     case 'note':
       return `[@note: ${cleanTitle}]`;
     case 'message':
+      return `[@message: ${cleanTitle}]`;
     case 'entity':
     default:
       return `[@${cleanTitle}]`;
@@ -165,9 +188,9 @@ export function normalizeRawContentToCanonicalBrackets(text: string, pages?: Pag
     return `[@note: ${title.trim()}]`;
   });
 
-  // 5. Unbracketed @message: title -> [@title]
+  // 5. Unbracketed @message: title -> [@message: title]
   result = result.replace(/(?<!\[)@message:\s*([^@\n\r[\]<]+)/gi, (_, title) => {
-    return `[@${title.trim()}]`;
+    return `[@message: ${title.trim()}]`;
   });
 
   // 6. Unbracketed page titles matching existing pages (entities, messages, notes, etc.)
@@ -388,6 +411,8 @@ export function convertScribeTextToHtml(
     if (!clean) return true;
 
     return pages.some((p) => {
+      const pShortId = p.short_id?.trim().toLowerCase();
+      if (pShortId === clean) return true;
       if (p.type !== type) return false;
       const pTitle = p.title.trim().toLowerCase();
       return pTitle === clean || pTitle.startsWith(clean) || clean.startsWith(pTitle);
@@ -401,8 +426,9 @@ export function convertScribeTextToHtml(
   const codeBlocks: string[] = [];
   html = html.replace(/```([\s\S]*?)```/g, (_, code) => {
     const placeholder = `%%%CODEBLOCK${codeBlocks.length}%%%`;
+    const escapedCode = code.trim().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     codeBlocks.push(
-      `<pre class="bg-zinc-900 text-zinc-100 p-3 rounded-xl text-xs font-mono my-2.5 overflow-x-auto shadow-2xs"><code>${code.trim()}</code></pre>`
+      `<pre class="bg-zinc-900 text-zinc-100 p-3 rounded-xl text-xs font-mono my-2.5 overflow-x-auto shadow-2xs"><code>${escapedCode}</code></pre>`
     );
     return placeholder;
   });
@@ -411,13 +437,42 @@ export function convertScribeTextToHtml(
   const inlineCodes: string[] = [];
   html = html.replace(/`([^`]+)`/g, (_, code) => {
     const placeholder = `%%%INLINECODE${inlineCodes.length}%%%`;
+    const escapedCode = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     inlineCodes.push(
-      `<code class="bg-zinc-100 border border-zinc-200/80 px-1.5 py-0.5 rounded text-[11px] font-mono text-zinc-900">${code}</code>`
+      `<code class="bg-zinc-100 border border-zinc-200/80 px-1.5 py-0.5 rounded text-[11px] font-mono text-zinc-900">${escapedCode}</code>`
     );
     return placeholder;
   });
 
-  // 3. Preserve Generated Reference Pills into placeholders to prevent nesting (pills inside pills / dead pills inside living pills)
+  // 3. Preserve KaTeX Math Blocks ($$ ... $$ or \[ ... \]) & Inline Math ($ ... $ or \( ... \))
+  const mathBlocks: string[] = [];
+  html = html.replace(/\$\$([\s\S]+?)\$\$|\\\[([\s\S]+?)\\\]/g, (match, math1, math2) => {
+    const text = (math1 || math2 || '').trim();
+    if (!text) return match;
+    try {
+      const rendered = katex.renderToString(text, { displayMode: true, throwOnError: false });
+      const placeholder = `%%%KATEXMATH${mathBlocks.length}%%%`;
+      mathBlocks.push(`<div class="my-3 overflow-x-auto text-center font-sans">${rendered}</div>`);
+      return placeholder;
+    } catch (e) {
+      return match;
+    }
+  });
+
+  html = html.replace(/(?<!\$)\$([^\$\n]+?)\$(?!\$)|\\\(([^\n]+?)\\\)/g, (match, math1, math2) => {
+    const text = (math1 || math2 || '').trim();
+    if (!text) return match;
+    try {
+      const rendered = katex.renderToString(text, { displayMode: false, throwOnError: false });
+      const placeholder = `%%%KATEXMATH${mathBlocks.length}%%%`;
+      mathBlocks.push(rendered);
+      return placeholder;
+    } catch (e) {
+      return match;
+    }
+  });
+
+  // 4. Preserve Generated Reference Pills into placeholders to prevent nesting
   const pills: string[] = [];
   const storePill = (pillHtml: string): string => {
     const placeholder = `%%%SCRIBEPILL${pills.length}%%%`;
@@ -427,26 +482,13 @@ export function convertScribeTextToHtml(
 
   const sourceAttr = source === 'manual' ? 'data-source="manual"' : 'data-source="auto"';
 
-  // [dead@...] -> Render explicit dead reference pills
-  html = html.replace(/\[dead@(?:(todo|decision|note|message):)?\s*([^\]]+)\]/gi, (match, pType, titleText) => {
-    const cleanType = (pType || 'entity').toLowerCase();
-    const fullClean = titleText.trim();
-    if (!fullClean) return match;
-    const shortTitle = truncateTitleWords(fullClean, 2);
-    const bodyContent = `<span class="pill-short line-through">@${shortTitle}</span><span class="pill-full line-through">@${fullClean}</span>`;
-    return storePill(
-      `<span class="page-mention-pill deleted-mention-pill line-through cursor-not-allowed text-zinc-500" style="background-color: #e4e4e7; color: #71717a;" data-type="${cleanType}" data-deleted="true" ${sourceAttr} title="${cleanType} - Deleted ${cleanType}">${bodyContent}</span>`
-    );
-  });
-
   // [@todo: text] -> Truncates to 2 words by default, untruncates on hover
   html = html.replace(/\[@todo:\s*([^\]]+)\]|@todo:\s*([^@\n\r<]+)/gi, (match, todoBracketed, todoUnbracketed) => {
     const fullClean = (todoBracketed || todoUnbracketed || '').trim();
     if (!fullClean) return match;
     const shortTitle = truncateTitleWords(fullClean, 2);
     if (pages && !isPageExists('todo', fullClean)) {
-      const bodyContent = `<span class="pill-short line-through">@${shortTitle}</span><span class="pill-full line-through">@${fullClean}</span>`;
-      return storePill(`<span class="page-mention-pill deleted-mention-pill line-through cursor-not-allowed text-zinc-500" style="background-color: #e4e4e7; color: #71717a;" data-type="todo" data-deleted="true" ${sourceAttr} title="Todo - Deleted todo">${bodyContent}</span>`);
+      return match;
     }
     const colorHex = getPastelColorForTitle(fullClean, 'todo');
     const bodyContent = `<span class="pill-short">@${shortTitle}</span><span class="pill-full">@${fullClean}</span>`;
@@ -460,8 +502,7 @@ export function convertScribeTextToHtml(
     if (!fullClean) return match;
     const shortTitle = truncateTitleWords(fullClean, 2);
     if (pages && !isPageExists('decision', fullClean)) {
-      const bodyContent = `<span class="pill-short line-through">@${shortTitle}</span><span class="pill-full line-through">@${fullClean}</span>`;
-      return storePill(`<span class="page-mention-pill deleted-mention-pill line-through cursor-not-allowed text-zinc-500" style="background-color: #e4e4e7; color: #71717a;" data-type="decision" data-deleted="true" ${sourceAttr} title="Decision - Deleted decision">${bodyContent}</span>`);
+      return match;
     }
     const colorHex = getPastelColorForTitle(fullClean, 'decision');
     const bodyContent = `<span class="pill-short">@${shortTitle}</span><span class="pill-full">@${fullClean}</span>`;
@@ -475,8 +516,7 @@ export function convertScribeTextToHtml(
     if (!fullClean) return match;
     const shortTitle = truncateTitleWords(fullClean, 2);
     if (pages && !isPageExists('note', fullClean)) {
-      const bodyContent = `<span class="pill-short line-through">@${shortTitle}</span><span class="pill-full line-through">@${fullClean}</span>`;
-      return storePill(`<span class="page-mention-pill deleted-mention-pill line-through cursor-not-allowed text-zinc-500" style="background-color: #e4e4e7; color: #71717a;" data-type="note" data-deleted="true" ${sourceAttr} title="Note - Deleted note">${bodyContent}</span>`);
+      return match;
     }
     const colorHex = getPastelColorForTitle(fullClean, 'note');
     const bodyContent = `<span class="pill-short">@${shortTitle}</span><span class="pill-full">@${fullClean}</span>`;
@@ -490,8 +530,7 @@ export function convertScribeTextToHtml(
     if (!fullClean) return match;
     const shortTitle = truncateTitleWords(fullClean, 2);
     if (pages && !isPageExists('message', fullClean)) {
-      const bodyContent = `<span class="pill-short line-through">@${shortTitle}</span><span class="pill-full line-through">@${fullClean}</span>`;
-      return storePill(`<span class="page-mention-pill deleted-mention-pill line-through cursor-not-allowed text-zinc-500" style="background-color: #e4e4e7; color: #71717a;" data-type="message" data-deleted="true" ${sourceAttr} title="Message - Deleted message">${bodyContent}</span>`);
+      return match;
     }
     const colorHex = getPastelColorForTitle(fullClean, 'message');
     const bodyContent = `<span class="pill-short">@${shortTitle}</span><span class="pill-full">@${fullClean}</span>`;
@@ -517,7 +556,8 @@ export function convertScribeTextToHtml(
     if (!entityName) return match;
 
     const clean = entityName.replace(/^@/, '').trim().toLowerCase();
-    const existingEntity = pages?.find(
+    const existingByShortId = pages?.find((p) => p.short_id?.toLowerCase() === clean);
+    const existingEntity = existingByShortId || pages?.find(
       (p) => p.type === 'entity' && (p.title.toLowerCase() === clean || p.title.toLowerCase().startsWith(clean) || clean.startsWith(p.title.toLowerCase()))
     );
 
@@ -525,58 +565,286 @@ export function convertScribeTextToHtml(
     const shortTitle = truncateTitleWords(fullEntityName, 2);
 
     if (pages && !isPageExists('entity', entityName)) {
-      const bodyContent = `<span class="pill-short line-through">@${shortTitle}</span><span class="pill-full line-through">@${fullEntityName}</span>`;
-      return storePill(`<span class="page-mention-pill deleted-mention-pill line-through cursor-not-allowed text-zinc-500" style="background-color: #e4e4e7; color: #71717a;" data-type="entity" data-deleted="true" ${sourceAttr} title="Entity - Deleted entity">${bodyContent}</span>`);
+      return match;
     }
-    const colorHex = getPastelColorForTitle(fullEntityName, 'entity');
+    const targetType = existingEntity?.type || 'entity';
+    const colorHex = getPastelColorForTitle(fullEntityName, targetType);
     const bodyContent = `<span class="pill-short">@${shortTitle}</span><span class="pill-full">@${fullEntityName}</span>`;
+    const shortIdAttr = existingEntity?.short_id ? `data-short-id="${existingEntity.short_id}"` : '';
 
-    return storePill(`<span class="page-mention-pill inline-scribe-entity cursor-pointer" style="background-color: ${colorHex}; color: #0f172a;" data-type="entity" data-entity="${fullEntityName}" data-full="${fullEntityName}" ${sourceAttr} title="Entity - ${fullEntityName}">${bodyContent}</span>`);
+    return storePill(`<span class="page-mention-pill inline-scribe-${targetType} cursor-pointer" style="background-color: ${colorHex}; color: #0f172a;" data-type="${targetType}" ${shortIdAttr} data-entity="${fullEntityName}" data-full="${fullEntityName}" ${sourceAttr} title="${targetType} - ${fullEntityName}">${bodyContent}</span>`);
   });
 
-  // 4. Canonical Markdown Syntax Parsing
-  // Headings (# Header)
-  html = html.replace(/^#### (.*$)/gim, '<h4 class="text-xs font-bold text-zinc-800 mt-2.5 mb-1">$1</h4>');
-  html = html.replace(/^### (.*$)/gim, '<h3 class="text-sm font-bold text-zinc-900 mt-3 mb-1.5">$1</h3>');
-  html = html.replace(/^## (.*$)/gim, '<h2 class="text-base font-extrabold text-zinc-950 mt-4 mb-2 tracking-tight">$1</h2>');
-  html = html.replace(/^# (.*$)/gim, '<h1 class="text-lg font-black text-zinc-950 mt-4 mb-2 tracking-tight">$1</h1>');
+  // 5. Open-Source Markdown Parsing via `marked`
+  let parsedHtml = marked.parse(html) as string;
 
-  // Horizontal rules
-  html = html.replace(/^(---|[*]{3})$/gim, '<hr class="border-t border-zinc-200 my-3" />');
-
-  // Blockquotes (> quote)
-  html = html.replace(/^> (.*$)/gim, '<blockquote class="border-l-3 border-indigo-400 pl-3 py-1 my-2 bg-indigo-50/40 text-zinc-700 italic rounded-r text-xs">$1</blockquote>');
-
-  // Bold & Italics
-  html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-  html = html.replace(/__(.*?)__/g, '<strong>$1</strong>');
-  html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
-  html = html.replace(/_(.*?)_/g, '<em>$1</em>');
-
-  // Strikethrough
-  html = html.replace(/~~(.*?)~~/g, '<del class="line-through text-zinc-400">$1</del>');
-
-  // Bullet list items (- item or * item)
-  html = html.replace(/^[\s]*[-*+]\s+(.*$)/gim, '<li class="ml-4 list-disc my-0.5">$1</li>');
-
-  // Numbered list items (1. item)
-  html = html.replace(/^[\s]*\d+\.\s+(.*$)/gim, '<li class="ml-4 list-decimal my-0.5">$1</li>');
-
-  // 5. Restore Reference Pills, Inline Code & Code Blocks
+  // 6. Restore Placeholders (KaTeX Math, Code Blocks, Inline Code, Reference Pills)
+  mathBlocks.forEach((mathHtml, i) => {
+    parsedHtml = parsedHtml.replaceAll(`%%%KATEXMATH${i}%%%`, mathHtml);
+  });
   pills.forEach((pillHtml, i) => {
-    html = html.replace(`%%%SCRIBEPILL${i}%%%`, pillHtml);
+    parsedHtml = parsedHtml.replaceAll(`%%%SCRIBEPILL${i}%%%`, pillHtml);
   });
   inlineCodes.forEach((codeHtml, i) => {
-    html = html.replace(`%%%INLINECODE${i}%%%`, codeHtml);
+    parsedHtml = parsedHtml.replaceAll(`%%%INLINECODE${i}%%%`, codeHtml);
   });
   codeBlocks.forEach((blockHtml, i) => {
-    html = html.replace(`%%%CODEBLOCK${i}%%%`, blockHtml);
+    parsedHtml = parsedHtml.replaceAll(`%%%CODEBLOCK${i}%%%`, blockHtml);
   });
 
-  // Paragraphs & Linebreaks
-  html = html.replace(/\n\n/g, '</p><p class="my-1.5 font-sans">').replace(/\n/g, '<br />');
+  // 7. Decorate each top-level Markdown block with its own gutter button handle
+  let blockIndex = 0;
+  const blockTagsRegex = /<(p|h1|h2|h3|h4|h5|h6|ul|ol|blockquote|pre|table)(?:\s[^>]*)?>[\s\S]*?<\/\1>/gi;
 
-  return `<div class="prose-scribe space-y-1"><p class="my-1 font-sans">${html}</p></div>`;
+  parsedHtml = parsedHtml.replace(blockTagsRegex, (blockContent) => {
+    const currentIdx = blockIndex++;
+    const checkboxHtml = `<div class="scribe-gutter-handle" onmousedown="event.preventDefault()" data-block-index="${currentIdx}"><button type="button" class="scribe-gutter-btn" onmousedown="event.preventDefault()" data-block-id="block-${currentIdx}"><svg class="w-4.5 h-4.5 square-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/></svg><svg class="w-4.5 h-4.5 check-square-icon hidden fill-indigo-50 text-indigo-600" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m9 12 2 2 4-4"/></svg></button></div>`;
+    return `<div class="scribe-markdown-block" data-block-index="${currentIdx}">${checkboxHtml}${blockContent}</div>`;
+  });
+
+  return `<div class="prose-scribe">${parsedHtml}</div>`;
+}
+
+function setRangeStart(range: Range, block: HTMLElement): void {
+  const contentNodes = Array.from(block.childNodes).filter(
+    (n) => !(n instanceof HTMLElement && n.classList.contains('scribe-gutter-handle'))
+  );
+  const first = contentNodes[0] || block;
+  let curr: Node = first;
+  while (curr.firstChild) {
+    curr = curr.firstChild;
+  }
+  if (curr.nodeType === Node.TEXT_NODE) {
+    range.setStart(curr, 0);
+  } else {
+    range.setStartBefore(curr);
+  }
+}
+
+function setRangeEnd(range: Range, block: HTMLElement): void {
+  const contentNodes = Array.from(block.childNodes).filter(
+    (n) => !(n instanceof HTMLElement && n.classList.contains('scribe-gutter-handle'))
+  );
+  const last = contentNodes[contentNodes.length - 1] || block;
+  let curr: Node = last;
+  while (curr.lastChild) {
+    curr = curr.lastChild;
+  }
+  if (curr.nodeType === Node.TEXT_NODE) {
+    range.setEnd(curr, curr.textContent?.length || 0);
+  } else {
+    range.setEndAfter(curr);
+  }
+}
+
+/**
+ * Selects the entire content of a markdown block in the browser (highlighting text in blue)
+ */
+export function selectMarkdownBlock(blockEl: HTMLElement | null | undefined): void {
+  if (!blockEl || typeof window === 'undefined') return;
+  const selection = window.getSelection();
+  if (!selection) return;
+
+  selection.removeAllRanges();
+  const range = document.createRange();
+  setRangeStart(range, blockEl);
+  setRangeEnd(range, blockEl);
+  selection.addRange(range);
+}
+
+/**
+ * Clears any active browser text selection
+ */
+export function clearMarkdownBlockSelection(): void {
+  if (typeof window === 'undefined') return;
+  window.getSelection()?.removeAllRanges();
+}
+
+/**
+ * Synchronizes browser text selection across all currently checked markdown blocks
+ */
+export function syncMultiBlockSelection(scopeContainer?: HTMLElement | null): void {
+  if (typeof window === 'undefined') return;
+  const selection = window.getSelection();
+  if (!selection) return;
+
+  if (scopeContainer) {
+    document
+      .querySelectorAll<HTMLElement>(
+        '.scribe-markdown-block.is-block-selected, .scribe-gutter-btn.is-checked, .scribe-gutter-handle.is-checked'
+      )
+      .forEach((el) => {
+        if (!scopeContainer.contains(el)) {
+          el.classList.remove('is-block-selected', 'is-checked');
+        }
+      });
+  }
+
+  const root = scopeContainer || document;
+  const selectedBlocks = Array.from(
+    root.querySelectorAll<HTMLElement>('.scribe-markdown-block.is-block-selected')
+  );
+
+  if (selectedBlocks.length === 0) {
+    selection.removeAllRanges();
+    return;
+  }
+
+  selection.removeAllRanges();
+  const range = document.createRange();
+
+  const firstBlock = selectedBlocks[0];
+  const lastBlock = selectedBlocks[selectedBlocks.length - 1];
+
+  setRangeStart(range, firstBlock);
+  setRangeEnd(range, lastBlock);
+
+  selection.addRange(range);
+}
+
+/**
+ * Handles gutter checkbox click and contiguous range selection
+ * - Shift + Click selects contiguous range [anchor ... clicked]
+ * - Regular Click on contiguous (adjacent) gutter expands selection to keep both
+ * - Regular Click on non-contiguous gutter switches selection to the clicked gutter
+ * - Regular Click on an already-selected single gutter deselects it
+ */
+export function handleGutterRangeClick(
+  targetEl: HTMLElement,
+  scopeContainer: HTMLElement,
+  shiftKey: boolean = false
+): boolean {
+  const gutterHandle = targetEl.closest('.scribe-gutter-handle') as HTMLElement;
+  const gutterBtn = (targetEl.closest('.scribe-gutter-btn') || gutterHandle?.querySelector('.scribe-gutter-btn')) as HTMLElement;
+
+  if (!gutterBtn && !gutterHandle) {
+    return false;
+  }
+
+  const activeBtn = gutterBtn || (gutterHandle?.querySelector('.scribe-gutter-btn') as HTMLElement);
+  const activeHandle = gutterHandle || (activeBtn?.closest('.scribe-gutter-handle') as HTMLElement);
+  const clickedBlock = (activeBtn?.closest('.scribe-markdown-block') || activeHandle?.closest('.scribe-markdown-block')) as HTMLElement;
+
+  if (!clickedBlock) return false;
+
+  // Find all markdown blocks within this container
+  const allBlocks = Array.from(scopeContainer.querySelectorAll<HTMLElement>('.scribe-markdown-block'));
+  if (allBlocks.length === 0) return false;
+
+  const clickedIdx = allBlocks.indexOf(clickedBlock);
+  if (clickedIdx === -1) return false;
+
+  // Clear selections in other containers
+  document
+    .querySelectorAll<HTMLElement>(
+      '.scribe-markdown-block.is-block-selected, .scribe-gutter-btn.is-checked, .scribe-gutter-handle.is-checked'
+    )
+    .forEach((el) => {
+      if (!scopeContainer.contains(el)) {
+        el.classList.remove('is-block-selected', 'is-checked');
+      }
+    });
+
+  const currentlySelectedIndices = allBlocks
+    .map((b, i) => (b.classList.contains('is-block-selected') ? i : -1))
+    .filter((i) => i !== -1);
+
+  const anchorAttr = scopeContainer.getAttribute('data-gutter-anchor');
+  let anchorIdx = anchorAttr !== null ? parseInt(anchorAttr, 10) : -1;
+  if (isNaN(anchorIdx) || !allBlocks[anchorIdx]) {
+    anchorIdx = currentlySelectedIndices.length > 0 ? currentlySelectedIndices[0] : clickedIdx;
+  }
+
+  let startIdx: number;
+  let endIdx: number;
+
+  if (currentlySelectedIndices.length === 0) {
+    // 1. Nothing was selected: select the clicked block
+    anchorIdx = clickedIdx;
+    scopeContainer.setAttribute('data-gutter-anchor', String(anchorIdx));
+    startIdx = clickedIdx;
+    endIdx = clickedIdx;
+  } else if (shiftKey) {
+    // 2. Shift + Click: select contiguous range from anchorIdx to clickedIdx
+    startIdx = Math.min(anchorIdx, clickedIdx);
+    endIdx = Math.max(anchorIdx, clickedIdx);
+  } else {
+    // 3. Regular Click (without Shift)
+    const minIdx = currentlySelectedIndices[0];
+    const maxIdx = currentlySelectedIndices[currentlySelectedIndices.length - 1];
+
+    if (currentlySelectedIndices.length === 1 && currentlySelectedIndices[0] === clickedIdx) {
+      // Clicking the only selected block deselects it
+      allBlocks.forEach((b) => {
+        b.classList.remove('is-block-selected');
+        b.querySelector('.scribe-gutter-btn')?.classList.remove('is-checked');
+        b.querySelector('.scribe-gutter-handle')?.classList.remove('is-checked');
+      });
+      scopeContainer.removeAttribute('data-gutter-anchor');
+      clearMarkdownBlockSelection();
+      return true;
+    }
+
+    const isContiguousAdjacent = clickedIdx === maxIdx + 1 || clickedIdx === minIdx - 1;
+
+    if (isContiguousAdjacent) {
+      // Contiguous gutter clicked: keep them both/all selected
+      startIdx = Math.min(minIdx, clickedIdx);
+      endIdx = Math.max(maxIdx, clickedIdx);
+    } else if (clickedIdx >= minIdx && clickedIdx <= maxIdx) {
+      // Clicked inside existing range: toggle edge off or collapse
+      if (clickedIdx === maxIdx) {
+        startIdx = minIdx;
+        endIdx = maxIdx - 1;
+      } else if (clickedIdx === minIdx) {
+        startIdx = minIdx + 1;
+        endIdx = maxIdx;
+      } else {
+        // Clicked in middle: switch selection to this block
+        anchorIdx = clickedIdx;
+        scopeContainer.setAttribute('data-gutter-anchor', String(anchorIdx));
+        startIdx = clickedIdx;
+        endIdx = clickedIdx;
+      }
+    } else {
+      // Non-contiguous gutter clicked: switch selection to the non-contiguous one
+      anchorIdx = clickedIdx;
+      scopeContainer.setAttribute('data-gutter-anchor', String(anchorIdx));
+      startIdx = clickedIdx;
+      endIdx = clickedIdx;
+    }
+  }
+
+  // Apply selection to contiguous range [startIdx...endIdx]
+  allBlocks.forEach((b, i) => {
+    const isSelected = i >= startIdx && i <= endIdx;
+    if (isSelected) {
+      b.classList.add('is-block-selected');
+      b.querySelector('.scribe-gutter-btn')?.classList.add('is-checked');
+      b.querySelector('.scribe-gutter-handle')?.classList.add('is-checked');
+    } else {
+      b.classList.remove('is-block-selected');
+      b.querySelector('.scribe-gutter-btn')?.classList.remove('is-checked');
+      b.querySelector('.scribe-gutter-handle')?.classList.remove('is-checked');
+    }
+  });
+
+  // Synchronize browser text selection across range
+  syncMultiBlockSelection(scopeContainer);
+  return true;
+}
+
+/**
+ * Handles mousedown on gutter handle to prevent focus/caret clearing
+ */
+export function handleGutterMouseDown(e: React.MouseEvent, _scopeContainer?: HTMLElement): void {
+  const targetEl = e.target as HTMLElement;
+  const gutterHandle = targetEl.closest('.scribe-gutter-handle') as HTMLElement;
+  const gutterBtn = (targetEl.closest('.scribe-gutter-btn') || gutterHandle?.querySelector('.scribe-gutter-btn')) as HTMLElement;
+
+  if (gutterBtn || gutterHandle) {
+    e.preventDefault();
+  }
 }
 
 /**
@@ -587,6 +855,12 @@ export function findPageForPill(target: HTMLElement, pages: Page[]): Page | unde
   const entityAttr = target.getAttribute('data-entity');
   const titleAttr = target.getAttribute('data-title');
   const fullAttr = target.getAttribute('data-full');
+  const shortIdAttr = target.getAttribute('data-short-id');
+
+  if (shortIdAttr) {
+    const matchedByShortId = pages.find((p) => p.short_id?.toLowerCase() === shortIdAttr.toLowerCase());
+    if (matchedByShortId) return matchedByShortId;
+  }
 
   let pillType: 'entity' | 'todo' | 'decision' | 'note' | undefined;
   if (dataType === 'entity' || target.classList.contains('inline-scribe-entity') || entityAttr) {
@@ -614,8 +888,8 @@ export function findPageForPill(target: HTMLElement, pages: Page[]): Page | unde
 
   if (!cleanQuery) return undefined;
 
-  // 1. Direct ID match
-  let matched = candidatePages.find((p) => p.id.toLowerCase() === cleanQuery);
+  // 1. Direct ID or Short ID match
+  let matched = pages.find((p) => p.id.toLowerCase() === cleanQuery || p.short_id?.toLowerCase() === cleanQuery);
   if (matched) return matched;
 
   // 2. Exact Title match
@@ -654,4 +928,86 @@ export function findPageForPill(target: HTMLElement, pages: Page[]): Page | unde
   }
 
   return undefined;
+}
+
+/**
+ * Smoothly scrolls to the exact mention pill or element inside container, highlighting it with a temporary ring outline.
+ */
+export function scrollToMentionOrElement(
+  container: HTMLElement,
+  highlightSpan?: string
+): HTMLElement | null {
+  if (!container) return null;
+
+  let targetEl: HTMLElement | null = null;
+
+  if (highlightSpan && highlightSpan.trim()) {
+    const query = highlightSpan.trim().toLowerCase();
+    const cleanQuery = query
+      .replace(/^@/, '')
+      .replace(/^(todo:|decision:|note:|message:|\s*)+/i, '')
+      .trim();
+
+    const pills = Array.from(
+      container.querySelectorAll(
+        '.page-mention-pill, [data-entity], [data-title], [data-full], [data-short-id]'
+      )
+    ) as HTMLElement[];
+
+    // 1. Search for exact matching pill attribute
+    for (const pill of pills) {
+      const full = (pill.getAttribute('data-full') || '').toLowerCase();
+      const entity = (pill.getAttribute('data-entity') || '').toLowerCase();
+      const title = (pill.getAttribute('data-title') || '').toLowerCase();
+      const shortId = (pill.getAttribute('data-short-id') || '').toLowerCase();
+      const text = (pill.textContent || '').toLowerCase();
+
+      if (
+        (full && (full === query || full === cleanQuery)) ||
+        (entity && (entity === query || entity === cleanQuery)) ||
+        (title && (title === query || title === cleanQuery)) ||
+        (shortId && (shortId === query || shortId === cleanQuery)) ||
+        (text && (text === query || text === `@${cleanQuery}` || text.includes(cleanQuery)))
+      ) {
+        targetEl = pill;
+        break;
+      }
+    }
+
+    // 2. Search for leaf element containing text if pill was not found
+    if (!targetEl && cleanQuery) {
+      const elements = Array.from(container.querySelectorAll('*')) as HTMLElement[];
+      for (const el of elements) {
+        if (el.children.length === 0 && el.textContent) {
+          const t = el.textContent.toLowerCase();
+          if (t.includes(cleanQuery) || t.includes(query)) {
+            targetEl = (el.closest('.page-mention-pill') as HTMLElement) || el;
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  // 3. Fallback to first mention pill inside container if present
+  if (!targetEl) {
+    targetEl = container.querySelector('.page-mention-pill') as HTMLElement;
+  }
+
+  const elToScroll = targetEl || container;
+
+  try {
+    elToScroll.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+  } catch (e) {
+    // fallback if smooth inline scrolling unsupported
+    elToScroll.scrollIntoView({ block: 'center' });
+  }
+
+  // Apply subtle pulse highlight animation
+  elToScroll.classList.add('ring-2', 'ring-indigo-500', 'bg-indigo-50/70', 'transition-all', 'duration-300');
+  setTimeout(() => {
+    elToScroll.classList.remove('ring-2', 'ring-indigo-500', 'bg-indigo-50/70');
+  }, 2500);
+
+  return elToScroll;
 }

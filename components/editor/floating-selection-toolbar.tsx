@@ -5,7 +5,7 @@ import { usePlanet } from '@/lib/context';
 import { AlertTriangle } from 'lucide-react';
 import { getRankedSuggestions, SuggestionItem } from '@/lib/ranking';
 import { SuggestionList } from '@/components/ai/suggestion-list';
-import { parseScribeMarkup, formatItemTitle } from '@/lib/scribe-parser';
+import { parseScribeMarkup, formatItemTitle, untagReferences } from '@/lib/scribe-parser';
 import { matchesExplicitReference } from '@/lib/mentions';
 import { Page } from '@/lib/types';
 
@@ -112,6 +112,7 @@ export const FloatingSelectionToolbar: React.FC<FloatingSelectionToolbarProps> =
     updatePageContent,
     updatePageUserPrompt,
     addEntityVersion,
+    openInPane2,
   } = usePlanet();
 
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
@@ -520,25 +521,54 @@ export const FloatingSelectionToolbar: React.FC<FloatingSelectionToolbarProps> =
     pageId: entity.id,
   }));
 
+  const copyToNewNoteItem: SuggestionItem = {
+    id: 'copy-to-new-note',
+    title: 'Copy to New Note',
+    type: 'page',
+    itemType: 'note',
+    primitiveType: 'note' as any,
+    description: 'Create a new note with selected text as body',
+    score: 950,
+    scopeLabel: 'Note',
+  };
+
   const baseSuggestions = (!hasReferenceError && selectedText)
-    ? getRankedSuggestions(selectedText, pages, null, true)
+    ? getRankedSuggestions(selectedText, pages, null).filter(
+        (b) => !b.id.startsWith('create-note-') && b.id !== 'primitive-note'
+      )
     : [];
 
   const suggestions: SuggestionItem[] = selectedText
     ? (hasReferenceError
-        ? saveAsEntityItems
+        ? [...saveAsEntityItems, copyToNewNoteItem]
         : [
             ...saveAsEntityItems,
+            copyToNewNoteItem,
             ...baseSuggestions.filter(
-              (b) => !saveAsEntityItems.some((s) => s.pageId === b.pageId)
+              (b) => !saveAsEntityItems.some((s) => s.pageId === b.pageId) && !b.id.startsWith('create-note-') && b.id !== 'primitive-note'
             ),
           ])
     : [];
 
-  const showReferenceError = hasReferenceError && saveAsEntityItems.length === 0;
+  const showReferenceError = hasReferenceError && suggestions.length === 0;
 
   const handleSelectSuggestion = (item: SuggestionItem) => {
     if (!selectedText) return;
+
+    if (item.id === 'copy-to-new-note') {
+      const cleanBodyText = selectedText;
+      const untaggedForTitle = untagReferences(cleanBodyText);
+      const cleanTitle = formatItemTitle(untaggedForTitle, 45) || 'Untitled Note';
+      const newNote = createNotePage(cleanTitle, cleanBodyText);
+      openInPane2('note', newNote.id, newNote.title);
+
+      setPosition(null);
+      setSelectedText('');
+      setHasReferenceError(false);
+      setAllAvailableEntities([]);
+      window.getSelection()?.removeAllRanges();
+      return;
+    }
 
     let targetTitle = item.title
       .replace(/^Save as \[?@/i, '')
@@ -571,9 +601,6 @@ export const FloatingSelectionToolbar: React.FC<FloatingSelectionToolbarProps> =
     } else if (item.primitiveType === 'decision' || item.itemType === 'decision') {
       createdTagText = `[@decision: ${targetTitle}]`;
       createDecisionPage(targetTitle, selectedText, noteId);
-    } else if (item.primitiveType === 'note' || item.itemType === 'note') {
-      createdTagText = `[@note: ${targetTitle}]`;
-      createNotePage(targetTitle, selectedText);
     } else {
       const entity = createEntityPage(targetTitle);
       addManualMention(noteId || entity.id, entity.title, selectedText);

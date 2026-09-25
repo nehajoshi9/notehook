@@ -51,7 +51,7 @@ All raw text representations of reference tags maintain canonical bracket syntax
 - `[@todo: Task Description]`
 - `[@decision: Architectural Decision]`
 - `[@note: Note Title]`
-- `[@Message Title]`
+- `[@message: Message Title]`
 
 ---
 

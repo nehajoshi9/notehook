@@ -4,11 +4,12 @@ import React, { useState, useRef, useEffect } from 'react';
 import { usePlanet } from '@/lib/context';
 import { Send, Loader2, Tag, CheckSquare, Zap, Plus, FileText } from 'lucide-react';
 import { getRankedSuggestions, SuggestionItem } from '@/lib/ranking';
-import { isCursorInsideReference } from '@/lib/scribe-parser';
+import { isCursorInsideReference, parseScribeMarkup, normalizeRawContentToCanonicalBrackets } from '@/lib/scribe-parser';
 import { SuggestionList } from './suggestion-list';
 
 export const AIChatInput: React.FC = () => {
-  const { submitUserTurn, isAiGenerating, aiStreamingText, pages, createEntityPage, createNotePage, createTodoPage, createDecisionPage } = usePlanet();
+  const { submitUserTurn, isAiGenerating, aiStreamingText, pages, rightPane, createEntityPage, createNotePage, createTodoPage, createDecisionPage } = usePlanet();
+  const isDualPane = rightPane.type !== 'empty';
 
   const [prompt, setPrompt] = useState('');
   const [cursorPos, setCursorPos] = useState(0);
@@ -64,7 +65,7 @@ export const AIChatInput: React.FC = () => {
   const query = atMatch ? atMatch[1] : '';
 
   const suggestions: SuggestionItem[] = isTypingAt
-    ? getRankedSuggestions(query, pages, null, true)
+    ? getRankedSuggestions(query, pages, null)
     : [];
 
   const prevQueryRef = useRef(query);
@@ -170,8 +171,64 @@ export const AIChatInput: React.FC = () => {
     }
   };
 
+  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    const pastedText = e.clipboardData.getData('text/plain');
+    if (!pastedText) return;
+
+    // 1. Normalize unbracketed tags in pasted text
+    const normalized = normalizeRawContentToCanonicalBrackets(pastedText, pages);
+
+    // 2. Parse all tags in normalized text
+    const parsed = parseScribeMarkup(normalized, pages);
+
+    // 3. Auto-detect & create pages for newly pasted tags ASAP using clean titles
+    parsed.forEach((item) => {
+      const cleanTitle = (item.nameOrTitle || item.fullText || '').trim();
+      if (!cleanTitle) return;
+
+      const cleanLower = cleanTitle.toLowerCase();
+      // Page ID pattern (e.g. m1, e2, n3, d4, t5)
+      const isPageIDPattern = /^(m|e|n|d|t)\d+$/i.test(cleanLower);
+
+      // Check if page already exists by short_id or title across ALL page types
+      const pageExists = pages.some(
+        (p) => (p.short_id && p.short_id.toLowerCase() === cleanLower) || p.title.toLowerCase() === cleanLower
+      );
+
+      if (isPageIDPattern || pageExists) return;
+
+      if (item.type === 'todo') {
+        createTodoPage(cleanTitle);
+      } else if (item.type === 'decision') {
+        createDecisionPage(cleanTitle);
+      } else if (item.type === 'note') {
+        createNotePage(cleanTitle);
+      } else if (item.type === 'entity') {
+        createEntityPage(cleanTitle);
+      }
+    });
+
+    // 4. Update prompt state inline with normalized canonical bracket text
+    if (normalized !== pastedText) {
+      e.preventDefault();
+      const input = inputRef.current;
+      if (input) {
+        const start = input.selectionStart || 0;
+        const end = input.selectionEnd || 0;
+        const val = input.value;
+        const newVal = val.slice(0, start) + normalized + val.slice(end);
+        setPrompt(newVal);
+        const newCursor = start + normalized.length;
+        setCursorPos(newCursor);
+        setTimeout(() => {
+          input.setSelectionRange(newCursor, newCursor);
+        }, 0);
+      }
+    }
+  };
+
   return (
-    <div className="p-3 md:p-4 bg-white border-t border-zinc-200 flex flex-col items-center select-none shrink-0 relative">
+    <div className={`p-3 md:p-4 bg-white border-t border-zinc-200 flex flex-col items-center select-none shrink-0 relative ${isDualPane ? 'pl-9 md:pl-12' : ''}`}>
       <div className="w-full max-w-3xl flex flex-col gap-2 relative">
         {/* Clean Standard Chat Input Bar */}
         <form id="chat-input-form" data-chat-input="true" onSubmit={handleSubmit} className="relative flex items-center bg-white border border-zinc-300 focus-within:border-zinc-900 rounded-2xl px-4 py-2.5 shadow-2xs transition-all">
@@ -189,32 +246,35 @@ export const AIChatInput: React.FC = () => {
             </div>
           )}
 
-          <input
-            ref={inputRef}
-            type="text"
-            value={prompt}
-            onChange={(e) => {
-              setPrompt(e.target.value);
-              setCursorPos(e.target.selectionStart || e.target.value.length);
-            }}
-            onKeyUp={(e) => setCursorPos((e.target as HTMLInputElement).selectionStart || prompt.length)}
-            onClick={(e) => setCursorPos((e.target as HTMLInputElement).selectionStart || prompt.length)}
-            onSelect={(e) => setCursorPos((e.target as HTMLInputElement).selectionStart || prompt.length)}
-            onKeyDown={handleKeyDown}
-            disabled={isAiGenerating}
-            placeholder="Type a message... (use @ for @todo, @decision, or @entity)"
-            className="flex-1 text-xs md:text-sm text-zinc-900 placeholder-zinc-400 bg-transparent focus:outline-none font-sans"
-            autoFocus
-          />
+          <div className="flex items-center w-full relative min-h-[28px]">
+            <input
+              ref={inputRef}
+              type="text"
+              value={prompt}
+              onChange={(e) => {
+                setPrompt(e.target.value);
+                setCursorPos(e.target.selectionStart || e.target.value.length);
+              }}
+              onPaste={handlePaste}
+              onKeyUp={(e) => setCursorPos((e.target as HTMLInputElement).selectionStart || prompt.length)}
+              onClick={(e) => setCursorPos((e.target as HTMLInputElement).selectionStart || prompt.length)}
+              onSelect={(e) => setCursorPos((e.target as HTMLInputElement).selectionStart || prompt.length)}
+              onKeyDown={handleKeyDown}
+              disabled={isAiGenerating}
+              placeholder="Type or paste a message... (auto-detects [@todo: ...], [@decision: ...], [@note: ...], [@Entity])"
+              className="flex-1 text-xs md:text-sm text-zinc-900 placeholder-zinc-400 bg-transparent focus:outline-none font-sans"
+              autoFocus
+            />
 
-          <button
-            type="submit"
-            disabled={!prompt.trim() || isAiGenerating}
-            className="flex items-center justify-center p-2 bg-zinc-900 hover:bg-zinc-800 disabled:opacity-30 text-white font-bold rounded-xl transition-colors ml-2 shrink-0"
-            title="Send message"
-          >
-            <Send className="w-4 h-4" />
-          </button>
+            <button
+              type="submit"
+              disabled={!prompt.trim() || isAiGenerating}
+              className="flex items-center justify-center p-2 bg-zinc-900 hover:bg-zinc-800 disabled:opacity-30 text-white font-bold rounded-xl transition-colors ml-2 shrink-0 cursor-pointer"
+              title="Send message"
+            >
+              <Send className="w-4 h-4" />
+            </button>
+          </div>
         </form>
       </div>
     </div>

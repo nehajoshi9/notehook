@@ -20,6 +20,9 @@ interface PlanetContextType {
   aiSettings: AISettings;
   setAiSettings: (settings: AISettings) => void;
 
+  workspaceName: string;
+  setWorkspaceName: (name: string) => void;
+
   // 2-Pane Split View State
   leftPane: PaneState;
   rightPane: PaneState;
@@ -62,6 +65,7 @@ interface PlanetContextType {
   // AI Streaming State & Turn Handler
   isAiGenerating: boolean;
   aiStreamingText: string;
+  aiStreamingPrompt: string;
   submitUserTurn: (prompt: string) => Promise<void>;
 
   // Clear / Reset
@@ -71,24 +75,50 @@ interface PlanetContextType {
 const PlanetContext = createContext<PlanetContextType | undefined>(undefined);
 
 const STORAGE_KEYS = {
-  PAGES: 'scribe_pages_v5',
-  MENTIONS: 'scribe_mentions_v5',
-  AI_SETTINGS: 'scribe_ai_settings_v5',
+  PAGES: 'scribe_pages_v6',
+  MENTIONS: 'scribe_mentions_v6',
+  AI_SETTINGS: 'scribe_ai_settings_v6',
+  WORKSPACE_NAME: 'scribe_workspace_name_v6',
 };
 
 export const PlanetProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [pages, setPages] = useState<Page[]>([]);
   const [mentions, setMentions] = useState<Mention[]>([]);
+  const [workspaceName, setWorkspaceNameState] = useState('My Workspace');
   const [isLoaded, setIsLoaded] = useState(false);
 
-  const [aiSettings, setAiSettings] = useState<AISettings>({
-    provider: 'simulated',
-    apiKey: '',
-    model: 'gpt-4o-mini',
+  const sanitizeWorkspaceName = (raw: string): string => {
+    return raw
+      .replace(/\[@.*?\]/g, '')
+      .replace(/@\w+/g, '')
+      .replace(/[@\[\]]/g, '');
+  };
+
+  const setWorkspaceName = (name: string) => {
+    const clean = sanitizeWorkspaceName(name);
+    setWorkspaceNameState(clean);
+  };
+
+  const envGeminiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '';
+
+  const [aiSettings, setAiSettings] = useState<AISettings>(() => {
+    if (envGeminiKey) {
+      return {
+        provider: 'gemini',
+        apiKey: envGeminiKey,
+        model: 'gemini-1.5-flash',
+      };
+    }
+    return {
+      provider: 'simulated',
+      apiKey: '',
+      model: 'gpt-4o-mini',
+    };
   });
 
   const [isAiGenerating, setIsAiGenerating] = useState(false);
   const [aiStreamingText, setAiStreamingText] = useState('');
+  const [aiStreamingPrompt, setAiStreamingPrompt] = useState('');
 
   // 2-Pane Navigation State
   const [leftPane, setLeftPane] = useState<PaneState>({
@@ -114,9 +144,18 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   useEffect(() => {
     try {
+      localStorage.removeItem('scribe_pages_v5');
+      localStorage.removeItem('scribe_mentions_v5');
+      localStorage.removeItem('scribe_ai_settings_v5');
+
       const storedPages = localStorage.getItem(STORAGE_KEYS.PAGES);
       const storedMentions = localStorage.getItem(STORAGE_KEYS.MENTIONS);
       const storedAi = localStorage.getItem(STORAGE_KEYS.AI_SETTINGS);
+      const storedWorkspace = localStorage.getItem(STORAGE_KEYS.WORKSPACE_NAME);
+
+      if (storedWorkspace) {
+        setWorkspaceNameState(sanitizeWorkspaceName(storedWorkspace));
+      }
 
       const parsedPages: Page[] = storedPages ? JSON.parse(storedPages) : SEED_PAGES;
 
@@ -142,9 +181,52 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         };
       });
 
-      setPages(cleanedPages);
+      // Assign unique short_id (m1, e1, n1, d1, t1...) to any page missing one
+      const sortedByDate = [...cleanedPages].sort(
+        (a, b) => new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime()
+      );
+      const assignedPages: Page[] = [];
+      for (const p of sortedByDate) {
+        if (!p.short_id) {
+          const prefix = p.type === 'entity' ? 'e' : p.type === 'message' ? 'm' : p.type === 'note' ? 'n' : p.type === 'decision' ? 'd' : 't';
+          const sameType = assignedPages.filter((ap) => ap.type === p.type);
+          let maxNum = 0;
+          for (const ap of sameType) {
+            if (ap.short_id) {
+              const m = ap.short_id.match(new RegExp(`^${prefix}(\\d+)$`, 'i'));
+              if (m) {
+                const num = parseInt(m[1], 10);
+                if (num > maxNum) maxNum = num;
+              }
+            }
+          }
+          p.short_id = `${prefix}${maxNum + 1}`;
+        }
+        assignedPages.push(p);
+      }
+
+      setPages(assignedPages);
       setMentions(storedMentions ? JSON.parse(storedMentions) : SEED_MENTIONS);
-      if (storedAi) setAiSettings(JSON.parse(storedAi));
+
+      if (storedAi) {
+        const parsedAi: AISettings = JSON.parse(storedAi);
+        // If stored settings were 'simulated' or had old models, auto-upgrade to Gemini 3.6 Flash
+        if ((parsedAi.provider === 'simulated' || parsedAi.model === 'gemini-1.5-flash' || parsedAi.model === 'gemini-2.5-flash') && envGeminiKey) {
+          setAiSettings({
+            provider: 'gemini',
+            apiKey: envGeminiKey,
+            model: 'gemini-3.6-flash',
+          });
+        } else {
+          setAiSettings(parsedAi);
+        }
+      } else if (envGeminiKey) {
+        setAiSettings({
+          provider: 'gemini',
+          apiKey: envGeminiKey,
+          model: 'gemini-3.6-flash',
+        });
+      }
     } catch (err) {
       console.error('Failed to load local storage', err);
       setPages(SEED_PAGES);
@@ -159,7 +241,8 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     localStorage.setItem(STORAGE_KEYS.PAGES, JSON.stringify(pages));
     localStorage.setItem(STORAGE_KEYS.MENTIONS, JSON.stringify(mentions));
     localStorage.setItem(STORAGE_KEYS.AI_SETTINGS, JSON.stringify(aiSettings));
-  }, [pages, mentions, aiSettings, isLoaded]);
+    localStorage.setItem(STORAGE_KEYS.WORKSPACE_NAME, workspaceName);
+  }, [pages, mentions, aiSettings, workspaceName, isLoaded]);
 
   // Derived filtered page lists
   const messages = pages.filter((p) => p.type === 'message');
@@ -237,6 +320,22 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setRightHistory(tempHistory);
   };
 
+  const generateShortId = (type: Page['type'], currentPages: Page[]): string => {
+    const prefix = type === 'entity' ? 'e' : type === 'message' ? 'm' : type === 'note' ? 'n' : type === 'decision' ? 'd' : 't';
+    const sameType = currentPages.filter((p) => p.type === type);
+    let maxNum = 0;
+    for (const p of sameType) {
+      if (p.short_id) {
+        const match = p.short_id.match(new RegExp(`^${prefix}(\\d+)$`, 'i'));
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (num > maxNum) maxNum = num;
+        }
+      }
+    }
+    return `${prefix}${maxNum + 1}`;
+  };
+
   // Helper for generating non-colliding unique title: "Name", "Name 2", "Name 3"
   const getUniqueTitleForType = (type: Page['type'], baseTitle: string, currentPages: Page[]): string => {
     const cleanBase = formatItemTitle(
@@ -247,8 +346,12 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       45
     ) || 'Untitled';
 
-    const titleExists = (t: string) =>
-      currentPages.some((p) => p.type === type && p.title.toLowerCase() === t.toLowerCase());
+    const titleExists = (t: string) => {
+      const lower = t.toLowerCase();
+      const matchesTitle = currentPages.some((p) => p.type === type && p.title.toLowerCase() === lower);
+      const matchesShortId = currentPages.some((p) => p.short_id?.toLowerCase() === lower);
+      return matchesTitle || matchesShortId;
+    };
 
     if (!titleExists(cleanBase)) {
       return cleanBase;
@@ -263,10 +366,15 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Entity Creation (User Manual Action Only)
   const createEntityPage = (title: string, content: string = ''): Page => {
-    const uniqueTitle = getUniqueTitleForType('entity', title, pages);
+    const cleanTitle = title.replace(/^@/, '').trim();
+    const existing = pages.find((p) => p.type === 'entity' && p.title.toLowerCase() === cleanTitle.toLowerCase());
+    if (existing) return existing;
+
+    const uniqueTitle = getUniqueTitleForType('entity', cleanTitle, pages);
 
     const newPage: Page = {
       id: `ent-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      short_id: generateShortId('entity', pages),
       type: 'entity',
       title: uniqueTitle,
       content: content || `Tracked concept: @${uniqueTitle}`,
@@ -278,10 +386,15 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Note Creation (User Manual Action or Tagging)
   const createNotePage = (title: string, content: string = ''): Page => {
-    const uniqueTitle = getUniqueTitleForType('note', title, pages);
+    const cleanTitle = title.replace(/^@/, '').trim();
+    const existing = pages.find((p) => p.type === 'note' && p.title.toLowerCase() === cleanTitle.toLowerCase());
+    if (existing) return existing;
+
+    const uniqueTitle = getUniqueTitleForType('note', cleanTitle, pages);
 
     const newPage: Page = {
       id: `note-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      short_id: generateShortId('note', pages),
       type: 'note',
       title: uniqueTitle,
       content: content || '',
@@ -293,10 +406,15 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Todo Creation (LLM or Manual)
   const createTodoPage = (title: string, content: string = '', sourceNoteId?: string): Page => {
-    const uniqueTitle = getUniqueTitleForType('todo', title, pages);
+    const cleanTitle = title.replace(/^@/, '').trim();
+    const existing = pages.find((p) => p.type === 'todo' && p.title.toLowerCase() === cleanTitle.toLowerCase());
+    if (existing) return existing;
+
+    const uniqueTitle = getUniqueTitleForType('todo', cleanTitle, pages);
 
     const targetPage: Page = {
       id: `todo-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      short_id: generateShortId('todo', pages),
       type: 'todo' as const,
       title: uniqueTitle,
       content: content || uniqueTitle,
@@ -326,10 +444,15 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Decision Creation (LLM or Manual)
   const createDecisionPage = (title: string, content: string = '', sourceNoteId?: string): Page => {
-    const uniqueTitle = getUniqueTitleForType('decision', title, pages);
+    const cleanTitle = title.replace(/^@/, '').trim();
+    const existing = pages.find((p) => p.type === 'decision' && p.title.toLowerCase() === cleanTitle.toLowerCase());
+    if (existing) return existing;
+
+    const uniqueTitle = getUniqueTitleForType('decision', cleanTitle, pages);
 
     const targetPage: Page = {
       id: `dec-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      short_id: generateShortId('decision', pages),
       type: 'decision' as const,
       title: uniqueTitle,
       content: content || uniqueTitle,
@@ -373,8 +496,12 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       (p) => p.id !== pageId && p.type === pageType
     );
 
-    const titleExists = (t: string) =>
-      otherPagesOfSameType.some((p) => p.title.toLowerCase() === t.toLowerCase());
+    const titleExists = (t: string) => {
+      const lower = t.toLowerCase();
+      const matchesTitle = otherPagesOfSameType.some((p) => p.title.toLowerCase() === lower);
+      const matchesShortId = currentPages.some((p) => p.short_id?.toLowerCase() === lower);
+      return matchesTitle || matchesShortId;
+    };
 
     if (!titleExists(cleanBase)) {
       return cleanBase;
@@ -601,10 +728,16 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const addManualMention = (sourceNoteId: string, targetTitleOrId: string, snippet?: string): Mention => {
     let targetPage = pages.find(
-      (p) => p.id === targetTitleOrId || p.title.toLowerCase() === targetTitleOrId.toLowerCase()
+      (p) =>
+        p.id === targetTitleOrId ||
+        (p.short_id && p.short_id.toLowerCase() === targetTitleOrId.toLowerCase()) ||
+        p.title.toLowerCase() === targetTitleOrId.toLowerCase()
     );
 
     if (!targetPage) {
+      if (/^(m|e|n|d|t)\d+$/i.test(targetTitleOrId)) {
+        return null as any;
+      }
       // Create new entity page manually
       targetPage = createEntityPage(targetTitleOrId, snippet);
     }
@@ -661,6 +794,7 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (!prompt.trim() || isAiGenerating) return;
 
     setIsAiGenerating(true);
+    setAiStreamingPrompt(prompt.trim());
     setAiStreamingText('');
 
     const topicTitle = generateTopicTitle(prompt);
@@ -672,12 +806,15 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         aiSettings,
         (chunk) => {
           setAiStreamingText((prev) => prev + chunk);
-        }
+        },
+        mentions,
+        pages
       );
 
       // Create single Turn Message Page containing both prompt & response content
       const messagePage: Page = {
         id: `note-${Date.now()}`,
+        short_id: generateShortId('message', pages),
         type: 'message',
         role: 'assistant',
         title: topicTitle,
@@ -716,14 +853,15 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       console.error('AI response generation failed', err);
     } finally {
       setIsAiGenerating(false);
+      setAiStreamingPrompt('');
       setAiStreamingText('');
     }
   };
 
   const clearAllData = () => {
     localStorage.clear();
-    setPages(SEED_PAGES);
-    setMentions(SEED_MENTIONS);
+    setPages([]);
+    setMentions([]);
     setLeftPane({
       type: 'chat',
       id: null,
@@ -752,6 +890,8 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         decisions,
         aiSettings,
         setAiSettings,
+        workspaceName,
+        setWorkspaceName,
         leftPane,
         rightPane,
         leftHistory,
@@ -785,6 +925,7 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         executeRetroactiveLinking,
         isAiGenerating,
         aiStreamingText,
+        aiStreamingPrompt,
         submitUserTurn,
         clearAllData,
       }}

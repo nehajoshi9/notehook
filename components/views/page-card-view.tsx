@@ -1,12 +1,42 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { usePlanet } from '@/lib/context';
 import { EntityVersion } from '@/lib/types';
-import { Tag, CheckSquare, Square, Zap, ArrowLeft, FileText, MessageSquare, Star, Bookmark, Trash2, Search, ChevronUp, ChevronDown, X } from 'lucide-react';
-import { convertScribeTextToHtml, findPageForPill, isCursorInsideReference, getCaretOffsetFromPoint, normalizeRawContentToCanonicalBrackets } from '@/lib/scribe-parser';
+import { Tag, CheckSquare, Square, Zap, ArrowLeft, FileText, MessageSquare, Star, Bookmark, Trash2, Search, ChevronUp, ChevronDown, X, Check } from 'lucide-react';
+import { convertScribeTextToHtml, findPageForPill, isCursorInsideReference, getCaretOffsetFromPoint, normalizeRawContentToCanonicalBrackets, scrollToMentionOrElement, selectMarkdownBlock, clearMarkdownBlockSelection, syncMultiBlockSelection, handleGutterRangeClick, handleGutterMouseDown } from '@/lib/scribe-parser';
 import { getPastelColorForTitle } from '@/lib/color';
 import { getMentionSnippetsForPage, MentionHighlightedText, matchesExplicitReference } from '@/lib/mentions';
 import { getRankedSuggestions, SuggestionItem } from '@/lib/ranking';
 import { SuggestionList } from '../ai/suggestion-list';
+
+interface GutterCheckboxProps {
+  blockId: string;
+}
+
+const GutterCheckbox: React.FC<GutterCheckboxProps> = ({ blockId }) => {
+  const [checked, setChecked] = useState(false);
+
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        setChecked((prev) => !prev);
+      }}
+      className={`p-0.5 rounded transition-all duration-150 cursor-pointer select-none ${
+        checked
+          ? 'opacity-100 text-indigo-600'
+          : 'opacity-25 hover:opacity-100 text-zinc-400 hover:text-zinc-700'
+      }`}
+      title={checked ? 'Deselect block' : 'Select block'}
+    >
+      {checked ? (
+        <CheckSquare className="w-3.5 h-3.5 fill-indigo-50 text-indigo-600" />
+      ) : (
+        <Square className="w-3.5 h-3.5 text-zinc-400 hover:text-zinc-600" />
+      )}
+    </button>
+  );
+};
 
 interface PageCardViewProps {
   pageId: string;
@@ -124,7 +154,6 @@ function highlightSearchInHtml(
   const parts = html.split(/(<[^>]+>)/g);
   const resultParts: string[] = [];
 
-  let deadLinkDepth = 0;
   let pillBuffer: string[] = [];
   let pillDepth = 0;
 
@@ -132,27 +161,13 @@ function highlightSearchInHtml(
     const part = parts[i];
 
     if (part.startsWith('<') && part.endsWith('>')) {
-      const isDeadLinkStart = part.includes('deleted-mention-pill') || part.includes('data-deleted="true"');
-      const isLivingPillStart = part.includes('page-mention-pill') && !isDeadLinkStart;
+      const isLivingPillStart = part.includes('page-mention-pill');
 
-      if (pillDepth === 0 && deadLinkDepth === 0) {
-        if (isDeadLinkStart) {
-          deadLinkDepth = 1;
-          resultParts.push(part);
-          continue;
-        }
+      if (pillDepth === 0) {
         if (isLivingPillStart) {
           pillDepth = 1;
           pillBuffer = [part];
           continue;
-        }
-        resultParts.push(part);
-      } else if (deadLinkDepth > 0) {
-        // Inside dead link container - track depth accurately until outer dead link span closes
-        if (part.startsWith('<') && !part.startsWith('</') && !part.endsWith('/>')) {
-          deadLinkDepth++;
-        } else if (part.startsWith('</')) {
-          deadLinkDepth--;
         }
         resultParts.push(part);
       } else if (pillDepth > 0) {
@@ -182,11 +197,8 @@ function highlightSearchInHtml(
       // Text node
       if (pillDepth > 0) {
         pillBuffer.push(part);
-      } else if (deadLinkDepth > 0) {
-        // Completely discard/skip all matching substrings inside dead links
-        resultParts.push(part);
       } else {
-        // Normal text node outside pills
+        // Normal text node (including text inside dead/non-referencing tags)
         const processed = part.replace(regex, (matchedText) => {
           const globalIdx = startIndex + matchCounter;
           matchCounter++;
@@ -263,6 +275,16 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
   const [isVersionDismissed, setIsVersionDismissed] = useState(false);
 
   const [selectedVersionId, setSelectedVersionId] = useState<string>('');
+  const [copiedShortId, setCopiedShortId] = useState<string | null>(null);
+
+  const handleCopyShortId = (shortId: string) => {
+    const textToCopy = `[@${shortId}]`;
+    if (typeof window !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(textToCopy);
+    }
+    setCopiedShortId(shortId);
+    setTimeout(() => setCopiedShortId(null), 1800);
+  };
 
   // Floating In-Page Search Bar (Ctrl+F)
   const [isPageSearchOpen, setIsPageSearchOpen] = useState(false);
@@ -357,6 +379,8 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
     el.style.height = `${Math.max(minHeight, el.scrollHeight)}px`;
   };
 
+  const pageViewContainerRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     if (targetPage) {
       const normalized = normalizeRawContentToCanonicalBrackets(targetPage.content || '', pages);
@@ -398,7 +422,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
   }, [contentQuery]);
 
   const contentSuggestions: SuggestionItem[] = isTypingAtContent
-    ? getRankedSuggestions(contentQuery, pages, targetPage || null, true)
+    ? getRankedSuggestions(contentQuery, pages, targetPage || null)
     : [];
 
   // Prompt @ suggestions calculation (evaluates live selection & excludes inside existing references)
@@ -419,7 +443,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
   }, [promptQuery]);
 
   const promptSuggestions: SuggestionItem[] = isTypingAtPrompt
-    ? getRankedSuggestions(promptQuery, pages, targetPage || null, true)
+    ? getRankedSuggestions(promptQuery, pages, targetPage || null)
     : [];
 
   const insertContentSuggestion = (item: SuggestionItem) => {
@@ -700,15 +724,15 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
   const backlinkedPages = pages.filter((p) => {
     if (p.id === targetPage.id) return false;
 
-    // 1. Check relational mentions junction list
+    // 1. Check relational mentions junction list where page p is the source mentioning targetPage
     const hasRelationalMention = mentions.some(
       (m) => m.target_page_id === targetPage.id && m.source_page_id === p.id && !m.orphaned
     );
     if (hasRelationalMention) return true;
 
-    // 2. Check full text of content or user_prompt specifically for raw [@pagename] reference format
+    // 2. Check full text of content or user_prompt of page p for explicit [@targetPageTitle] or [@targetPageShortId]
     const sourceText = `${p.user_prompt || ''} ${p.content || ''}`;
-    return matchesExplicitReference(sourceText, targetPage.title);
+    return matchesExplicitReference(sourceText, targetPage.title, targetPage.short_id);
   });
 
   const versionItems = allEntityVersions.map((v, index) => {
@@ -736,7 +760,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
   const dropdownOptions = [...versionItems].reverse();
 
   const versionSuggestions: SuggestionItem[] = isTypingAtVersion
-    ? getRankedSuggestions(versionQuery, pages, targetPage || null, true)
+    ? getRankedSuggestions(versionQuery, pages, targetPage || null)
     : [];
 
   const insertVersionSuggestion = (item: SuggestionItem) => {
@@ -834,18 +858,24 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
     }
   };
 
-  const handleMentionClick = (bp: (typeof pages)[0]) => {
+  const handleMentionClick = (bp: (typeof pages)[0], mentionSnippet?: string) => {
     if (bp.type === 'message') {
-      handleScrollToChatWithId(bp.id);
+      handleScrollToChatWithId(bp.id, targetPage?.title || targetPage?.short_id || mentionSnippet);
     } else {
       const displayTitle = bp.type === 'entity' ? `@${bp.title}` : bp.title;
       openInPane2(bp.type as any, bp.id, displayTitle);
     }
   };
 
-
   const handleCanvasClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (isEditingPrompt) return;
+
+    const targetEl = e.target as HTMLElement;
+    const isGutter = handleGutterRangeClick(targetEl, e.currentTarget, e.shiftKey);
+    if (isGutter) {
+      e.stopPropagation();
+      return;
+    }
 
     // If user is selecting text, stay in non-edit mode so text selection & floating tag toolbar remain active
     const selection = window.getSelection();
@@ -938,17 +968,14 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
     );
   };
 
-  const handleScrollToChatWithId = (sourceNoteId: string) => {
-    openInPane1('chat', sourceNoteId, 'Chat Thread');
+  const handleScrollToChatWithId = (sourceNoteId: string, highlightSpan?: string) => {
+    const targetSpan = highlightSpan || targetPage?.title || targetPage?.short_id;
+    openInPane1('chat', sourceNoteId, 'Chat Thread', targetSpan);
 
     setTimeout(() => {
       const el = document.getElementById(`page-${sourceNoteId}`);
       if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        el.classList.add('ring-2', 'ring-zinc-400', 'bg-zinc-100/90', 'transition-all');
-        setTimeout(() => {
-          el.classList.remove('ring-2', 'ring-zinc-400', 'bg-zinc-100/90');
-        }, 2000);
+        scrollToMentionOrElement(el, targetSpan);
       }
     }, 60);
   };
@@ -967,12 +994,10 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
   };
 
   return (
-    <div data-page-id={targetPage.id} className="flex flex-col h-full bg-white text-zinc-900 overflow-hidden font-sans select-text">
-      {/* Obsidian-Style Seamless Document Canvas */}
-      <div className="flex-1 overflow-y-auto relative bg-white flex flex-col p-6 space-y-4">
-        {/* Floating In-Page Search Bar (Ctrl+F) */}
-        {isPageSearchOpen && (
-          <div className="absolute top-3 left-4 z-40 flex items-center justify-between w-[320px] h-9 px-2.5 bg-white/95 backdrop-blur-xs border border-zinc-200/90 rounded-xl shadow-md text-xs select-none animate-in fade-in slide-in-from-top-1 duration-100 shrink-0">
+    <div data-page-id={targetPage.id} className="relative flex flex-col h-full bg-white text-zinc-900 overflow-hidden font-sans select-text">
+      {/* Sticky Floating In-Page Search Bar (Ctrl+F) */}
+      {isPageSearchOpen && (
+        <div className="absolute top-3 left-4 z-50 flex items-center justify-between w-[320px] h-9 px-2.5 bg-white/95 backdrop-blur-md border border-zinc-200/90 rounded-xl shadow-md text-xs select-none animate-in fade-in slide-in-from-top-1 duration-100 shrink-0">
             <div className="flex items-center gap-2 flex-1 min-w-0 mr-2">
               <Search className="w-3.5 h-3.5 text-zinc-400 shrink-0 pointer-events-none" />
               <input
@@ -1041,19 +1066,45 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
           </div>
         )}
 
-        {/* Top Row: Type Pill, Status Pill (for todos), & View in Chat Button (ONLY for messages) */}
-        <div className="flex items-center justify-end gap-2 select-none">
-          {targetPage.type === 'message' && (
-            <button
-              type="button"
-              onClick={handleScrollToChat}
-              className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-white text-zinc-700 hover:text-zinc-950 border border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50/80 transition-colors shadow-2xs cursor-pointer"
-              title="Scroll left chat pane to origin message"
-            >
-              <MessageSquare className="w-3 h-3 text-zinc-500" />
-              <span>View in Chat</span>
-            </button>
-          )}
+      {/* Obsidian-Style Seamless Document Canvas */}
+      <div ref={pageViewContainerRef} className="flex-1 overflow-y-auto bg-white flex flex-col p-6 space-y-4">
+        {/* Top Row: Page ID Pill (Left-aligned with page text) & Action Buttons (Right-aligned) */}
+        <div className="flex items-center justify-between gap-2 select-none">
+          <div>
+            {targetPage.short_id && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleCopyShortId(targetPage.short_id!);
+                }}
+                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-mono font-medium bg-zinc-100/90 text-zinc-600 hover:text-zinc-950 border border-zinc-200/90 hover:border-zinc-300 hover:bg-zinc-200/70 transition-all shadow-2xs cursor-pointer select-none"
+                title={`Click to copy [@${targetPage.short_id}] to clipboard`}
+              >
+                {copiedShortId === targetPage.short_id ? (
+                  <>
+                    <Check className="w-3 h-3 text-emerald-600" />
+                    <span className="text-emerald-700 font-sans font-semibold text-[11px]">Copied!</span>
+                  </>
+                ) : (
+                  <span>[@{targetPage.short_id}]</span>
+                )}
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            {targetPage.type === 'message' && (
+              <button
+                type="button"
+                onClick={handleScrollToChat}
+                className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-white text-zinc-700 hover:text-zinc-950 border border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50/80 transition-colors shadow-2xs cursor-pointer"
+                title="Scroll left chat pane to origin message"
+              >
+                <MessageSquare className="w-3 h-3 text-zinc-500" />
+                <span>View in Chat</span>
+              </button>
+            )}
 
           {targetPage.type === 'todo' && (
             <>
@@ -1083,8 +1134,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
           )}
 
           {renderBadge()}
-
-
+          </div>
         </div>
 
         {/* H1 Title (ContentEditable - Disabled when prompt is being edited) */}
@@ -1249,7 +1299,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
         )}
 
         {/* Seamless Canvas (Automatic Edit / Blur Transition) */}
-        <div className="flex flex-col relative">
+        <div className="flex flex-col flex-1 relative">
           {isEditing ? (
             <>
               {isTypingAtContent && contentSuggestions.length > 0 && (
@@ -1332,7 +1382,10 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
           ) : (
             <div
               onClick={handleCanvasClick}
-              className="cursor-text min-h-[40px]"
+              onMouseDown={(e) => {
+                handleGutterMouseDown(e, e.currentTarget);
+              }}
+              className="cursor-text flex-1 min-h-[180px] w-full -mx-4 px-4 py-2"
               title="Click anywhere on the document to edit"
             >
               <div
@@ -1589,8 +1642,8 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
           </div>
         )}
 
-        {/* Backlinks & Mentions Feed Section (Excluded for Entity Pages) */}
-        {targetPage.type !== 'entity' && backlinkedPages.length > 0 && (
+        {/* Backlinks & Mentions Feed Section */}
+        {backlinkedPages.length > 0 && (
           <div className="border-t border-zinc-200 bg-zinc-50/40 pt-4 pb-4 shrink-0 -mx-6 -mb-6 mt-auto px-6 space-y-3">
             <div className="flex items-center justify-between text-xs font-bold text-zinc-800 tracking-tight">
               <div className="flex items-center gap-1.5">
@@ -1600,7 +1653,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
 
             <div className="space-y-2 max-h-64 overflow-y-auto pr-0.5">
               {backlinkedPages.map((bp) => {
-                const snippets = getMentionSnippetsForPage(bp, targetPage.title);
+                const snippets = getMentionSnippetsForPage(bp, targetPage.title, targetPage.short_id);
 
                 const getSourcePageIcon = () => {
                   if (bp.type === 'note') return <FileText className="h-3.5 w-3.5 text-amber-600 shrink-0" />;

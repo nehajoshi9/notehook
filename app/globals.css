@@ -18,8 +18,8 @@ body {
 
 /* Custom Minimal Scrollbar */
 ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 10px;
+  height: 10px;
 }
 
 ::-webkit-scrollbar-track {
@@ -27,12 +27,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #e4e4e7;
+  background: #d4d4d8;
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #d4d4d8;
+  background: #a1a1aa;
 }
 
 /* ProseMirror / Tiptap Custom Styles - Crisp Black Text on White */
@@ -120,8 +120,7 @@ body {
 }
 
 .page-mention-pill:hover,
-.page-mention-pill.is-hover-locked,
-.group:hover .page-mention-pill {
+.page-mention-pill.is-hover-locked {
   filter: brightness(0.96);
   transform: translateY(-0.5px);
   max-width: none;
@@ -133,22 +132,19 @@ body {
 }
 
 .page-mention-pill:hover .pill-full,
-.page-mention-pill.is-hover-locked .pill-full,
-.group:hover .page-mention-pill .pill-full {
+.page-mention-pill.is-hover-locked .pill-full {
   display: inline;
   white-space: normal;
   word-break: break-word;
 }
 
 .page-mention-pill:hover .pill-short,
-.page-mention-pill.is-hover-locked .pill-short,
-.group:hover .page-mention-pill .pill-short {
+.page-mention-pill.is-hover-locked .pill-short {
   display: none;
 }
 
 /* Disable hover untruncation on pills while text is being selected in Page View or Chat View */
-body.is-selecting-text .page-mention-pill:hover,
-body.is-selecting-text .group:hover .page-mention-pill {
+body.is-selecting-text .page-mention-pill:hover {
   filter: none !important;
   transform: none !important;
   max-width: 320px !important;
@@ -159,13 +155,11 @@ body.is-selecting-text .group:hover .page-mention-pill {
   position: static !important;
 }
 
-body.is-selecting-text .page-mention-pill:hover .pill-full,
-body.is-selecting-text .group:hover .page-mention-pill .pill-full {
+body.is-selecting-text .page-mention-pill:hover .pill-full {
   display: none !important;
 }
 
-body.is-selecting-text .page-mention-pill:hover .pill-short,
-body.is-selecting-text .group:hover .page-mention-pill .pill-short {
+body.is-selecting-text .page-mention-pill:hover .pill-short {
   display: inline !important;
 }
 
@@ -259,4 +253,212 @@ body.is-selecting-text .group:hover .page-mention-pill .pill-short {
 .page-mention-pill[data-deleted="true"]:hover .pill-short {
   display: inline !important;
   text-decoration: line-through !important;
+}
+
+/* Prose Scribe Markdown Styles */
+.prose-scribe h1 {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #09090b;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+  letter-spacing: -0.02em;
+}
+
+.prose-scribe h2 {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #09090b;
+  margin-top: 0.875rem;
+  margin-bottom: 0.375rem;
+  letter-spacing: -0.01em;
+}
+
+.prose-scribe h3 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #09090b;
+  margin-top: 0.75rem;
+  margin-bottom: 0.25rem;
+}
+
+.prose-scribe p {
+  margin-top: 0.375rem;
+  margin-bottom: 0.375rem;
+  line-height: 1.6;
+}
+
+.prose-scribe ul {
+  list-style-type: disc;
+  padding-left: 1.25rem;
+  margin-top: 0.375rem;
+  margin-bottom: 0.375rem;
+}
+
+.prose-scribe ol {
+  list-style-type: decimal;
+  padding-left: 1.25rem;
+  margin-top: 0.375rem;
+  margin-bottom: 0.375rem;
+}
+
+.prose-scribe li {
+  margin-top: 0.125rem;
+  margin-bottom: 0.125rem;
+  line-height: 1.5;
+}
+
+.prose-scribe blockquote {
+  border-left: 3px solid #818cf8;
+  padding-left: 0.75rem;
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+  background-color: rgba(238, 242, 255, 0.5);
+  color: #374151;
+  font-style: italic;
+  border-radius: 0 0.375rem 0.375rem 0;
+}
+
+.prose-scribe table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.75rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.8125rem;
+}
+
+.prose-scribe th,
+.prose-scribe td {
+  border: 1px solid #e4e4e7;
+  padding: 0.375rem 0.625rem;
+  text-align: left;
+}
+
+.prose-scribe th {
+  background-color: #f4f4f5;
+  font-weight: 600;
+}
+
+.prose-scribe hr {
+  border: 0;
+  border-top: 1px solid #e4e4e7;
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+}
+
+/* Per-Block Gutter Handle Styles */
+.scribe-markdown-block {
+  position: relative;
+}
+
+.scribe-gutter-handle {
+  position: absolute;
+  left: -2.25rem;
+  top: 0.15rem;
+  transform: translateX(-50%);
+  opacity: 0;
+  pointer-events: auto;
+  transition: opacity 0.15s ease-in-out;
+  user-select: none;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Margin Area Hit Target (Area between sidebar and left boundary of chat messages) */
+.scribe-gutter-handle::before {
+  content: '';
+  position: absolute;
+  top: -1rem;
+  bottom: -1rem;
+  left: -1.25rem;
+  right: -1.25rem;
+  pointer-events: auto;
+}
+
+@media (min-width: 768px) {
+  .scribe-gutter-handle {
+    left: -2.75rem;
+  }
+
+  .scribe-gutter-handle::before {
+    left: -1.75rem;
+    right: -1.75rem;
+  }
+}
+
+/* Standardized User Prompt Gutter Handle Alignment */
+.scribe-user-prompt-turn .scribe-markdown-block {
+  position: static;
+}
+
+.scribe-user-prompt-turn .scribe-gutter-handle {
+  top: 1.85rem;
+  left: -1.25rem;
+  transform: translateX(-50%);
+}
+
+@media (min-width: 768px) {
+  .scribe-user-prompt-turn .scribe-gutter-handle {
+    left: -1.75rem;
+    transform: translateX(-50%);
+  }
+}
+
+.scribe-gutter-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  margin: 0;
+  border: none;
+  outline: none;
+  border-radius: 0.375rem;
+  color: #a1a1aa;
+  background: transparent;
+  cursor: pointer;
+  pointer-events: auto;
+  user-select: none;
+  transition: color 0.15s ease-in-out, background-color 0.15s ease-in-out;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.scribe-gutter-btn:hover {
+  color: #3f3f46;
+  background-color: #e4e4e7;
+}
+
+.scribe-gutter-btn svg {
+  width: 1.125rem;
+  height: 1.125rem;
+  display: block;
+  flex-shrink: 0;
+  margin: auto;
+}
+
+.scribe-gutter-btn .check-square-icon {
+  display: none !important;
+}
+
+.scribe-gutter-btn.is-checked .square-icon {
+  display: none !important;
+}
+
+.scribe-gutter-btn.is-checked .check-square-icon {
+  display: block !important;
+}
+
+/* Reveal when hovering over the block text in the chat, over the margin area / handle, or when block is checked */
+.scribe-markdown-block:hover .scribe-gutter-handle,
+.scribe-gutter-handle:hover,
+.scribe-gutter-handle:has(.is-checked),
+.scribe-gutter-handle.is-checked {
+  opacity: 1 !important;
+  pointer-events: auto !important;
 }

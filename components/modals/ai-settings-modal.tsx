@@ -51,30 +51,50 @@ export const AISettingsModal: React.FC<AISettingsModalProps> = ({ isOpen, onClos
           {/* Provider Selection */}
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-bold text-zinc-700">Provider</label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               <button
                 type="button"
-                onClick={() => setProvider('simulated')}
-                className={`flex items-center gap-2 p-2.5 rounded-xl border text-xs font-semibold transition-all ${
+                onClick={() => {
+                  setProvider('simulated');
+                }}
+                className={`flex items-center justify-center gap-1.5 p-2 rounded-xl border text-xs font-semibold transition-all ${
                   provider === 'simulated'
                     ? 'border-indigo-600 bg-indigo-50/60 text-indigo-900'
                     : 'border-zinc-200 hover:border-zinc-300 text-zinc-600'
                 }`}
               >
-                <Bot className="w-4 h-4 text-indigo-600" />
-                <span>Simulated (Free)</span>
+                <Bot className="w-3.5 h-3.5 text-indigo-600" />
+                <span>Simulated</span>
               </button>
               <button
                 type="button"
-                onClick={() => setProvider('openai')}
-                className={`flex items-center gap-2 p-2.5 rounded-xl border text-xs font-semibold transition-all ${
+                onClick={() => {
+                  setProvider('gemini');
+                  if (!model || model === 'gpt-4o-mini' || model === 'gemini-1.5-flash' || model === 'gemini-2.5-flash') setModel('gemini-3.6-flash');
+                }}
+                className={`flex items-center justify-center gap-1.5 p-2 rounded-xl border text-xs font-semibold transition-all ${
+                  provider === 'gemini'
+                    ? 'border-indigo-600 bg-indigo-50/60 text-indigo-900'
+                    : 'border-zinc-200 hover:border-zinc-300 text-zinc-600'
+                }`}
+              >
+                <Key className="w-3.5 h-3.5 text-indigo-600" />
+                <span>Gemini API</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setProvider('openai');
+                  if (!model || model.startsWith('gemini')) setModel('gpt-4o-mini');
+                }}
+                className={`flex items-center justify-center gap-1.5 p-2 rounded-xl border text-xs font-semibold transition-all ${
                   provider === 'openai'
                     ? 'border-indigo-600 bg-indigo-50/60 text-indigo-900'
                     : 'border-zinc-200 hover:border-zinc-300 text-zinc-600'
                 }`}
               >
-                <Key className="w-4 h-4 text-indigo-600" />
-                <span>OpenAI API</span>
+                <Key className="w-3.5 h-3.5 text-indigo-600" />
+                <span>OpenAI</span>
               </button>
             </div>
           </div>
@@ -87,7 +107,7 @@ export const AISettingsModal: React.FC<AISettingsModalProps> = ({ isOpen, onClos
                 type="password"
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
-                placeholder="sk-..."
+                placeholder={provider === 'gemini' ? 'AIzaSy...' : 'sk-...'}
                 className="w-full px-3 py-2 text-xs border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 font-mono"
               />
               <span className="text-[10px] text-zinc-400 flex items-center gap-1">
@@ -104,8 +124,8 @@ export const AISettingsModal: React.FC<AISettingsModalProps> = ({ isOpen, onClos
                 type="text"
                 value={model}
                 onChange={(e) => setModel(e.target.value)}
-                placeholder="gpt-4o-mini"
-                className="w-full px-3 py-2 text-xs border border-zinc-200 rounded-lg focus:outline-none"
+                placeholder={provider === 'gemini' ? 'gemini-1.5-flash' : 'gpt-4o-mini'}
+                className="w-full px-3 py-2 text-xs border border-zinc-200 rounded-lg focus:outline-none font-mono"
               />
             </div>
           )}
