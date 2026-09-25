@@ -145,6 +145,49 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
 
   const systemPrompt = `${baseSystemPrompt}${referencedContextSection}`;
 
+  // Sliding window of the last 6 to 8 conversation turns from previous message pages
+  const MAX_HISTORY_TURNS = 8;
+  const pastTurns = allPages
+    .filter((p) => p.type === 'message' && p.user_prompt?.trim() && p.content?.trim())
+    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+    .slice(-MAX_HISTORY_TURNS);
+
+  // Gemini contents (alternating user and model roles, concluding with current userPrompt)
+  const geminiContents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> = [];
+  for (const turn of pastTurns) {
+    geminiContents.push({
+      role: 'user',
+      parts: [{ text: turn.user_prompt!.trim() }],
+    });
+    geminiContents.push({
+      role: 'model',
+      parts: [{ text: turn.content.trim() }],
+    });
+  }
+  geminiContents.push({
+    role: 'user',
+    parts: [{ text: userPrompt.trim() }],
+  });
+
+  // OpenAI messages (system prompt, alternating past turns, concluding with current userPrompt)
+  const openAiMessages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
+    { role: 'system', content: systemPrompt },
+  ];
+  for (const turn of pastTurns) {
+    openAiMessages.push({
+      role: 'user',
+      content: turn.user_prompt!.trim(),
+    });
+    openAiMessages.push({
+      role: 'assistant',
+      content: turn.content.trim(),
+    });
+  }
+  openAiMessages.push({
+    role: 'user',
+    content: userPrompt.trim(),
+  });
+
   const apiKey = aiSettings.apiKey || process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
   const effectiveProvider = (aiSettings.provider === 'simulated' && apiKey) ? 'gemini' : aiSettings.provider;
 
@@ -171,7 +214,7 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               system_instruction: { parts: [{ text: systemPrompt }] },
-              contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+              contents: geminiContents,
             }),
           }
         );
@@ -218,7 +261,7 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               system_instruction: { parts: [{ text: systemPrompt }] },
-              contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+              contents: geminiContents,
             }),
           }
         );
@@ -254,10 +297,7 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
         },
         body: JSON.stringify({
           model: aiSettings.model || 'gpt-4o-mini',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt },
-          ],
+          messages: openAiMessages,
           stream: true,
         }),
       });
