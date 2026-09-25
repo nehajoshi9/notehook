@@ -643,7 +643,12 @@ export const FloatingSelectionToolbar: React.FC<FloatingSelectionToolbarProps> =
       const cleanBodyText = selectedText;
       const untaggedForTitle = untagReferences(cleanBodyText);
       const cleanTitle = formatItemTitle(untaggedForTitle, 45) || 'Untitled Note';
-      const newNote = createNotePage(cleanTitle, cleanBodyText);
+      const sourcePage = detectedSourcePageId ? pages.find((p) => p.id === detectedSourcePageId) : null;
+      const sourceTag = sourcePage?.short_id ? `[@${sourcePage.short_id}]` : (sourcePage ? `[@${sourcePage.id}]` : '');
+      const noteBody = sourceTag && !cleanBodyText.startsWith(`From ${sourceTag}`)
+        ? `From ${sourceTag}:\n${cleanBodyText}`
+        : cleanBodyText;
+      const newNote = createNotePage(cleanTitle, noteBody);
       openInPane2('note', newNote.id, newNote.title);
 
       setPosition(null);
@@ -765,21 +770,36 @@ export const FloatingSelectionToolbar: React.FC<FloatingSelectionToolbarProps> =
       );
 
       let text = '';
+      let targetContainer: HTMLElement | null = null;
+
       if (selectedBlocks.length > 0) {
         text = cleanMarkdownSpacing(selectedBlocks.map((b) => domToMarkdown(b)).join('\n\n'));
+        targetContainer = selectedBlocks[0].closest<HTMLElement>('[data-page-id], [data-message-id]');
       } else if (selection && !selection.isCollapsed) {
         const range = selection.getRangeAt(0);
         text = cleanMarkdownSpacing(domToMarkdown(range.cloneContents())) || selection.toString().trim();
+        const commonNode = range.commonAncestorContainer;
+        const commonEl = commonNode.nodeType === Node.ELEMENT_NODE ? (commonNode as HTMLElement) : commonNode.parentElement;
+        targetContainer = commonEl?.closest<HTMLElement>('[data-page-id], [data-message-id]') || null;
       }
 
       if (!text || !text.trim()) return;
 
-      const pId = detectedSourcePageIdRef.current || noteId;
+      const pId = targetContainer?.getAttribute('data-page-id') ||
+                  targetContainer?.getAttribute('data-message-id') ||
+                  detectedSourcePageIdRef.current ||
+                  noteId;
       const sourcePage = pId ? pagesRef.current.find((p) => p.id === pId) : null;
-      const sourceTag = sourcePage?.short_id ? `[@${sourcePage.short_id}]` : (sourcePage ? `[@${sourcePage.id}]` : '');
+      const shortId = targetContainer?.getAttribute('data-page-short-id') ||
+                      targetContainer?.getAttribute('data-short-id') ||
+                      sourcePage?.short_id;
+      const sourceTag = shortId ? `[@${shortId}]` : (sourcePage?.id ? `[@${sourcePage.id}]` : (pId ? `[@${pId}]` : ''));
 
-      if (sourceTag && !text.startsWith(`From ${sourceTag}`)) {
-        text = text.includes('\n') ? `From ${sourceTag}\n\n${text}` : `From ${sourceTag} ${text}`;
+      if (sourceTag) {
+        const prefix = `From ${sourceTag}:`;
+        if (!text.startsWith(prefix) && !text.startsWith(`From ${sourceTag}`)) {
+          text = `${prefix}\n${text}`;
+        }
       }
 
       if (e.clipboardData) {

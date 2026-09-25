@@ -124,12 +124,21 @@ export function untagReferences(text: string): string {
 /**
  * Formats item title without truncating raw text with ellipsis
  */
-export function formatItemTitle(text: string, _maxLen?: number): string {
+export function formatItemTitle(text: string, maxLen?: number): string {
   const cleaned = text.replace(/^(todo:|decision:|note:|\s*)+/i, '').trim();
   if (!cleaned) return 'Untitled';
-  return cleaned.replace(/…$/, '').trim();
-}
 
+  const normalized = cleaned.replace(/…$/, '').trim();
+
+  if (maxLen !== undefined && normalized.length > maxLen) {
+    // Reserve space for the ellipsis if maxLen allows
+    return maxLen > 1
+      ? normalized.slice(0, maxLen - 1).trimEnd() + '…'
+      : normalized.slice(0, maxLen);
+  }
+
+  return normalized;
+}
 /**
  * Formats canonical raw bracket tag syntax according to architecture rules:
  * - Entity: [@Entity Title]
@@ -1124,7 +1133,7 @@ if (typeof window !== 'undefined') {
       const pageContainer = el.closest<HTMLElement>('[data-page-id], [data-message-id]');
       if (pageContainer) {
         const shortId = pageContainer.getAttribute('data-page-short-id') ||
-                        pageContainer.getAttribute('data-short-id');
+          pageContainer.getAttribute('data-short-id');
         if (shortId) return `[@${shortId}]`;
         const pId = pageContainer.getAttribute('data-page-id') || pageContainer.getAttribute('data-message-id');
         if (pId) return `[@${pId}]`;
@@ -1135,12 +1144,9 @@ if (typeof window !== 'undefined') {
 
   function prependSourceTag(text: string, tag: string | null): string {
     if (!tag || !text.trim()) return text;
-    const prefix = `From ${tag}`;
-    if (text.startsWith(prefix)) return text;
-    if (text.includes('\n') || /^(\s*[-*#>]|\d+\.)/.test(text)) {
-      return `${prefix}\n\n${text}`;
-    }
-    return `${prefix} ${text}`;
+    const prefix = `From ${tag}:`;
+    if (text.startsWith(prefix) || text.startsWith(`From ${tag}`)) return text;
+    return `${prefix}\n${text}`;
   }
 
   // Global listener: Cmd+C / Ctrl+C copies markdown format of selected gutter blocks or highlighted prose selection
