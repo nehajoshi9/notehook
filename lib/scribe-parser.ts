@@ -1374,16 +1374,6 @@ export function scrollToMentionOrElement(
         }
       }
     }
-
-    // 3. Fallback to first mention pill inside container if specific query was provided but no exact match
-    if (!targetEl) {
-      const candidatePills = Array.from(
-        container.querySelectorAll('.page-mention-pill, button[data-short-id]')
-      ).filter(
-        (el) => !el.closest('.mentions-card-container, [data-mentions-feed], .mentions-panel-excerpt')
-      ) as HTMLElement[];
-      targetEl = candidatePills[0] || null;
-    }
   }
 
   const elToScroll = targetEl || container;

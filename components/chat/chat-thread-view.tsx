@@ -73,9 +73,15 @@ export const ChatThreadView: React.FC<ChatThreadViewProps> = ({ paneIndex = 1 })
     };
   }, [openSaveMenuNoteId]);
 
+  const lastScrolledTargetRef = useRef<string | null>(null);
+
+  // 1. Navigation effect: Scroll to specific message / mention ONLY once when pane navigation target changes
   useEffect(() => {
-    // If currentPane targets a specific page message, scroll to the exact mention inside it smoothly
     if ((currentPane.type === 'message' || currentPane.type === 'chat') && currentPane.id) {
+      const scrollKey = `${currentPane.id}:${currentPane.highlightSpan || ''}`;
+      if (lastScrolledTargetRef.current === scrollKey) return;
+      lastScrolledTargetRef.current = scrollKey;
+
       const el = document.getElementById(`page-${currentPane.id}`);
       if (el) {
         const timer = setTimeout(() => {
@@ -84,8 +90,16 @@ export const ChatThreadView: React.FC<ChatThreadViewProps> = ({ paneIndex = 1 })
         return () => clearTimeout(timer);
       }
     }
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages.length, aiStreamingText, currentPane.id, currentPane.highlightSpan]);
+  }, [currentPane.type, currentPane.id, currentPane.highlightSpan]);
+
+  // 2. Chat stream / message arrival effect: Scroll to bottom on new messages or active AI generation
+  useEffect(() => {
+    if (isAiGenerating || aiStreamingText) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    } else if (!currentPane.id && currentPane.type === 'chat') {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages.length, aiStreamingText, isAiGenerating, currentPane.type, currentPane.id]);
 
   const sortedNotes = [...messages].sort(
     (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()

@@ -311,8 +311,13 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
   }, [isPageSearchOpen]);
 
   const currentPaneState = paneIndex === 1 ? leftPane : rightPane;
+  const lastScrolledSpanRef = useRef<string | null>(null);
   useEffect(() => {
     if (targetPage && currentPaneState?.highlightSpan && currentPaneState.id === targetPage.id) {
+      const scrollKey = `${targetPage.id}:${currentPaneState.highlightSpan}`;
+      if (lastScrolledSpanRef.current === scrollKey) return;
+      lastScrolledSpanRef.current = scrollKey;
+
       const container = pageViewContainerRef.current;
       if (container) {
         const timer = setTimeout(() => {
@@ -321,7 +326,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
         return () => clearTimeout(timer);
       }
     }
-  }, [targetPage?.id, currentPaneState, bodyText, targetPage?.versions, targetPage?.content, targetPage?.user_prompt]);
+  }, [targetPage?.id, currentPaneState?.id, currentPaneState?.highlightSpan]);
 
   const { renderedTitleHtml, renderedPromptHtml, renderedBodyHtml, totalMatchCount } = React.useMemo(() => {
     const query = pageSearchQuery.trim();
