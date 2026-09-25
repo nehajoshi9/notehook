@@ -16,7 +16,7 @@ export const AIChatInput: React.FC = () => {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [isDismissed, setIsDismissed] = useState(false);
 
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // Dynamic cursor left position calculation for chat input
   const getChatCursorLeft = () => {
@@ -33,7 +33,7 @@ export const AIChatInput: React.FC = () => {
         mirror.style.position = 'absolute';
         mirror.style.visibility = 'hidden';
         mirror.style.pointerEvents = 'none';
-        mirror.style.whiteSpace = 'pre';
+        mirror.style.whiteSpace = 'pre-wrap';
         mirror.style.top = '-9999px';
         mirror.style.left = '-9999px';
         document.body.appendChild(mirror);
@@ -46,13 +46,15 @@ export const AIChatInput: React.FC = () => {
       mirror.style.paddingLeft = style.paddingLeft;
 
       const textBefore = (input.value || prompt).slice(0, liveCursor);
-      mirror.textContent = textBefore;
+      const lastLineIndex = textBefore.lastIndexOf('\n');
+      const textCurrentLine = lastLineIndex !== -1 ? textBefore.slice(lastLineIndex + 1) : textBefore;
+      mirror.textContent = textCurrentLine;
 
       const span = document.createElement('span');
       span.textContent = '.';
       mirror.appendChild(span);
 
-      return span.offsetLeft + 28;
+      return Math.min(span.offsetLeft + 28, 400);
     } catch (e) {
       return 36;
     }
@@ -139,15 +141,28 @@ export const AIChatInput: React.FC = () => {
     }, 0);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  // Auto-resize textarea height as content expands or shrinks
+  useEffect(() => {
+    const el = inputRef.current;
+    if (el) {
+      el.style.height = 'auto';
+      const newHeight = Math.min(Math.max(el.scrollHeight, 24), 160);
+      el.style.height = `${newHeight}px`;
+    }
+  }, [prompt]);
+
+  const handleSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!prompt.trim() || isAiGenerating) return;
     const text = prompt;
     setPrompt('');
+    if (inputRef.current) {
+      inputRef.current.style.height = 'auto';
+    }
     submitUserTurn(text);
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (isTypingAt && suggestions.length > 0) {
       if (e.key === 'ArrowDown') {
         e.preventDefault();
@@ -176,13 +191,18 @@ export const AIChatInput: React.FC = () => {
       }
     }
 
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter') {
+      if (e.shiftKey) {
+        // Shift + Enter: allow natural textarea newline behavior
+        return;
+      }
+      // Enter without Shift: send message immediately
       e.preventDefault();
-      handleSubmit(e);
+      handleSubmit();
     }
   };
 
-  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     let pastedText = e.clipboardData.getData('text/plain');
     const htmlText = e.clipboardData.getData('text/html');
 
@@ -251,7 +271,7 @@ export const AIChatInput: React.FC = () => {
     <div className={`p-3 md:p-4 bg-white border-t border-zinc-200 flex flex-col items-center select-none shrink-0 relative ${isDualPane ? 'pl-9 md:pl-12' : ''}`}>
       <div className="w-full max-w-3xl flex flex-col gap-2 relative">
         {/* Clean Standard Chat Input Bar */}
-        <form id="chat-input-form" data-chat-input="true" onSubmit={handleSubmit} className="relative flex items-center bg-white border border-zinc-300 focus-within:border-zinc-900 rounded-2xl px-4 py-2.5 shadow-2xs transition-all">
+        <form id="chat-input-form" data-chat-input="true" onSubmit={handleSubmit} className="relative flex items-end bg-white border border-zinc-300 focus-within:border-zinc-900 rounded-2xl px-4 py-2 shadow-2xs transition-all">
           {/* @ Trigger Autocomplete Suggestion Popover */}
           {isTypingAt && suggestions.length > 0 && (
             <div
@@ -266,31 +286,31 @@ export const AIChatInput: React.FC = () => {
             </div>
           )}
 
-          <div className="flex items-center w-full relative min-h-[28px]">
-            <input
+          <div className="flex items-end w-full relative min-h-[28px]">
+            <textarea
               ref={inputRef}
-              type="text"
+              rows={1}
               value={prompt}
               onChange={(e) => {
                 setPrompt(e.target.value);
                 setCursorPos(e.target.selectionStart || e.target.value.length);
               }}
               onPaste={handlePaste}
-              onKeyUp={(e) => setCursorPos((e.target as HTMLInputElement).selectionStart || prompt.length)}
-              onClick={(e) => setCursorPos((e.target as HTMLInputElement).selectionStart || prompt.length)}
-              onSelect={(e) => setCursorPos((e.target as HTMLInputElement).selectionStart || prompt.length)}
+              onKeyUp={(e) => setCursorPos((e.target as HTMLTextAreaElement).selectionStart || prompt.length)}
+              onClick={(e) => setCursorPos((e.target as HTMLTextAreaElement).selectionStart || prompt.length)}
+              onSelect={(e) => setCursorPos((e.target as HTMLTextAreaElement).selectionStart || prompt.length)}
               onKeyDown={handleKeyDown}
               disabled={isAiGenerating}
               placeholder="Type or paste a message... (auto-detects [@todo: ...], [@decision: ...], [@note: ...], [@Entity])"
-              className="flex-1 text-xs md:text-sm text-zinc-900 placeholder-zinc-400 bg-transparent focus:outline-none font-sans"
+              className="flex-1 text-xs md:text-sm text-zinc-900 placeholder-zinc-400 bg-transparent focus:outline-none font-sans resize-none py-1 leading-relaxed overflow-y-auto"
               autoFocus
             />
 
             <button
               type="submit"
               disabled={!prompt.trim() || isAiGenerating}
-              className="flex items-center justify-center p-2 bg-zinc-900 hover:bg-zinc-800 disabled:opacity-30 text-white font-bold rounded-xl transition-colors ml-2 shrink-0 cursor-pointer"
-              title="Send message"
+              className="flex items-center justify-center p-2 bg-zinc-900 hover:bg-zinc-800 disabled:opacity-30 text-white font-bold rounded-xl transition-colors ml-2 shrink-0 cursor-pointer self-end mb-0.5"
+              title="Send message (Enter to send, Shift+Enter for new line)"
             >
               <Send className="w-4 h-4" />
             </button>
