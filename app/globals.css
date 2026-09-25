@@ -366,6 +366,7 @@ body.is-selecting-text .page-mention-pill:hover .pill-short {
   display: flex;
   align-items: center;
   justify-content: center;
+  cursor: pointer;
 }
 
 /* Margin Area Hit Target (Area between sidebar and left boundary of chat messages) */
@@ -390,7 +391,7 @@ body.is-selecting-text .page-mention-pill:hover .pill-short {
   }
 }
 
-/* Standardized User Prompt Gutter Handle Alignment */
+/* Standardized User Prompt Gutter Handle Alignment (chat view) */
 .scribe-user-prompt-turn .scribe-markdown-block {
   position: static;
 }
@@ -405,6 +406,39 @@ body.is-selecting-text .page-mention-pill:hover .pill-short {
   .scribe-user-prompt-turn .scribe-gutter-handle {
     left: -1.75rem;
     transform: translateX(-50%);
+  }
+}
+
+/*
+  Page view canvas overrides: pin ALL gutter handles to the exact horizontal
+  centre of the left margin (pl-8 = 2rem mobile, pl-10 = 2.5rem md).
+  Cancel the per-turn position:static so every block is position:relative
+  and the handle left is measured consistently from the block's own left edge.
+*/
+[data-page-canvas] .scribe-user-prompt-turn .scribe-markdown-block .scribe-gutter-handle {
+  display: none !important;
+}
+
+[data-page-canvas] .scribe-gutter-handle,
+[data-page-canvas] .scribe-user-prompt-turn .scribe-gutter-handle {
+  left: -1rem;           /* half of pl-8 (2rem) = margin midpoint */
+  top: 0.15rem;
+  transform: translateX(-50%);
+}
+
+[data-page-canvas] [data-entity-version-container] .scribe-markdown-block .scribe-gutter-handle {
+  left: calc(-1rem - 1rem) !important;
+  transform: translateX(-50%);
+}
+
+@media (min-width: 768px) {
+  [data-page-canvas] .scribe-gutter-handle,
+  [data-page-canvas] .scribe-user-prompt-turn .scribe-gutter-handle {
+    left: -1.25rem;      /* half of pl-10 (2.5rem) = margin midpoint */
+  }
+
+  [data-page-canvas] [data-entity-version-container] .scribe-markdown-block .scribe-gutter-handle {
+    left: calc(-1.25rem - 1.25rem) !important;
   }
 }
 

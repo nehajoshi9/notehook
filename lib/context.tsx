@@ -277,11 +277,11 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [pages, mentions, aiSettings, workspaceName, pinnedPageIds, isLoaded]);
 
   // Derived filtered page lists
-  const messages = pages.filter((p) => p.type === 'message');
-  const notes = pages.filter((p) => p.type === 'note');
-  const entities = pages.filter((p) => p.type === 'entity');
-  const todos = pages.filter((p) => p.type === 'todo');
-  const decisions = pages.filter((p) => p.type === 'decision');
+  const messages = pages.filter((p) => p.type === 'message').reverse(); // all have newest first
+  const notes = pages.filter((p) => p.type === 'note').reverse();
+  const entities = pages.filter((p) => p.type === 'entity').reverse();
+  const todos = pages.filter((p) => p.type === 'todo').reverse();
+  const decisions = pages.filter((p) => p.type === 'decision').reverse();
 
   // Pane Navigation Handlers
   const openInPane2 = (type: PaneState['type'], id: string | null, title?: string, highlightSpan?: string) => {

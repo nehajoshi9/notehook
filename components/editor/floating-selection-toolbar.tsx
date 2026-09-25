@@ -739,8 +739,9 @@ export const FloatingSelectionToolbar: React.FC<FloatingSelectionToolbarProps> =
       addManualMention(noteId || entity.id, entity.title, selectedText);
     }
 
-    // Only replace selection with a reference pill if creating a new reference tag (NOT when saving content to an entity)
-    if (!isSaveAsEntity) {
+    // Replace the selected text in the source document with the reference pill for all suggestion
+    // types — including save-as-entity. The raw text collapses into [@EntityName] in place.
+    {
       const activeEl = document.activeElement as HTMLTextAreaElement | HTMLInputElement | null;
       if (activeEl && (activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'INPUT')) {
         const start = activeEl.selectionStart;

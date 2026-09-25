@@ -22,11 +22,10 @@ const GutterCheckbox: React.FC<GutterCheckboxProps> = ({ blockId }) => {
         e.stopPropagation();
         setChecked((prev) => !prev);
       }}
-      className={`p-0.5 rounded transition-all duration-150 cursor-pointer select-none ${
-        checked
+      className={`p-0.5 rounded transition-all duration-150 cursor-pointer select-none ${checked
           ? 'opacity-100 text-indigo-600'
           : 'opacity-25 hover:opacity-100 text-zinc-400 hover:text-zinc-700'
-      }`}
+        }`}
       title={checked ? 'Deselect block' : 'Select block'}
     >
       {checked ? (
@@ -313,6 +312,8 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
   }, [isPageSearchOpen]);
 
   const currentPaneState = paneIndex === 1 ? leftPane : rightPane;
+  // Match left-gutter width with the chat view when in split-pane mode
+  const isDualPane = rightPane.type !== 'empty';
   const lastScrolledSpanRef = useRef<string | null>(null);
   useEffect(() => {
     if (targetPage && currentPaneState?.highlightSpan && currentPaneState.id === targetPage.id) {
@@ -1095,76 +1096,76 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
       {/* Sticky Floating In-Page Search Bar (Ctrl+F) */}
       {isPageSearchOpen && (
         <div className="absolute top-3 left-4 z-50 flex items-center justify-between w-[320px] h-9 px-2.5 bg-white/95 backdrop-blur-md border border-zinc-200/90 rounded-xl shadow-md text-xs select-none animate-in fade-in slide-in-from-top-1 duration-100 shrink-0">
-            <div className="flex items-center gap-2 flex-1 min-w-0 mr-2">
-              <Search className="w-3.5 h-3.5 text-zinc-400 shrink-0 pointer-events-none" />
-              <input
-                ref={pageSearchInputRef}
-                type="text"
-                value={pageSearchQuery}
-                onChange={(e) => {
-                  setPageSearchQuery(e.target.value);
-                  setCurrentMatchIndex(0);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Escape') {
-                    e.preventDefault();
-                    setIsPageSearchOpen(false);
-                  } else if (e.key === 'Enter') {
-                    e.preventDefault();
-                    if (totalMatchCount > 0) {
-                      if (e.shiftKey) {
-                        setCurrentMatchIndex((prev) => (prev - 1 + totalMatchCount) % totalMatchCount);
-                      } else {
-                        setCurrentMatchIndex((prev) => (prev + 1) % totalMatchCount);
-                      }
+          <div className="flex items-center gap-2 flex-1 min-w-0 mr-2">
+            <Search className="w-3.5 h-3.5 text-zinc-400 shrink-0 pointer-events-none" />
+            <input
+              ref={pageSearchInputRef}
+              type="text"
+              value={pageSearchQuery}
+              onChange={(e) => {
+                setPageSearchQuery(e.target.value);
+                setCurrentMatchIndex(0);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  e.preventDefault();
+                  setIsPageSearchOpen(false);
+                } else if (e.key === 'Enter') {
+                  e.preventDefault();
+                  if (totalMatchCount > 0) {
+                    if (e.shiftKey) {
+                      setCurrentMatchIndex((prev) => (prev - 1 + totalMatchCount) % totalMatchCount);
+                    } else {
+                      setCurrentMatchIndex((prev) => (prev + 1) % totalMatchCount);
                     }
                   }
-                }}
-                placeholder="Find in page..."
-                className="w-full bg-transparent text-xs font-medium text-zinc-900 placeholder-zinc-400 focus:outline-none"
-              />
-            </div>
-
-            <div className="flex items-center gap-1 shrink-0">
-              <span className="text-[11px] font-mono text-zinc-400 w-14 text-center shrink-0 border-r border-zinc-200/80 pr-1.5">
-                {pageSearchQuery.trim()
-                  ? totalMatchCount > 0
-                    ? `${currentMatchIndex + 1}/${totalMatchCount}`
-                    : '0/0'
-                  : ''}
-              </span>
-              <button
-                type="button"
-                onClick={() => totalMatchCount > 0 && setCurrentMatchIndex((prev) => (prev - 1 + totalMatchCount) % totalMatchCount)}
-                disabled={totalMatchCount === 0}
-                className="p-1 rounded hover:bg-zinc-100 disabled:opacity-30 text-zinc-500 hover:text-zinc-800 transition-colors cursor-pointer"
-                title="Previous match (Shift+Enter)"
-              >
-                <ChevronUp className="w-3.5 h-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => totalMatchCount > 0 && setCurrentMatchIndex((prev) => (prev + 1) % totalMatchCount)}
-                disabled={totalMatchCount === 0}
-                className="p-1 rounded hover:bg-zinc-100 disabled:opacity-30 text-zinc-500 hover:text-zinc-800 transition-colors cursor-pointer"
-                title="Next match (Enter)"
-              >
-                <ChevronDown className="w-3.5 h-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsPageSearchOpen(false)}
-                className="p-1 rounded hover:bg-zinc-100 text-zinc-400 hover:text-zinc-700 transition-colors cursor-pointer"
-                title="Close (Esc)"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
+                }
+              }}
+              placeholder="Find in page..."
+              className="w-full bg-transparent text-xs font-medium text-zinc-900 placeholder-zinc-400 focus:outline-none"
+            />
           </div>
-        )}
+
+          <div className="flex items-center gap-1 shrink-0">
+            <span className="text-[11px] font-mono text-zinc-400 w-14 text-center shrink-0 border-r border-zinc-200/80 pr-1.5">
+              {pageSearchQuery.trim()
+                ? totalMatchCount > 0
+                  ? `${currentMatchIndex + 1}/${totalMatchCount}`
+                  : '0/0'
+                : ''}
+            </span>
+            <button
+              type="button"
+              onClick={() => totalMatchCount > 0 && setCurrentMatchIndex((prev) => (prev - 1 + totalMatchCount) % totalMatchCount)}
+              disabled={totalMatchCount === 0}
+              className="p-1 rounded hover:bg-zinc-100 disabled:opacity-30 text-zinc-500 hover:text-zinc-800 transition-colors cursor-pointer"
+              title="Previous match (Shift+Enter)"
+            >
+              <ChevronUp className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => totalMatchCount > 0 && setCurrentMatchIndex((prev) => (prev + 1) % totalMatchCount)}
+              disabled={totalMatchCount === 0}
+              className="p-1 rounded hover:bg-zinc-100 disabled:opacity-30 text-zinc-500 hover:text-zinc-800 transition-colors cursor-pointer"
+              title="Next match (Enter)"
+            >
+              <ChevronDown className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsPageSearchOpen(false)}
+              className="p-1 rounded hover:bg-zinc-100 text-zinc-400 hover:text-zinc-700 transition-colors cursor-pointer"
+              title="Close (Esc)"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Obsidian-Style Seamless Document Canvas */}
-      <div ref={pageViewContainerRef} className="flex-1 overflow-y-auto bg-white flex flex-col p-6 space-y-4">
+      <div ref={pageViewContainerRef} data-page-canvas="true" className={`flex-1 overflow-y-auto bg-white flex flex-col p-6 space-y-4 ${isDualPane ? 'pl-8 md:pl-10' : ''}`}>
         {/* Top Row: Page ID Pill (Left-aligned with page text) & Action Buttons (Right-aligned) */}
         <div className="flex items-center justify-between gap-2 select-none">
           <div>
@@ -1202,11 +1203,10 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
                     alert('You can pin a maximum of 3 knowledge pages for AI session prefix caching.');
                   }
                 }}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border transition-all shadow-2xs cursor-pointer select-none ${
-                  pinnedPageIds.includes(targetPage.id)
+                className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border transition-all shadow-2xs cursor-pointer select-none ${pinnedPageIds.includes(targetPage.id)
                     ? 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100'
                     : 'bg-white text-zinc-600 border-zinc-200 hover:border-zinc-300 hover:text-zinc-950 hover:bg-zinc-50'
-                }`}
+                  }`}
                 title={pinnedPageIds.includes(targetPage.id) ? 'Pinned to AI context (click to unpin)' : 'Pin to AI context (max 3)'}
               >
                 <Pin className={`w-3 h-3 ${pinnedPageIds.includes(targetPage.id) ? 'fill-amber-600 text-amber-700' : 'text-zinc-400'}`} />
@@ -1226,216 +1226,256 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
               </button>
             )}
 
-          {targetPage.type === 'todo' && (
-            <>
-              <button
-                type="button"
-                onClick={() => toggleTodoDone(targetPage.id)}
-                className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-white text-zinc-700 hover:text-zinc-950 border border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50/80 transition-colors shadow-2xs cursor-pointer"
-                title={targetPage.done ? 'Click to mark as incomplete' : 'Click to mark as complete'}
-              >
-                <span>{targetPage.done ? 'Complete' : 'Incomplete'}</span>
-              </button>
+            {targetPage.type === 'todo' && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => toggleTodoDone(targetPage.id)}
+                  className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-white text-zinc-700 hover:text-zinc-950 border border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50/80 transition-colors shadow-2xs cursor-pointer"
+                  title={targetPage.done ? 'Click to mark as incomplete' : 'Click to mark as complete'}
+                >
+                  <span>{targetPage.done ? 'Complete' : 'Incomplete'}</span>
+                </button>
 
-              <button
-                type="button"
-                onClick={() => toggleTodoStarred(targetPage.id)}
-                className="inline-flex items-center justify-center p-1 rounded-full bg-white border border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50 transition-colors shadow-2xs cursor-pointer"
-                title={targetPage.starred ? 'Unstar todo' : 'Star todo'}
-              >
-                <Star
-                  className={`w-3.5 h-3.5 transition-colors ${targetPage.starred
-                    ? 'fill-amber-400 text-amber-400'
-                    : 'text-zinc-400 hover:text-amber-400'
-                    }`}
-                />
-              </button>
-            </>
-          )}
+                <button
+                  type="button"
+                  onClick={() => toggleTodoStarred(targetPage.id)}
+                  className="inline-flex items-center justify-center p-1 rounded-full bg-white border border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50 transition-colors shadow-2xs cursor-pointer"
+                  title={targetPage.starred ? 'Unstar todo' : 'Star todo'}
+                >
+                  <Star
+                    className={`w-3.5 h-3.5 transition-colors ${targetPage.starred
+                      ? 'fill-amber-400 text-amber-400'
+                      : 'text-zinc-400 hover:text-amber-400'
+                      }`}
+                  />
+                </button>
+              </>
+            )}
 
-          {renderBadge()}
+            {renderBadge()}
           </div>
         </div>
 
         {/* H1 Title (ContentEditable - Disabled when prompt is being edited) */}
-        <h1
-          contentEditable={!isEditingPrompt}
-          suppressContentEditableWarning
-          onBlur={(e) => {
-            const cleanText = e.currentTarget.innerText.replace(/\n+/g, ' ').trim();
-            if (cleanText && cleanText !== targetPage.title) {
-              const finalTitle = updatePageTitle(targetPage.id, cleanText);
-              if (finalTitle) {
-                e.currentTarget.innerText = finalTitle;
+        <div className="scribe-markdown-block relative">
+          <div
+            className="scribe-gutter-handle"
+            title="Select markdown block"
+            onMouseDown={(e) => e.preventDefault()}
+            data-block-index="title"
+            style={{ top: '0.4rem' }}
+          >
+            <button
+              type="button"
+              className="scribe-gutter-btn"
+              title="Select markdown block"
+              onMouseDown={(e) => e.preventDefault()}
+              data-block-id="block-title"
+            >
+              <svg className="w-4.5 h-4.5 square-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/></svg>
+              <svg className="w-4.5 h-4.5 check-square-icon hidden fill-indigo-50 text-indigo-600" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m9 12 2 2 4-4"/></svg>
+            </button>
+          </div>
+          <h1
+            contentEditable={!isEditingPrompt}
+            suppressContentEditableWarning
+            onBlur={(e) => {
+              const cleanText = e.currentTarget.innerText.replace(/\n+/g, ' ').trim();
+              if (cleanText && cleanText !== targetPage.title) {
+                const finalTitle = updatePageTitle(targetPage.id, cleanText);
+                if (finalTitle) {
+                  e.currentTarget.innerText = finalTitle;
+                }
+              } else if (!cleanText) {
+                e.currentTarget.innerText = targetPage.title;
               }
-            } else if (!cleanText) {
-              e.currentTarget.innerText = targetPage.title;
-            }
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              e.currentTarget.blur();
-            } else if (e.key === 'Escape') {
-              e.preventDefault();
-              e.currentTarget.innerText = targetPage.title;
-              e.currentTarget.blur();
-            }
-          }}
-          className={`text-2xl font-extrabold text-zinc-950 tracking-tight leading-tight outline-none focus:outline-none focus:ring-0 ring-0 w-full ${isEditingPrompt ? 'cursor-default' : 'cursor-text select-text'
-            }`}
-          dangerouslySetInnerHTML={isPageSearchOpen && pageSearchQuery.trim() ? { __html: renderedTitleHtml } : undefined}
-        >
-          {isPageSearchOpen && pageSearchQuery.trim() ? null : targetPage.title}
-        </h1>
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                e.currentTarget.blur();
+              } else if (e.key === 'Escape') {
+                e.preventDefault();
+                e.currentTarget.innerText = targetPage.title;
+                e.currentTarget.blur();
+              }
+            }}
+            className={`text-2xl font-extrabold text-zinc-950 tracking-tight leading-tight outline-none focus:outline-none focus:ring-0 ring-0 w-full ${isEditingPrompt ? 'cursor-default' : 'cursor-text select-text'
+              }`}
+            dangerouslySetInnerHTML={isPageSearchOpen && pageSearchQuery.trim() ? { __html: renderedTitleHtml } : undefined}
+          >
+            {isPageSearchOpen && pageSearchQuery.trim() ? null : targetPage.title}
+          </h1>
+        </div>
 
         {/* User Prompt Inner Rectangle (Rendered BELOW title in message page view) */}
         {targetPage.user_prompt && (
-          isEditingPrompt ? (
+          <div className="scribe-markdown-block relative scribe-user-prompt-turn mb-2">
             <div
-              onClick={(e) => e.stopPropagation()}
-              className="p-3.5 rounded-xl bg-zinc-50 border border-indigo-400 text-xs text-zinc-800 shadow-2xs space-y-1 mb-2 relative"
+              className="scribe-gutter-handle"
+              title="Select markdown block"
+              onMouseDown={(e) => e.preventDefault()}
+              data-block-index="prompt"
+              style={{ top: '0.85rem' }}
             >
-              <div className="flex items-center justify-between font-bold text-zinc-900 text-xs select-none">
-                <span>Prompt:</span>
-              </div>
-              {isTypingAtPrompt && promptSuggestions.length > 0 && (
-                <div
-                  className="absolute z-50 transition-all duration-75 ease-out"
-                  style={{
-                    top: `${getCursorCoords(promptRef.current, promptText, promptCursorPos).top}px`,
-                    left: `${getCursorCoords(promptRef.current, promptText, promptCursorPos).left}px`,
-                  }}
-                >
-                  <SuggestionList
-                    items={promptSuggestions}
-                    selectedIndex={promptSelectedIndex}
-                    onSelect={insertPromptSuggestion}
-                  />
+              <button
+                type="button"
+                className="scribe-gutter-btn"
+                title="Select markdown block"
+                onMouseDown={(e) => e.preventDefault()}
+                data-block-id="block-prompt"
+              >
+                <svg className="w-4.5 h-4.5 square-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/></svg>
+                <svg className="w-4.5 h-4.5 check-square-icon hidden fill-indigo-50 text-indigo-600" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m9 12 2 2 4-4"/></svg>
+              </button>
+            </div>
+            {isEditingPrompt ? (
+              <div
+                onClick={(e) => e.stopPropagation()}
+                className="p-3.5 rounded-xl bg-zinc-50 border border-indigo-400 text-xs text-zinc-800 shadow-2xs space-y-1 relative"
+              >
+                <div className="flex items-center justify-between font-bold text-zinc-900 text-xs select-none">
+                  <span>Prompt:</span>
                 </div>
-              )}
-              <textarea
-                ref={promptRef}
-                value={promptText}
-                onPaste={(e) =>
-                  handleMarkdownPaste(
-                    e,
-                    promptText,
-                    (t) => {
-                      setPromptText(t);
-                      if (targetPage) updatePageUserPrompt(targetPage.id, t);
-                    },
-                    setPromptCursorPos
-                  )
-                }
-                onChange={(e) => {
-                  setPromptText(e.target.value);
-                  setPromptCursorPos(e.target.selectionStart ?? e.target.value.length);
-                  setIsPromptDismissed(false);
-                  autoResizeTextarea(e.target, 36);
-                }}
-                onFocus={(e) => {
-                  if (e.target.selectionStart === 0 && e.target.selectionEnd === 0 && promptText.length > 0) {
-                    e.target.setSelectionRange(promptText.length, promptText.length);
+                {isTypingAtPrompt && promptSuggestions.length > 0 && (
+                  <div
+                    className="absolute z-50 transition-all duration-75 ease-out"
+                    style={{
+                      top: `${getCursorCoords(promptRef.current, promptText, promptCursorPos).top}px`,
+                      left: `${getCursorCoords(promptRef.current, promptText, promptCursorPos).left}px`,
+                    }}
+                  >
+                    <SuggestionList
+                      items={promptSuggestions}
+                      selectedIndex={promptSelectedIndex}
+                      onSelect={insertPromptSuggestion}
+                    />
+                  </div>
+                )}
+                <textarea
+                  ref={promptRef}
+                  value={promptText}
+                  onPaste={(e) =>
+                    handleMarkdownPaste(
+                      e,
+                      promptText,
+                      (t) => {
+                        setPromptText(t);
+                        if (targetPage) updatePageUserPrompt(targetPage.id, t);
+                      },
+                      setPromptCursorPos
+                    )
                   }
-                  setPromptCursorPos(e.target.selectionStart ?? promptText.length);
-                  autoResizeTextarea(e.target, 36);
-                }}
-                onKeyUp={(e) => setPromptCursorPos((e.target as HTMLTextAreaElement).selectionStart ?? promptText.length)}
-                onClick={(e) => setPromptCursorPos((e.target as HTMLTextAreaElement).selectionStart ?? promptText.length)}
-                onSelect={(e) => setPromptCursorPos((e.target as HTMLTextAreaElement).selectionStart ?? promptText.length)}
-                onBlur={() => {
-                  setTimeout(() => {
-                    if (document.activeElement === promptRef.current) return;
-                    const clean = promptText.trim();
-                    if (clean) {
-                      updatePageUserPrompt(targetPage.id, clean);
+                  onChange={(e) => {
+                    setPromptText(e.target.value);
+                    setPromptCursorPos(e.target.selectionStart ?? e.target.value.length);
+                    setIsPromptDismissed(false);
+                    autoResizeTextarea(e.target, 36);
+                  }}
+                  onFocus={(e) => {
+                    if (e.target.selectionStart === 0 && e.target.selectionEnd === 0 && promptText.length > 0) {
+                      e.target.setSelectionRange(promptText.length, promptText.length);
                     }
-                    setIsEditingPrompt(false);
-                  }, 150);
-                }}
-                onKeyDown={(e) => {
-                  if (isTypingAtPrompt && promptSuggestions.length > 0) {
-                    if (e.key === 'ArrowDown') {
-                      e.preventDefault();
-                      setPromptSelectedIndex((prev) => (prev + 1) % promptSuggestions.length);
-                      return;
-                    }
-                    if (e.key === 'ArrowUp') {
-                      e.preventDefault();
-                      setPromptSelectedIndex((prev) => (prev - 1 + promptSuggestions.length) % promptSuggestions.length);
-                      return;
-                    }
-                    if (e.key === 'ArrowRight') {
-                      e.preventDefault();
-                      setIsPromptDismissed(true);
-                      return;
-                    }
-                    if (e.key === 'Enter' || e.key === 'Tab') {
-                      e.preventDefault();
-                      insertPromptSuggestion(promptSuggestions[promptSelectedIndex] || promptSuggestions[0]);
-                      return;
+                    setPromptCursorPos(e.target.selectionStart ?? promptText.length);
+                    autoResizeTextarea(e.target, 36);
+                  }}
+                  onKeyUp={(e) => setPromptCursorPos((e.target as HTMLTextAreaElement).selectionStart ?? promptText.length)}
+                  onClick={(e) => setPromptCursorPos((e.target as HTMLTextAreaElement).selectionStart ?? promptText.length)}
+                  onSelect={(e) => setPromptCursorPos((e.target as HTMLTextAreaElement).selectionStart ?? promptText.length)}
+                  onBlur={() => {
+                    setTimeout(() => {
+                      if (document.activeElement === promptRef.current) return;
+                      const clean = promptText.trim();
+                      if (clean) {
+                        updatePageUserPrompt(targetPage.id, clean);
+                      }
+                      setIsEditingPrompt(false);
+                    }, 150);
+                  }}
+                  onKeyDown={(e) => {
+                    if (isTypingAtPrompt && promptSuggestions.length > 0) {
+                      if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        setPromptSelectedIndex((prev) => (prev + 1) % promptSuggestions.length);
+                        return;
+                      }
+                      if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        setPromptSelectedIndex((prev) => (prev - 1 + promptSuggestions.length) % promptSuggestions.length);
+                        return;
+                      }
+                      if (e.key === 'ArrowRight') {
+                        e.preventDefault();
+                        setIsPromptDismissed(true);
+                        return;
+                      }
+                      if (e.key === 'Enter' || e.key === 'Tab') {
+                        e.preventDefault();
+                        insertPromptSuggestion(promptSuggestions[promptSelectedIndex] || promptSuggestions[0]);
+                        return;
+                      }
+                      if (e.key === 'Escape') {
+                        e.preventDefault();
+                        setIsPromptDismissed(true);
+                        return;
+                      }
                     }
                     if (e.key === 'Escape') {
-                      e.preventDefault();
-                      setIsPromptDismissed(true);
+                      setIsEditingPrompt(false);
+                    }
+                  }}
+                  placeholder="Type prompt text..."
+                  className="w-full text-xs text-zinc-900 leading-relaxed font-normal bg-transparent border-0 outline-none focus:outline-none focus:ring-0 shadow-none resize-none p-0 m-0 min-h-[36px] overflow-hidden"
+                  autoFocus
+                />
+              </div>
+            ) : (
+              <div
+                onClick={(e) => {
+                  const pillTarget = (e.target as HTMLElement).closest('.page-mention-pill, [data-entity], [data-title]') as HTMLElement;
+                  if (pillTarget) {
+                    e.stopPropagation();
+                    const matchedPage = findPageForPill(pillTarget, pages);
+                    if (matchedPage) {
+                      const displayTitle = matchedPage.type === 'entity' ? `@${matchedPage.title}` : matchedPage.title;
+                      const targetSpan = pillTarget.getAttribute('data-full') || pillTarget.getAttribute('data-title') || pillTarget.getAttribute('data-short-id') || pillTarget.textContent?.trim();
+                      openInPane2(matchedPage.type as any, matchedPage.id, displayTitle, targetSpan);
                       return;
                     }
-                  }
-                  if (e.key === 'Escape') {
-                    setIsEditingPrompt(false);
-                  }
-                }}
-                placeholder="Type prompt text..."
-                className="w-full text-xs text-zinc-900 leading-relaxed font-normal bg-transparent border-0 outline-none focus:outline-none focus:ring-0 shadow-none resize-none p-0 m-0 min-h-[36px] overflow-hidden"
-                autoFocus
-              />
-            </div>
-          ) : (
-            <div
-              onClick={(e) => {
-                const pillTarget = (e.target as HTMLElement).closest('.page-mention-pill, [data-entity], [data-title]') as HTMLElement;
-                if (pillTarget) {
-                  e.stopPropagation();
-                  const matchedPage = findPageForPill(pillTarget, pages);
-                  if (matchedPage) {
-                    const displayTitle = matchedPage.type === 'entity' ? `@${matchedPage.title}` : matchedPage.title;
-                    const targetSpan = pillTarget.getAttribute('data-full') || pillTarget.getAttribute('data-title') || pillTarget.getAttribute('data-short-id') || pillTarget.textContent?.trim();
-                    openInPane2(matchedPage.type as any, matchedPage.id, displayTitle, targetSpan);
                     return;
                   }
-                  return;
-                }
-                const selection = window.getSelection();
-                if (selection && selection.toString().trim().length > 0) {
-                  return;
-                }
-                e.stopPropagation();
-                const targetOffset = getCaretOffsetFromPoint(e.currentTarget, e.clientX, e.clientY, promptText);
-                setPromptText(targetPage.user_prompt || '');
-                setIsEditingPrompt(true);
-                setTimeout(() => {
-                  if (promptRef.current) {
-                    promptRef.current.focus();
-                    promptRef.current.setSelectionRange(targetOffset, targetOffset);
-                    setPromptCursorPos(targetOffset);
+                  const selection = window.getSelection();
+                  if (selection && selection.toString().trim().length > 0) {
+                    return;
                   }
-                }, 0);
-              }}
-              className="p-3.5 rounded-xl bg-zinc-50 border border-zinc-200/90 text-xs text-zinc-800 shadow-2xs space-y-1 mb-2 cursor-text hover:border-zinc-300 transition-colors"
-              title="Click to edit prompt"
-            >
-              <div className="flex items-center gap-1.5 font-bold text-zinc-900 text-xs select-none">
-                <span>Prompt:</span>
-              </div>
-              <div
-                className="text-xs text-zinc-800 leading-relaxed font-normal pt-0.5"
-                dangerouslySetInnerHTML={{
-                  __html: renderedPromptHtml,
+                  e.stopPropagation();
+                  const targetOffset = getCaretOffsetFromPoint(e.currentTarget, e.clientX, e.clientY, promptText);
+                  setPromptText(targetPage.user_prompt || '');
+                  setIsEditingPrompt(true);
+                  setTimeout(() => {
+                    if (promptRef.current) {
+                      promptRef.current.focus();
+                      promptRef.current.setSelectionRange(targetOffset, targetOffset);
+                      setPromptCursorPos(targetOffset);
+                    }
+                  }, 0);
                 }}
-              />
-            </div>
-          )
+                className="p-3.5 rounded-xl bg-zinc-50 border border-zinc-200/90 text-xs text-zinc-800 shadow-2xs space-y-1 cursor-text hover:border-zinc-300 transition-colors"
+                title="Click to edit prompt"
+              >
+                <div className="flex items-center gap-1.5 font-bold text-zinc-900 text-xs select-none">
+                  <span>Prompt:</span>
+                </div>
+                <div
+                  className="text-xs text-zinc-800 leading-relaxed font-normal pt-0.5"
+                  dangerouslySetInnerHTML={{
+                    __html: renderedPromptHtml,
+                  }}
+                />
+              </div>
+            )}
+          </div>
         )}
 
         {/* Seamless Canvas (Automatic Edit / Blur Transition) */}
@@ -1536,7 +1576,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
               onMouseDown={(e) => {
                 handleGutterMouseDown(e, e.currentTarget);
               }}
-              className="cursor-text flex-1 min-h-[180px] w-full -mx-4 px-4 py-2"
+              className={`cursor-text flex-1 w-full py-2 ${targetPage.type === 'entity' ? 'min-h-[32px]' : 'min-h-[180px]'}`}
               title="Click anywhere on the document to edit"
             >
               <div
@@ -1553,7 +1593,25 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
 
         {/* Entity Version History Inner Rectangle (ONLY for Entity Pages) */}
         {targetPage.type === 'entity' && (
-          <div className="mt-3 bg-zinc-100/90 border border-zinc-200/90 rounded-2xl p-4 md:p-5 flex flex-col gap-3 shadow-2xs select-text shrink-0 w-full">
+          <div data-entity-version-container="true" className="mt-3 bg-zinc-100/90 border border-zinc-200/90 rounded-2xl p-4 md:p-5 flex flex-col gap-3 shadow-2xs select-text shrink-0 w-full scribe-markdown-block relative">
+            <div
+              className="scribe-gutter-handle"
+              title="Select markdown block"
+              onMouseDown={(e) => e.preventDefault()}
+              data-block-index="entity-version"
+              style={{ top: '1.25rem' }}
+            >
+              <button
+                type="button"
+                className="scribe-gutter-btn"
+                title="Select markdown block"
+                onMouseDown={(e) => e.preventDefault()}
+                data-block-id="block-entity-version"
+              >
+                <svg className="w-4.5 h-4.5 square-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/></svg>
+                <svg className="w-4.5 h-4.5 check-square-icon hidden fill-indigo-50 text-indigo-600" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m9 12 2 2 4-4"/></svg>
+              </button>
+            </div>
             <div className="flex items-center justify-between gap-3 pb-3 border-b border-zinc-200/80 select-none shrink-0">
               <div className="flex items-center gap-2">
                 <Tag className="w-4 h-4 text-indigo-600" />
@@ -1606,7 +1664,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
                           : 'Mark as Canonical Version'
                       }
                     >
-                      <Bookmark
+                      <Star
                         className={`w-3.5 h-3.5 ${activeVersion.id === canonicalVersionId ? 'fill-indigo-600 text-indigo-600' : 'text-zinc-400'
                           }`}
                       />
@@ -1649,7 +1707,25 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
               {activeVersion ? (
                 <div className="space-y-3">
                   {/* Version Title Header (No horizontal border line) */}
-                  <div className="flex items-center justify-between gap-2 pb-1">
+                  <div className="flex items-center justify-between gap-2 pb-1 scribe-markdown-block relative">
+                    <div
+                      className="scribe-gutter-handle"
+                      title="Select markdown block"
+                      onMouseDown={(e) => e.preventDefault()}
+                      data-block-index="version-title"
+                      style={{ top: '0.15rem' }}
+                    >
+                      <button
+                        type="button"
+                        className="scribe-gutter-btn"
+                        title="Select markdown block"
+                        onMouseDown={(e) => e.preventDefault()}
+                        data-block-id="block-version-title"
+                      >
+                        <svg className="w-4.5 h-4.5 square-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/></svg>
+                        <svg className="w-4.5 h-4.5 check-square-icon hidden fill-indigo-50 text-indigo-600" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m9 12 2 2 4-4"/></svg>
+                      </button>
+                    </div>
                     <input
                       type="text"
                       data-title-input
@@ -1669,133 +1745,138 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
                   </div>
 
                   {/* Version Content Display (Inline pills with hover to untruncate / Edit toggle) */}
-                  {isEditingVersionBody ? (
-                    <div className="flex flex-col relative">
-                      {isTypingAtVersion && versionSuggestions.length > 0 && (
-                        <div
-                          className="absolute z-50 transition-all duration-75 ease-out"
-                          style={{
-                            top: `${getCursorCoords(versionContentRef.current, activeVersionText, versionCursorPos).top}px`,
-                            left: `${getCursorCoords(versionContentRef.current, activeVersionText, versionCursorPos).left}px`,
+                  {/* Stable min-h container — both edit and view modes share this so toggling between
+                      them never shifts the layout. The textarea grows beyond 140px when content is long,
+                      but that's additive (not a jump) because the initial floor is identical. */}
+                  <div className="relative min-h-[140px]">
+                    {isEditingVersionBody ? (
+                      <>
+                        {isTypingAtVersion && versionSuggestions.length > 0 && (
+                          <div
+                            className="absolute z-50 transition-all duration-75 ease-out"
+                            style={{
+                              top: `${getCursorCoords(versionContentRef.current, activeVersionText, versionCursorPos).top}px`,
+                              left: `${getCursorCoords(versionContentRef.current, activeVersionText, versionCursorPos).left}px`,
+                            }}
+                          >
+                            <SuggestionList
+                              items={versionSuggestions}
+                              selectedIndex={versionSelectedIndex}
+                              onSelect={insertVersionSuggestion}
+                            />
+                          </div>
+                        )}
+                        <textarea
+                          ref={versionContentRef}
+                          value={activeVersion.content}
+                          onPaste={(e) =>
+                            handleMarkdownPaste(
+                              e,
+                              activeVersionText,
+                              (t) => handleVersionContentChange(t),
+                              setVersionCursorPos
+                            )
+                          }
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const cur = e.target.selectionStart ?? val.length;
+                            handleVersionContentChange(val);
+                            setVersionCursorPos(cur);
+                            setIsVersionDismissed(false);
+                            autoResizeTextarea(e.target, 140);
                           }}
-                        >
-                          <SuggestionList
-                            items={versionSuggestions}
-                            selectedIndex={versionSelectedIndex}
-                            onSelect={insertVersionSuggestion}
-                          />
-                        </div>
-                      )}
-                      <textarea
-                        ref={versionContentRef}
-                        value={activeVersion.content}
-                        onPaste={(e) =>
-                          handleMarkdownPaste(
-                            e,
-                            activeVersionText,
-                            (t) => handleVersionContentChange(t),
-                            setVersionCursorPos
-                          )
-                        }
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          const cur = e.target.selectionStart ?? val.length;
-                          handleVersionContentChange(val);
-                          setVersionCursorPos(cur);
-                          setIsVersionDismissed(false);
-                          autoResizeTextarea(e.target, 140);
-                        }}
-                        onFocus={(e) => {
-                          if (e.target.selectionStart === 0 && e.target.selectionEnd === 0 && activeVersionText.length > 0) {
-                            e.target.setSelectionRange(activeVersionText.length, activeVersionText.length);
-                          }
-                          setVersionCursorPos(e.target.selectionStart ?? activeVersionText.length);
-                          autoResizeTextarea(e.target, 140);
-                        }}
-                        onKeyUp={(e) => setVersionCursorPos((e.target as HTMLTextAreaElement).selectionStart ?? activeVersionText.length)}
-                        onClick={(e) => setVersionCursorPos((e.target as HTMLTextAreaElement).selectionStart ?? activeVersionText.length)}
-                        onSelect={(e) => setVersionCursorPos((e.target as HTMLTextAreaElement).selectionStart ?? activeVersionText.length)}
-                        onBlur={() => {
-                          setTimeout(() => {
-                            if (document.activeElement === versionContentRef.current) return;
-                            setIsEditingVersionBody(false);
-                          }, 150);
-                        }}
-                        onKeyDown={(e) => {
-                          if (isTypingAtVersion && versionSuggestions.length > 0) {
-                            if (e.key === 'ArrowDown') {
-                              e.preventDefault();
-                              setVersionSelectedIndex((prev) => (prev + 1) % versionSuggestions.length);
+                          onFocus={(e) => {
+                            if (e.target.selectionStart === 0 && e.target.selectionEnd === 0 && activeVersionText.length > 0) {
+                              e.target.setSelectionRange(activeVersionText.length, activeVersionText.length);
+                            }
+                            setVersionCursorPos(e.target.selectionStart ?? activeVersionText.length);
+                            autoResizeTextarea(e.target, 140);
+                          }}
+                          onKeyUp={(e) => setVersionCursorPos((e.target as HTMLTextAreaElement).selectionStart ?? activeVersionText.length)}
+                          onClick={(e) => setVersionCursorPos((e.target as HTMLTextAreaElement).selectionStart ?? activeVersionText.length)}
+                          onSelect={(e) => setVersionCursorPos((e.target as HTMLTextAreaElement).selectionStart ?? activeVersionText.length)}
+                          onBlur={() => {
+                            setTimeout(() => {
+                              if (document.activeElement === versionContentRef.current) return;
+                              setIsEditingVersionBody(false);
+                            }, 150);
+                          }}
+                          onKeyDown={(e) => {
+                            if (isTypingAtVersion && versionSuggestions.length > 0) {
+                              if (e.key === 'ArrowDown') {
+                                e.preventDefault();
+                                setVersionSelectedIndex((prev) => (prev + 1) % versionSuggestions.length);
+                                return;
+                              }
+                              if (e.key === 'ArrowUp') {
+                                e.preventDefault();
+                                setVersionSelectedIndex((prev) => (prev - 1 + versionSuggestions.length) % versionSuggestions.length);
+                                return;
+                              }
+                              if (e.key === 'ArrowRight') {
+                                e.preventDefault();
+                                setIsVersionDismissed(true);
+                                return;
+                              }
+                              if (e.key === 'Enter' || e.key === 'Tab') {
+                                e.preventDefault();
+                                insertVersionSuggestion(versionSuggestions[versionSelectedIndex] || versionSuggestions[0]);
+                                return;
+                              }
+                              if (e.key === 'Escape') {
+                                e.preventDefault();
+                                setIsVersionDismissed(true);
+                                return;
+                              }
+                            }
+                            if (e.key === 'Escape') setIsEditingVersionBody(false);
+                          }}
+                          placeholder="Type entity version notes (markdown and @tags supported)..."
+                          className="w-full min-h-[140px] text-xs md:text-sm text-zinc-900 leading-relaxed font-sans bg-transparent border-0 outline-none focus:outline-none ring-0 shadow-none resize-none p-0 m-0 overflow-hidden"
+                          autoFocus
+                        />
+                      </>
+                    ) : (
+                      <div
+                        onClick={(e) => {
+                          const pillTarget = (e.target as HTMLElement).closest('.page-mention-pill, [data-entity], [data-title]') as HTMLElement;
+                          if (pillTarget) {
+                            e.stopPropagation();
+                            const matchedPage = findPageForPill(pillTarget, pages);
+                            if (matchedPage) {
+                              const displayTitle = matchedPage.type === 'entity' ? `@${matchedPage.title}` : matchedPage.title;
+                              const targetSpan = pillTarget.getAttribute('data-full') || pillTarget.getAttribute('data-title') || pillTarget.getAttribute('data-short-id') || pillTarget.textContent?.trim();
+                              openInPane2(matchedPage.type as any, matchedPage.id, displayTitle, targetSpan);
                               return;
                             }
-                            if (e.key === 'ArrowUp') {
-                              e.preventDefault();
-                              setVersionSelectedIndex((prev) => (prev - 1 + versionSuggestions.length) % versionSuggestions.length);
-                              return;
-                            }
-                            if (e.key === 'ArrowRight') {
-                              e.preventDefault();
-                              setIsVersionDismissed(true);
-                              return;
-                            }
-                            if (e.key === 'Enter' || e.key === 'Tab') {
-                              e.preventDefault();
-                              insertVersionSuggestion(versionSuggestions[versionSelectedIndex] || versionSuggestions[0]);
-                              return;
-                            }
-                            if (e.key === 'Escape') {
-                              e.preventDefault();
-                              setIsVersionDismissed(true);
-                              return;
-                            }
-                          }
-                          if (e.key === 'Escape') setIsEditingVersionBody(false);
-                        }}
-                        placeholder="Type entity version notes (markdown and @tags supported)..."
-                        className="w-full min-h-[140px] text-xs md:text-sm text-zinc-900 leading-relaxed font-sans bg-transparent border-0 outline-none focus:outline-none ring-0 shadow-none resize-none p-0 m-0 overflow-hidden"
-                        autoFocus
-                      />
-                    </div>
-                  ) : (
-                    <div
-                      onClick={(e) => {
-                        const pillTarget = (e.target as HTMLElement).closest('.page-mention-pill, [data-entity], [data-title]') as HTMLElement;
-                        if (pillTarget) {
-                          e.stopPropagation();
-                          const matchedPage = findPageForPill(pillTarget, pages);
-                          if (matchedPage) {
-                            const displayTitle = matchedPage.type === 'entity' ? `@${matchedPage.title}` : matchedPage.title;
-                            const targetSpan = pillTarget.getAttribute('data-full') || pillTarget.getAttribute('data-title') || pillTarget.getAttribute('data-short-id') || pillTarget.textContent?.trim();
-                            openInPane2(matchedPage.type as any, matchedPage.id, displayTitle, targetSpan);
                             return;
                           }
-                          return;
-                        }
-                        const selection = window.getSelection();
-                        if (selection && selection.toString().trim().length > 0) return;
-                        const targetOffset = getCaretOffsetFromPoint(e.currentTarget, e.clientX, e.clientY, activeVersionText);
-                        setIsEditingVersionBody(true);
-                        setTimeout(() => {
-                          if (versionContentRef.current) {
-                            versionContentRef.current.focus();
-                            versionContentRef.current.setSelectionRange(targetOffset, targetOffset);
-                            setVersionCursorPos(targetOffset);
-                          }
-                        }, 0);
-                      }}
-                      className="cursor-text min-h-[140px]"
-                      title="Click anywhere on the document to edit version body"
-                    >
-                      <div
-                        className="text-xs md:text-sm text-zinc-900 leading-relaxed font-normal bg-transparent"
-                        dangerouslySetInnerHTML={{
-                          __html: activeVersion.content
-                            ? convertScribeTextToHtml(activeVersion.content, 'auto', pages)
-                            : '<span class="text-zinc-400 italic font-normal">Click anywhere to start typing version notes...</span>',
+                          const selection = window.getSelection();
+                          if (selection && selection.toString().trim().length > 0) return;
+                          const targetOffset = getCaretOffsetFromPoint(e.currentTarget, e.clientX, e.clientY, activeVersionText);
+                          setIsEditingVersionBody(true);
+                          setTimeout(() => {
+                            if (versionContentRef.current) {
+                              versionContentRef.current.focus();
+                              versionContentRef.current.setSelectionRange(targetOffset, targetOffset);
+                              setVersionCursorPos(targetOffset);
+                            }
+                          }, 0);
                         }}
-                      />
-                    </div>
-                  )}
+                        className="cursor-text w-full h-full min-h-[140px]"
+                        title="Click anywhere on the document to edit version body"
+                      >
+                        <div
+                          className="text-xs md:text-sm text-zinc-900 leading-relaxed font-normal bg-transparent"
+                          dangerouslySetInnerHTML={{
+                            __html: activeVersion.content
+                              ? convertScribeTextToHtml(activeVersion.content, 'auto', pages)
+                              : '<span class="text-zinc-400 italic font-normal">Click anywhere to start typing version notes...</span>',
+                          }}
+                        />
+                      </div>
+                    )}
+                  </div>
                 </div>
               ) : null}
             </div>

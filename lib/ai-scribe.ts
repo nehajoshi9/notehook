@@ -269,7 +269,10 @@ export function buildKnowledgeCatalogueSection(allPages: Page[]): string {
 
 export function buildDynamicReferencedSection(
   referencedPages: Page[],
-  changedPageIds?: Set<string>
+  changedPageIds?: Set<string>,
+  // Maps page ID -> turn label string (e.g. "[Turn 3 | msg: M-42]") for message-type pages
+  // so the LLM can correlate injected message content back to a specific history position.
+  messageTurnLabels?: Map<string, string>
 ): string {
   if (!referencedPages || referencedPages.length === 0) return '';
 
@@ -303,7 +306,12 @@ export function buildDynamicReferencedSection(
     const statusMeta = page.type === 'todo'
       ? ` [Status: ${page.done ? 'COMPLETED / DONE' : 'PENDING / OPEN'}]`
       : '';
-    return `--- REFERENCED PAGE: [@${cleanTitle}]${shortIdStr} [type: ${page.type}]${statusMeta} ---${userPromptMeta}\nContent:\n${pageContent}\n--- END REFERENCED PAGE ---`;
+    // For message-type pages, annotate which labeled history turn this content came from
+    // so the LLM can match the injected content to the correct turn in the conversation history.
+    const historyPositionMeta = page.type === 'message' && messageTurnLabels?.has(page.id)
+      ? `\nIn conversation history as: ${messageTurnLabels.get(page.id)}`
+      : '';
+    return `--- REFERENCED PAGE: [@${cleanTitle}]${shortIdStr} [type: ${page.type}]${statusMeta} ---${historyPositionMeta}${userPromptMeta}\nContent:\n${pageContent}\n--- END REFERENCED PAGE ---`;
   });
 
   return `=== REFERENCED CONTEXT FOR THIS TURN ===\n${blocks.join('\n\n')}\n=== END REFERENCED CONTEXT ===`;
@@ -366,7 +374,7 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
   const cachedSystemPrompt = `${baseSystemPrompt}${catalogueSection}${pinnedSection}`;
 
   // TIER 5: Verbatim Conversation History (Last 15 completed turns)
-  const MAX_VERBATIM_TURNS = 15;
+  const MAX_VERBATIM_TURNS = 12;
   const pastTurns = allPages
     .filter((p) => p.type === 'message' && p.user_prompt?.trim() && p.content?.trim())
     .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
@@ -391,7 +399,7 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
 
   // Process past turns:
   // If an injected page in a past turn was modified after that turn, remove its stale reference block
-  const processedPastTurns = pastTurns.map((turn) => {
+  const processedPastTurns = pastTurns.map((turn, turnIdx) => {
     let turnInjected = turn.injected_context || '';
     const turnTime = new Date(turn.created_at).getTime();
 
@@ -466,12 +474,20 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
       turnInjected = '';
     }
 
-    const turnFullPrompt = turnInjected
+    const userBody = turnInjected
       ? `${turnInjected}\n\n${turn.user_prompt!.trim()}`
       : turn.user_prompt!.trim();
 
+    // Label each history turn so the model can refer back to it by number or ID.
+    // Format: [Turn N | msg: <short_id>] — short_id is the human-readable page handle.
+    const turnLabel = turn.short_id
+      ? `[Turn ${turnIdx + 1} | msg: ${turn.short_id}]`
+      : `[Turn ${turnIdx + 1}]`;
+
     return {
-      userText: turnFullPrompt,
+      turnLabel,
+      turnNumber: turnIdx + 1,
+      userText: `${turnLabel}\n${userBody}`,
       modelText: turn.content.trim(),
     };
   });
@@ -482,7 +498,38 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
   const toInjectCurrentTurn = nonPinnedReferenced.filter(
     (p) => !alreadyVerbatimUnchangedIds.has(p.id)
   );
-  const dynamicRefSection = buildDynamicReferencedSection(toInjectCurrentTurn, changedPageIds);
+
+  // Build a lookup from message page ID -> its labeled turn header, so that when a message-type
+  // page is injected into the current turn's context block, the LLM can correlate the injected
+  // content to the exact labeled turn it appeared in (e.g. "[Turn 3 | msg: M-42]").
+  const messageTurnLabels = new Map<string, string>();
+  for (const [i, turn] of pastTurns.entries()) {
+    const label = turn.short_id ? `[Turn ${i + 1} | msg: ${turn.short_id}]` : `[Turn ${i + 1}]`;
+    messageTurnLabels.set(turn.id, label);
+  }
+
+  // Pages referenced in the current prompt but intentionally skipped from re-injection because they
+  // are already present verbatim and unchanged in conversation history. Emit a one-line backpointer
+  // stub for each so the LLM has an ID anchor for every [@mention] in the user prompt even without
+  // a full re-injection block.
+  const alreadyInHistoryReferenced = nonPinnedReferenced.filter(
+    (p) => alreadyVerbatimUnchangedIds.has(p.id) && p.type !== 'message' // messages already get turn labels in history
+  );
+  const backpointerStubs = alreadyInHistoryReferenced.length > 0
+    ? alreadyInHistoryReferenced
+      .map((p) => {
+        const cleanTitle = p.title.replace(/^@/, '').trim();
+        const shortIdStr = p.short_id ? ` (ID: ${p.short_id})` : '';
+        return `--- CONTEXT POINTER: [@${cleanTitle}]${shortIdStr} [type: ${p.type}] — already present verbatim in your context from an earlier turn; no re-injection needed. ---`;
+      })
+      .join('\n')
+    : '';
+
+  // Full section merges fresh/re-injected full blocks (from buildDynamicReferencedSection) with
+  // backpointer stubs for already-present pages. Stored as dynamicRefSection for downstream use.
+  const dynamicRefSectionBase = buildDynamicReferencedSection(toInjectCurrentTurn, changedPageIds, messageTurnLabels);
+  const dynamicRefSection = [dynamicRefSectionBase, backpointerStubs].filter(Boolean).join('\n\n');
+
   const freshIds = toInjectCurrentTurn.filter((p) => !changedPageIds.has(p.id)).map((p) => p.id);
   const reinjectedIds = toInjectCurrentTurn.filter((p) => changedPageIds.has(p.id)).map((p) => p.id);
   const currentReferencedPageIds = [...freshIds, ...reinjectedIds];
@@ -500,10 +547,13 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
     });
   }
 
-  // TIER 6: Current User Turn
-  const finalTurnText = dynamicRefSection
+  // TIER 6: Current User Turn — labeled as Turn N (current) so the model knows its position
+  const currentTurnNumber = processedPastTurns.length + 1;
+  const currentTurnLabel = `[Turn ${currentTurnNumber} (current)]`;
+  const currentUserBody = dynamicRefSection
     ? `${dynamicRefSection}\n\n${userPrompt.trim()}`
     : userPrompt.trim();
+  const finalTurnText = `${currentTurnLabel}\n${currentUserBody}`;
 
   geminiContents.push({
     role: 'user',
@@ -526,7 +576,7 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
   }
   openAiMessages.push({
     role: 'user',
-    content: finalTurnText,
+    content: finalTurnText, // already labeled as [Turn N (current)] above
   });
 
   const apiKey = aiSettings.apiKey || process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
@@ -548,9 +598,20 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
     const primaryModel = aiSettings.model && aiSettings.model !== 'gpt-4o-mini' && aiSettings.model !== 'gemini-1.5-flash' && aiSettings.model !== 'gemini-2.5-flash'
       ? aiSettings.model
       : 'gemini-3.6-flash';
-    const candidateModels = Array.from(new Set([primaryModel, 'gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-flash-latest']));
+    // Broader candidate list: newer models first, stable fallbacks at the end.
+    // gemini-2.0-flash and gemini-1.5-flash are on separate infra and less likely
+    // to share the same overload queue as 3.x / 2.5 models.
+    const candidateModels = Array.from(new Set([
+      primaryModel,
+      'gemini-3.6-flash',
+      'gemini-3.5-flash',
+      'gemini-flash-latest',
+      'gemini-2.0-flash',
+      'gemini-1.5-flash',
+    ]));
 
     let lastErrorDetails = '';
+    let allOverloaded = true; // flipped to false if any error is NOT a 503
 
     for (const model of candidateModels) {
       try {
@@ -605,7 +666,17 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
           }
         }
 
-        // Fallback to non-streaming POST
+        // Check if this was a 503/overloaded response — if so, skip the non-streaming
+        // retry for this model (hitting it again will get the same error).
+        const isOverloaded = res.status === 503;
+        if (!isOverloaded) allOverloaded = false;
+
+        if (isOverloaded) {
+          lastErrorDetails = `${model}: 503 UNAVAILABLE (overloaded)`;
+          continue; // skip non-streaming retry, try next candidate model
+        }
+
+        // Fallback to non-streaming POST (only for non-503 errors)
         const fallbackRes = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
           {
@@ -632,21 +703,29 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
             };
           }
         } else {
+          if (fallbackRes.status !== 503) allOverloaded = false;
           lastErrorDetails = await fallbackRes.text();
         }
       } catch (err: any) {
+        allOverloaded = false;
         lastErrorDetails = err?.message || String(err);
       }
     }
 
-    console.warn('Gemini model calls failed, falling back to simulator:', lastErrorDetails);
-    return generateSimulatedResponse(
-      userPrompt,
-      existingEntities,
-      onChunk,
-      dynamicRefSection || undefined,
-      currentReferencedPageIds.length > 0 ? currentReferencedPageIds : undefined
-    );
+    // All candidate models failed. Surface a human-readable error in the chat
+    // rather than falling back to the simulator (which would produce fake output).
+    console.warn('Gemini model calls failed:', lastErrorDetails);
+    const errorMsg = allOverloaded
+      ? `⚠️ Gemini is currently experiencing high demand across all fallback models. Please wait a moment and try again.\n\n*Models tried: ${candidateModels.join(', ')}*`
+      : `⚠️ All Gemini model calls failed. Last error: ${lastErrorDetails}\n\n*Models tried: ${candidateModels.join(', ')}*`;
+    if (onChunk) onChunk(errorMsg);
+    const parsedItems = parseScribeMarkup(errorMsg, existingEntities);
+    return {
+      text: errorMsg,
+      parsedItems,
+      injectedContext: dynamicRefSection || undefined,
+      referencedPageIds: currentReferencedPageIds.length > 0 ? currentReferencedPageIds : undefined,
+    };
   }
 
   // 3. OpenAI Provider

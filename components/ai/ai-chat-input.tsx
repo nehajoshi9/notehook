@@ -272,7 +272,7 @@ export const AIChatInput: React.FC = () => {
   };
 
   return (
-    <div className={`p-3 md:p-4 bg-white border-t border-zinc-200 flex flex-col items-center select-none shrink-0 relative ${isDualPane ? 'pl-9 md:pl-12' : ''}`}>
+    <div className={`p-3 md:p-4 bg-white border-t border-zinc-200 flex flex-col items-center select-none shrink-0 relative ${isDualPane ? 'pl-8 md:pl-10' : ''}`}>
       <div className="w-full max-w-3xl flex flex-col gap-1.5 relative">
         {pinnedPages.length > 0 && (
           <div className="flex items-center gap-1.5 px-1 text-[11px] text-zinc-500 overflow-x-auto select-none">

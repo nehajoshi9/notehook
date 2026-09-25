@@ -153,7 +153,7 @@ export const ChatThreadView: React.FC<ChatThreadViewProps> = ({ paneIndex = 1 })
   return (
     <div data-chat-thread="true" className="relative flex flex-col h-full w-full bg-white text-zinc-900 overflow-hidden select-text font-sans">
       {/* Scrollable Chat Conversation Feed */}
-      <div className={`flex-1 overflow-y-auto overflow-x-hidden space-y-6 bg-white ${isDualPane ? 'p-4 pl-10 md:p-6 md:pl-14' : 'p-4 md:p-6'}`}>
+      <div className={`flex-1 overflow-y-auto overflow-x-hidden space-y-6 bg-white ${isDualPane ? 'p-4 pl-8 md:p-6 md:pl-10' : 'p-4 md:p-6'}`}>
         {sortedNotes.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full min-h-[280px] text-center space-y-3">
             <div className="p-3 bg-zinc-900 text-white rounded-2xl shadow-sm">
