@@ -1235,11 +1235,19 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
           onBlur={(e) => {
             const cleanText = e.currentTarget.innerText.replace(/\n+/g, ' ').trim();
             if (cleanText && cleanText !== targetPage.title) {
-              updatePageTitle(targetPage.id, cleanText);
+              const finalTitle = updatePageTitle(targetPage.id, cleanText);
+              if (finalTitle) {
+                e.currentTarget.innerText = finalTitle;
+              }
+            } else if (!cleanText) {
+              e.currentTarget.innerText = targetPage.title;
             }
           }}
           onKeyDown={(e) => {
-            if (e.key === 'Escape') {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              e.currentTarget.blur();
+            } else if (e.key === 'Escape') {
               e.preventDefault();
               e.currentTarget.innerText = targetPage.title;
               e.currentTarget.blur();

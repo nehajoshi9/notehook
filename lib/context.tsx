@@ -46,7 +46,7 @@ interface PlanetContextType {
   createNotePage: (title: string, content?: string) => Page;
   createTodoPage: (title: string, content?: string, sourceNoteId?: string) => Page;
   createDecisionPage: (title: string, content?: string, sourceNoteId?: string) => Page;
-  updatePageTitle: (id: string, newTitle: string) => void;
+  updatePageTitle: (id: string, newTitle: string) => string;
   updatePageContent: (id: string, newContent: string) => void;
   updatePageUserPrompt: (id: string, newPrompt: string) => void;
   deletePage: (id: string) => void;
@@ -357,19 +357,19 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       return cleanBase;
     }
 
-    let counter = 2;
-    while (titleExists(`${cleanBase} ${counter}`)) {
+    const match = cleanBase.match(/^(.*?)(?:\s+(\d+))$/);
+    const root = match ? match[1].trim() : cleanBase;
+    let counter = match ? parseInt(match[2], 10) + 1 : 2;
+
+    while (titleExists(`${root} ${counter}`)) {
       counter++;
     }
-    return `${cleanBase} ${counter}`;
+    return `${root} ${counter}`;
   };
 
   // Entity Creation (User Manual Action Only)
   const createEntityPage = (title: string, content: string = ''): Page => {
     const cleanTitle = title.replace(/^@/, '').trim();
-    const existing = pages.find((p) => p.type === 'entity' && p.title.toLowerCase() === cleanTitle.toLowerCase());
-    if (existing) return existing;
-
     const uniqueTitle = getUniqueTitleForType('entity', cleanTitle, pages);
 
     const newPage: Page = {
@@ -387,9 +387,6 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // Note Creation (User Manual Action or Tagging)
   const createNotePage = (title: string, content: string = ''): Page => {
     const cleanTitle = title.replace(/^@/, '').trim();
-    const existing = pages.find((p) => p.type === 'note' && p.title.toLowerCase() === cleanTitle.toLowerCase());
-    if (existing) return existing;
-
     const uniqueTitle = getUniqueTitleForType('note', cleanTitle, pages);
 
     const newPage: Page = {
@@ -407,9 +404,6 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // Todo Creation (LLM or Manual)
   const createTodoPage = (title: string, content: string = '', sourceNoteId?: string): Page => {
     const cleanTitle = title.replace(/^@/, '').trim();
-    const existing = pages.find((p) => p.type === 'todo' && p.title.toLowerCase() === cleanTitle.toLowerCase());
-    if (existing) return existing;
-
     const uniqueTitle = getUniqueTitleForType('todo', cleanTitle, pages);
 
     const targetPage: Page = {
@@ -445,9 +439,6 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // Decision Creation (LLM or Manual)
   const createDecisionPage = (title: string, content: string = '', sourceNoteId?: string): Page => {
     const cleanTitle = title.replace(/^@/, '').trim();
-    const existing = pages.find((p) => p.type === 'decision' && p.title.toLowerCase() === cleanTitle.toLowerCase());
-    if (existing) return existing;
-
     const uniqueTitle = getUniqueTitleForType('decision', cleanTitle, pages);
 
     const targetPage: Page = {
@@ -499,7 +490,7 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const titleExists = (t: string) => {
       const lower = t.toLowerCase();
       const matchesTitle = otherPagesOfSameType.some((p) => p.title.toLowerCase() === lower);
-      const matchesShortId = currentPages.some((p) => p.short_id?.toLowerCase() === lower);
+      const matchesShortId = currentPages.some((p) => p.id !== pageId && p.short_id?.toLowerCase() === lower);
       return matchesTitle || matchesShortId;
     };
 
@@ -507,21 +498,24 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       return cleanBase;
     }
 
-    let counter = 2;
-    while (titleExists(`${cleanBase} ${counter}`)) {
+    const match = cleanBase.match(/^(.*?)(?:\s+(\d+))$/);
+    const root = match ? match[1].trim() : cleanBase;
+    let counter = match ? parseInt(match[2], 10) + 1 : 2;
+
+    while (titleExists(`${root} ${counter}`)) {
       counter++;
     }
-    return `${cleanBase} ${counter}`;
+    return `${root} ${counter}`;
   };
 
-  const updatePageTitle = (id: string, newTitle: string) => {
+  const updatePageTitle = (id: string, newTitle: string): string => {
     const targetPage = pages.find((p) => p.id === id);
-    if (!targetPage) return;
+    if (!targetPage) return newTitle;
 
     const oldTitle = targetPage.title;
     const resolvedTitle = resolveEditedTitleCollision(id, targetPage.type, newTitle, pages);
 
-    if (!resolvedTitle || oldTitle === resolvedTitle) return;
+    if (!resolvedTitle || oldTitle === resolvedTitle) return oldTitle;
 
     const displayTitle = targetPage.type === 'entity' ? `@${resolvedTitle}` : resolvedTitle;
 
@@ -584,6 +578,8 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setRightHistory((prev) =>
       prev.map((h) => (h.id === id ? { ...h, title: displayTitle } : h))
     );
+
+    return resolvedTitle;
   };
 
   const addEntityVersion = (entityId: string, title?: string, content?: string): EntityVersion => {
