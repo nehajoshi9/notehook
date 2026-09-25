@@ -249,6 +249,8 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
     createDecisionPage,
     pinnedPageIds,
     togglePinPage,
+    navigateToMessage,
+    scrollToMessageInChat,
   } = usePlanet();
 
   const targetPage = pages.find((p) => p.id === pageId || p.title.toLowerCase() === pageId.toLowerCase());
@@ -401,6 +403,9 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
       setPromptText(targetPage.user_prompt || '');
       if (!targetPage.content) {
         setIsEditing(true);
+        if (targetPage.type === 'entity') {
+          setIsEditingVersionBody(true);
+        }
         setTimeout(() => {
           if (titleRef.current) {
             titleRef.current.focus();
@@ -421,9 +426,10 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
 
   useEffect(() => {
     if (isEditing && contentRef.current) {
-      autoResizeTextarea(contentRef.current, 32);
+      const minH = targetPage?.type === 'entity' ? 32 : 180;
+      autoResizeTextarea(contentRef.current, minH);
     }
-  }, [isEditing, bodyText]);
+  }, [isEditing, bodyText, targetPage?.type]);
 
   useEffect(() => {
     if (isEditingPrompt && promptRef.current) {
@@ -704,13 +710,34 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
 
   useEffect(() => {
     if (targetPage && targetPage.type === 'entity' && allEntityVersions.length > 0) {
+      if (currentPaneState?.targetVersionId && allEntityVersions.some((v) => v.id === currentPaneState.targetVersionId)) {
+        setSelectedVersionId(currentPaneState.targetVersionId);
+        setIsEditingVersionBody(false);
+        setIsEditing(false);
+        return;
+      }
+      if (currentPaneState?.targetVersionNum !== undefined) {
+        const found =
+          allEntityVersions.find(
+            (v) =>
+              v.version_num === currentPaneState.targetVersionNum ||
+              v.title.toLowerCase() === `v${currentPaneState.targetVersionNum}`
+          ) || allEntityVersions[currentPaneState.targetVersionNum - 1];
+        if (found) {
+          setSelectedVersionId(found.id);
+          setIsEditingVersionBody(false);
+          setIsEditing(false);
+          return;
+        }
+      }
       const mostRecentId = allEntityVersions[allEntityVersions.length - 1].id;
       if (!selectedVersionId || !allEntityVersions.some((v) => v.id === selectedVersionId)) {
         setSelectedVersionId(mostRecentId);
         setIsEditingVersionBody(false);
+        setIsEditing(false);
       }
     }
-  }, [targetPage?.id, targetPage?.type, allEntityVersions.length]);
+  }, [targetPage?.id, targetPage?.type, allEntityVersions.length, currentPaneState?.targetVersionNum, currentPaneState?.targetVersionId]);
 
   const activeVersion =
     allEntityVersions.find((v) => v.id === selectedVersionId) ||
@@ -780,7 +807,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
 
     let statusTag = '';
     if (isCanonical) {
-      statusTag = ' ★ (Canonical)';
+      statusTag = ' ★ (Primary)';
     } else if (isMostRecent) {
       statusTag = ' (Most Recent)';
     }
@@ -916,7 +943,8 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
 
     setTimeout(() => {
       textarea.setSelectionRange(newCursor, newCursor);
-      autoResizeTextarea(textarea, 32);
+      const minH = targetPage?.type === 'entity' ? 32 : 180;
+      autoResizeTextarea(textarea, minH);
     }, 0);
   };
 
@@ -928,6 +956,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
 
     setSelectedVersionId(newVer.id);
     setIsEditingVersionBody(true);
+    setIsEditing(true);
   };
 
   const handleVersionTitleChange = (newTitle: string) => {
@@ -1001,8 +1030,12 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
       const matchedPage = findPageForPill(pillTarget, pages);
 
       if (matchedPage) {
-        const displayTitle = matchedPage.type === 'entity' ? `@${matchedPage.title}` : matchedPage.title;
         const targetSpan = pillTarget.getAttribute('data-full') || pillTarget.getAttribute('data-title') || pillTarget.getAttribute('data-short-id') || pillTarget.textContent?.trim();
+        if (matchedPage.type === 'message') {
+          navigateToMessage(matchedPage.id, targetSpan);
+          return;
+        }
+        const displayTitle = matchedPage.type === 'entity' ? `@${matchedPage.title}` : matchedPage.title;
         openInPane2(matchedPage.type as any, matchedPage.id, displayTitle, targetSpan);
         return;
       }
@@ -1013,6 +1046,9 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
     const targetOffset = getCaretOffsetFromPoint(e.currentTarget, e.clientX, e.clientY, bodyText);
 
     setIsEditing(true);
+    if (targetPage.type === 'entity') {
+      setIsEditingVersionBody(true);
+    }
 
     setTimeout(() => {
       if (contentRef.current) {
@@ -1083,14 +1119,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
 
   const handleScrollToChatWithId = (sourceNoteId: string, highlightSpan?: string) => {
     const targetSpan = highlightSpan || targetPage?.title || targetPage?.short_id;
-    openInPane1('chat', sourceNoteId, 'Chat Thread', targetSpan);
-
-    setTimeout(() => {
-      const el = document.getElementById(`page-${sourceNoteId}`);
-      if (el) {
-        scrollToMentionOrElement(el, targetSpan);
-      }
-    }, 60);
+    scrollToMessageInChat(sourceNoteId, targetSpan);
   };
 
   const handleScrollToChat = () => {
@@ -1180,7 +1209,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
       )}
 
       {/* Obsidian-Style Seamless Document Canvas */}
-      <div ref={pageViewContainerRef} data-page-canvas="true" className={`flex-1 overflow-y-auto bg-white flex flex-col p-6 space-y-4 ${isDualPane ? 'pl-8 md:pl-10' : ''}`}>
+      <div ref={pageViewContainerRef} data-page-canvas="true" className="flex-1 overflow-y-auto bg-white flex flex-col p-6 space-y-4">
         {/* Top Row: Page ID Pill (Left-aligned with page text) & Action Buttons (Right-aligned) */}
         <div className="flex items-center justify-between gap-2 select-none">
           <div>
@@ -1269,6 +1298,17 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
             )}
 
             {renderBadge()}
+
+            <button
+              type="button"
+              onClick={() => {
+                deletePage(targetPage.id);
+              }}
+              className="inline-flex items-center justify-center p-1.5 rounded-full bg-white text-zinc-400 hover:text-red-600 border border-zinc-200 hover:border-red-200 hover:bg-red-50/80 transition-colors shadow-2xs cursor-pointer select-none"
+              title="Delete page and remove from AI context"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
 
@@ -1312,6 +1352,9 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
                 e.preventDefault();
                 e.currentTarget.blur();
                 setIsEditing(true);
+                if (targetPage.type === 'entity') {
+                  setIsEditingVersionBody(true);
+                }
                 setTimeout(() => {
                   if (contentRef.current) {
                     contentRef.current.focus();
@@ -1448,7 +1491,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
                     }
                   }}
                   placeholder="Type prompt text..."
-                  className="w-full text-xs text-zinc-900 leading-relaxed font-normal bg-transparent border-0 outline-none focus:outline-none focus:ring-0 shadow-none resize-none p-0 m-0 min-h-[36px] overflow-hidden"
+                  className="w-full text-xs text-zinc-900 leading-relaxed font-normal bg-transparent border-0 outline-none focus:outline-none focus:ring-0 shadow-none resize-none p-0 m-0 pt-0.5 min-h-[36px] overflow-hidden"
                   autoFocus
                 />
               </div>
@@ -1460,8 +1503,12 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
                     e.stopPropagation();
                     const matchedPage = findPageForPill(pillTarget, pages);
                     if (matchedPage) {
-                      const displayTitle = matchedPage.type === 'entity' ? `@${matchedPage.title}` : matchedPage.title;
                       const targetSpan = pillTarget.getAttribute('data-full') || pillTarget.getAttribute('data-title') || pillTarget.getAttribute('data-short-id') || pillTarget.textContent?.trim();
+                      if (matchedPage.type === 'message') {
+                        navigateToMessage(matchedPage.id, targetSpan);
+                        return;
+                      }
+                      const displayTitle = matchedPage.type === 'entity' ? `@${matchedPage.title}` : matchedPage.title;
                       openInPane2(matchedPage.type as any, matchedPage.id, displayTitle, targetSpan);
                       return;
                     }
@@ -1501,7 +1548,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
         )}
 
         {/* Seamless Canvas (Automatic Edit / Blur Transition) */}
-        <div className={`flex flex-col relative ${targetPage.type === 'entity' ? 'flex-none' : 'flex-1'}`}>
+        <div className={`flex flex-col relative py-2 ${targetPage.type === 'entity' ? 'flex-none min-h-[32px]' : 'flex-1 min-h-[180px]'}`}>
           {isEditing ? (
             <>
               {isTypingAtContent && contentSuggestions.length > 0 && (
@@ -1539,14 +1586,16 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
                   updatePageContent(targetPage.id, val);
                   setContentCursorPos(e.target.selectionStart ?? val.length);
                   setIsContentDismissed(false);
-                  autoResizeTextarea(e.target, 32);
+                  const minH = targetPage?.type === 'entity' ? 32 : 180;
+                  autoResizeTextarea(e.target, minH);
                 }}
                 onFocus={(e) => {
                   if (e.target.selectionStart === 0 && e.target.selectionEnd === 0 && bodyText.length > 0) {
                     e.target.setSelectionRange(bodyText.length, bodyText.length);
                   }
                   setContentCursorPos(e.target.selectionStart ?? bodyText.length);
-                  autoResizeTextarea(e.target, 32);
+                  const minH = targetPage?.type === 'entity' ? 32 : 180;
+                  autoResizeTextarea(e.target, minH);
                 }}
                 onKeyUp={(e) => setContentCursorPos((e.target as HTMLTextAreaElement).selectionStart ?? bodyText.length)}
                 onClick={(e) => setContentCursorPos((e.target as HTMLTextAreaElement).selectionStart ?? bodyText.length)}
@@ -1554,7 +1603,11 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
                 onBlur={() => {
                   setTimeout(() => {
                     if (document.activeElement === contentRef.current) return;
+                    if (targetPage?.type === 'entity' && document.activeElement === versionContentRef.current) return;
                     setIsEditing(false);
+                    if (targetPage?.type === 'entity') {
+                      setIsEditingVersionBody(false);
+                    }
                   }, 150);
                 }}
                 onKeyDown={(e) => {
@@ -1585,10 +1638,15 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
                       return;
                     }
                   }
-                  if (e.key === 'Escape') setIsEditing(false);
+                  if (e.key === 'Escape') {
+                    setIsEditing(false);
+                    if (targetPage?.type === 'entity') {
+                      setIsEditingVersionBody(false);
+                    }
+                  }
                 }}
                 placeholder="Type page content (markdown and @tags supported)..."
-                className="w-full min-h-[32px] text-xs md:text-sm text-zinc-900 leading-relaxed font-sans bg-transparent border-0 outline-none focus:outline-none focus:ring-0 ring-0 shadow-none resize-none p-0 m-0 overflow-hidden"
+                className="w-full text-xs md:text-sm text-zinc-900 leading-relaxed font-sans bg-transparent border-0 outline-none focus:outline-none focus:ring-0 ring-0 shadow-none resize-none p-0 m-0 overflow-hidden"
               />
             </>
           ) : (
@@ -1597,7 +1655,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
               onMouseDown={(e) => {
                 handleGutterMouseDown(e, e.currentTarget);
               }}
-              className={`cursor-text w-full py-2 ${targetPage.type === 'entity' ? 'flex-none min-h-[32px]' : 'flex-1 min-h-[180px]'}`}
+              className="cursor-text w-full h-full p-0 m-0"
               title="Click anywhere on the document to edit"
             >
               <div
@@ -1614,7 +1672,20 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
 
         {/* Entity Version History Inner Rectangle (ONLY for Entity Pages) */}
         {targetPage.type === 'entity' && (
-          <div data-entity-version-container="true" className="mt-3 bg-zinc-100/90 border border-zinc-200/90 rounded-2xl p-4 md:p-5 flex flex-col gap-3 shadow-2xs select-text shrink-0 w-full scribe-markdown-block relative">
+          <div
+            data-entity-version-container="true"
+            onClick={(e) => {
+              const targetEl = e.target as HTMLElement;
+              const isGutter = handleGutterRangeClick(targetEl, e.currentTarget.parentElement || e.currentTarget, e.shiftKey);
+              if (isGutter) {
+                e.stopPropagation();
+              }
+            }}
+            onMouseDown={(e) => {
+              handleGutterMouseDown(e, e.currentTarget.parentElement || e.currentTarget);
+            }}
+            className="mt-3 bg-zinc-100/90 border border-zinc-200/90 rounded-2xl p-4 md:p-5 flex flex-col gap-3 shadow-2xs select-text shrink-0 w-full scribe-markdown-block relative"
+          >
             <div
               className="scribe-gutter-handle"
               title="Select markdown block"
@@ -1667,7 +1738,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
 
                 {activeVersion && (
                   <>
-                    {/* Fillable Purple Bookmark Icon to set/indicate Canonical Version */}
+                    {/* Fillable Purple Bookmark Icon to set/indicate Primary Version */}
                     <button
                       type="button"
                       onClick={() => {
@@ -1681,8 +1752,8 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
                         }`}
                       title={
                         activeVersion.id === canonicalVersionId
-                          ? 'Canonical Version (Current)'
-                          : 'Mark as Canonical Version'
+                          ? 'Primary Version (Current)'
+                          : 'Mark as Primary Version'
                       }
                     >
                       <Star
@@ -1691,13 +1762,13 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
                       />
                     </button>
 
-                    {/* Delete Version Button (Disabled/Grayed out for Canonical Version) */}
+                    {/* Delete Version Button (Disabled/Grayed out for Primary Version) */}
                     {activeVersion.id === canonicalVersionId ? (
                       <button
                         type="button"
                         disabled
                         className="p-1.5 rounded-lg border border-zinc-200 bg-zinc-50 text-zinc-300 cursor-not-allowed opacity-60"
-                        title="Cannot delete canonical version"
+                        title="Cannot delete primary version"
                       >
                         <Trash2 className="w-3.5 h-3.5 text-zinc-300" />
                       </button>
@@ -1819,7 +1890,9 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
                           onBlur={() => {
                             setTimeout(() => {
                               if (document.activeElement === versionContentRef.current) return;
+                              if (document.activeElement === contentRef.current) return;
                               setIsEditingVersionBody(false);
+                              setIsEditing(false);
                             }, 150);
                           }}
                           onKeyDown={(e) => {
@@ -1850,7 +1923,10 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
                                 return;
                               }
                             }
-                            if (e.key === 'Escape') setIsEditingVersionBody(false);
+                            if (e.key === 'Escape') {
+                              setIsEditingVersionBody(false);
+                              setIsEditing(false);
+                            }
                           }}
                           placeholder="Type entity version notes (markdown and @tags supported)..."
                           className="w-full min-h-[140px] text-xs md:text-sm text-zinc-900 leading-relaxed font-sans bg-transparent border-0 outline-none focus:outline-none ring-0 shadow-none resize-none p-0 m-0 overflow-hidden"
@@ -1860,6 +1936,20 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
                     ) : (
                       <div
                         onClick={(e) => {
+                          const targetEl = e.target as HTMLElement;
+                          const isGutter = handleGutterRangeClick(targetEl, e.currentTarget, e.shiftKey);
+                          if (isGutter) {
+                            e.stopPropagation();
+                            return;
+                          }
+
+                          const selection = window.getSelection();
+                          if (selection && selection.toString().trim().length > 0) return;
+
+                          if (clearAllGutterSelections()) {
+                            return;
+                          }
+
                           const pillTarget = (e.target as HTMLElement).closest('.page-mention-pill, [data-entity], [data-title]') as HTMLElement;
                           if (pillTarget) {
                             e.stopPropagation();
@@ -1872,10 +1962,10 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
                             }
                             return;
                           }
-                          const selection = window.getSelection();
-                          if (selection && selection.toString().trim().length > 0) return;
+
                           const targetOffset = getCaretOffsetFromPoint(e.currentTarget, e.clientX, e.clientY, activeVersionText);
                           setIsEditingVersionBody(true);
+                          setIsEditing(true);
                           setTimeout(() => {
                             if (versionContentRef.current) {
                               versionContentRef.current.focus();
@@ -1883,6 +1973,9 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
                               setVersionCursorPos(targetOffset);
                             }
                           }, 0);
+                        }}
+                        onMouseDown={(e) => {
+                          handleGutterMouseDown(e, e.currentTarget);
                         }}
                         className="cursor-text w-full h-full min-h-[140px]"
                         title="Click anywhere on the document to edit version body"

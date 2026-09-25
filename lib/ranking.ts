@@ -12,6 +12,7 @@ export interface SuggestionItem {
   scopeLabel: string;
   pageId?: string;
   shortId?: string;
+  isBold?: boolean;
 }
 
 export function normalizeAutocompleteKey(value: string): string {

@@ -2,14 +2,19 @@
 
 import React, { useState } from 'react';
 import { usePlanet } from '@/lib/context';
-import { Zap, Edit3, Check } from 'lucide-react';
+import { Zap, Edit3, Check, Plus } from 'lucide-react';
 
 export const DecisionLogView: React.FC = () => {
-  const { decisions, openInPane2 } = usePlanet();
+  const { decisions, openInPane2, createDecisionPage } = usePlanet();
 
   const sortedDecisions = [...decisions].sort(
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   );
+
+  const handleCreateDecision = () => {
+    const newDec = createDecisionPage('New Decision', '');
+    openInPane2('decision', newDec.id, newDec.title);
+  };
 
   const handleOpenDecisionPage = (id: string, title: string) => {
     openInPane2('decision', id, title);
@@ -18,7 +23,7 @@ export const DecisionLogView: React.FC = () => {
   return (
     <div className="flex flex-col h-full bg-white text-zinc-900 overflow-hidden font-sans">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-3.5 border-b border-zinc-200 bg-zinc-50/50">
+      <div className="flex items-center justify-between px-6 py-3.5 border-b border-zinc-200 bg-zinc-50/50 shrink-0">
         <div className="flex items-center gap-2.5">
           <div className="p-1.5 bg-orange-100 text-orange-600 rounded-md">
             <Zap className="w-4 h-4" />
@@ -28,9 +33,20 @@ export const DecisionLogView: React.FC = () => {
             <p className="text-[11px] text-zinc-500">Agreed trade-offs & architectural choices</p>
           </div>
         </div>
-        <span className="text-[11px] font-medium text-zinc-500">
-          {sortedDecisions.length} total
-        </span>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleCreateDecision}
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-zinc-900 hover:bg-zinc-800 text-white transition-colors shadow-2xs cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>New Decision</span>
+          </button>
+          <span className="text-[11px] font-medium text-zinc-500">
+            {sortedDecisions.length} total
+          </span>
+        </div>
       </div>
 
       {/* Log Feed */}

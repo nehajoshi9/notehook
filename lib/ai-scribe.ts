@@ -76,7 +76,7 @@ export class MentionIndex {
       }
     }
 
-    // 4. Version titles (for entities)
+    // 4. Version titles & version numbers (for entities)
     if (page.versions && page.versions.length > 0) {
       for (const v of page.versions) {
         const vTitle = v.title.replace(/^@/, '').trim();
@@ -85,6 +85,22 @@ export class MentionIndex {
           this.addKey(`[@${vTitle}]`, page);
           this.addKey(`@${vTitle}`, page);
         }
+
+        // Specific entity version mentions: [@Entity.N], [@e1.N], @Entity.N, @e1.N
+        if (v.version_num !== undefined) {
+          const versionPage: Page = { ...page, target_version_num: v.version_num };
+          if (cleanTitle) {
+            this.addKey(`[@${cleanTitle}.${v.version_num}]`, versionPage);
+            this.addKey(`@${cleanTitle}.${v.version_num}`, versionPage);
+            this.addKey(`[@entity:${cleanTitle}.${v.version_num}]`, versionPage);
+            this.addKey(`[@entity: ${cleanTitle}.${v.version_num}]`, versionPage);
+          }
+          if (page.short_id) {
+            const shortId = page.short_id.trim();
+            this.addKey(`[@${shortId}.${v.version_num}]`, versionPage);
+            this.addKey(`@${shortId}.${v.version_num}`, versionPage);
+          }
+        }
       }
     }
   }
@@ -92,7 +108,21 @@ export class MentionIndex {
   public lookupExact(key: string): Page | undefined {
     if (!key) return undefined;
     const clean = key.replace(/^@/, '').trim().toLowerCase();
-    return this.exactMap.get(clean) || this.exactMap.get(key.trim().toLowerCase());
+    const directMatch = this.exactMap.get(clean) || this.exactMap.get(key.trim().toLowerCase());
+    if (directMatch) return directMatch;
+
+    // Support dynamic .<version_num> lookup on entity titles and IDs
+    const verMatch = clean.match(/^(.+?)\.(\d+)$/);
+    if (verMatch) {
+      const baseKey = verMatch[1].trim();
+      const versionNum = parseInt(verMatch[2], 10);
+      const basePage = this.exactMap.get(baseKey) || this.exactMap.get(verMatch[1]);
+      if (basePage && basePage.type === 'entity') {
+        return { ...basePage, target_version_num: versionNum };
+      }
+    }
+
+    return undefined;
   }
 
   // Scan text in O(L) time using the Trie with exact span tracking
@@ -156,7 +186,10 @@ export class MentionIndex {
     const spans = this.searchMentionsWithSpans(text);
     const results = new Map<string, Page>();
     for (const match of spans) {
-      results.set(match.page.id, match.page);
+      const key = match.page.target_version_num !== undefined
+        ? `${match.page.id}.v${match.page.target_version_num}`
+        : match.page.id;
+      results.set(key, match.page);
     }
     return Array.from(results.values());
   }
@@ -171,7 +204,10 @@ export function getReferencedPagesFromPrompt(prompt: string, allPages: Page[] = 
   // 1. O(L) Trie scan for bracketed and unbracketed mentions with span tracking
   const foundSpans = index.searchMentionsWithSpans(prompt);
   for (const match of foundSpans) {
-    referencedMap.set(match.page.id, match.page);
+    const key = match.page.target_version_num !== undefined
+      ? `${match.page.id}.v${match.page.target_version_num}`
+      : match.page.id;
+    referencedMap.set(key, match.page);
   }
 
   // 2. Parse scribe markup tags and resolve in O(1) via inverted index, ignoring tags subsumed by longer Trie spans
@@ -184,10 +220,15 @@ export function getReferencedPagesFromPrompt(prompt: string, allPages: Page[] = 
       if (isSubsumed) continue;
     }
 
-    const key = item.nameOrTitle || item.fullText || '';
+    const key = item.fullText || item.nameOrTitle || '';
     const matched = index.lookupExact(key);
-    if (matched && !referencedMap.has(matched.id)) {
-      referencedMap.set(matched.id, matched);
+    if (matched) {
+      const mapKey = matched.target_version_num !== undefined
+        ? `${matched.id}.v${matched.target_version_num}`
+        : matched.id;
+      if (!referencedMap.has(mapKey)) {
+        referencedMap.set(mapKey, matched);
+      }
     }
   }
 
@@ -199,21 +240,35 @@ export function buildReferencedContextSystemPromptSection(referencedPages: Page[
 
   const blocks = referencedPages.map((page) => {
     let pageContent = (page.content || '').trim();
-    // For versioned entity pages, append the active / canonical version content
+    let versionLabel = '';
+    // For versioned entity pages, append either the specified version or the active / canonical version content
     if (page.type === 'entity' && page.versions && page.versions.length > 0) {
-      const canonicalVersion = page.versions.find(
-        (v) => v.id === page.canonical_version_id || v.is_canonical
-      );
-      const activeVersion = canonicalVersion || page.versions[page.versions.length - 1];
-      if (activeVersion && activeVersion.content) {
-        pageContent = `${pageContent}\n\n[Active Version "${activeVersion.title}"]: ${activeVersion.content.trim()}`;
+      if (page.target_version_num !== undefined) {
+        const specifiedVersion = page.versions.find(
+          (v) => v.version_num === page.target_version_num || v.title.toLowerCase() === `v${page.target_version_num}`
+        ) || page.versions[page.target_version_num - 1];
+
+        if (specifiedVersion) {
+          versionLabel = `.${specifiedVersion.version_num}`;
+          if (specifiedVersion.content) {
+            pageContent = `${pageContent}\n\n[Version ${specifiedVersion.version_num} "${specifiedVersion.title}"]: ${specifiedVersion.content.trim()}`;
+          }
+        }
+      } else {
+        const canonicalVersion = page.versions.find(
+          (v) => v.id === page.canonical_version_id || v.is_canonical
+        );
+        const activeVersion = canonicalVersion || page.versions[page.versions.length - 1];
+        if (activeVersion && activeVersion.content) {
+          pageContent = `${pageContent}\n\n[Active Version "${activeVersion.title}"]: ${activeVersion.content.trim()}`;
+        }
       }
     }
 
     const shortIdStr = page.short_id ? ` (ID: ${page.short_id})` : '';
     const userPromptMeta = page.user_prompt ? `\nUser Prompt Framing: "${page.user_prompt}"` : '';
 
-    return `--- REFERENCED PAGE: [@${page.title}]${shortIdStr} [type: ${page.type}] ---${userPromptMeta}\nContent:\n${pageContent}`;
+    return `--- REFERENCED PAGE: [@${page.title}${versionLabel}]${shortIdStr} [type: ${page.type}] ---${userPromptMeta}\nContent:\n${pageContent}`;
   });
 
   return `\n\n=== REFERENCED CONTEXT FOR THIS TURN ===\nThe user's prompt in this turn explicitly references the following workspace page(s). Use this injected context to inform your answer:\n\n${blocks.join('\n\n')}\n=== END REFERENCED CONTEXT ===`;
@@ -231,17 +286,31 @@ export function buildPinnedKnowledgeSection(allPages: Page[], pinnedPageIds: str
 
   const blocks = pinnedPages.map((page) => {
     let pageContent = (page.content || '').trim();
+    let versionLabel = '';
     if (page.type === 'entity' && page.versions && page.versions.length > 0) {
-      const canonicalVersion = page.versions.find(
-        (v) => v.id === page.canonical_version_id || v.is_canonical
-      );
-      const activeVersion = canonicalVersion || page.versions[page.versions.length - 1];
-      if (activeVersion && activeVersion.content) {
-        pageContent = `${pageContent}\n\n[Active Version "${activeVersion.title}"]: ${activeVersion.content.trim()}`;
+      if (page.target_version_num !== undefined) {
+        const specifiedVersion = page.versions.find(
+          (v) => v.version_num === page.target_version_num || v.title.toLowerCase() === `v${page.target_version_num}`
+        ) || page.versions[page.target_version_num - 1];
+
+        if (specifiedVersion) {
+          versionLabel = `.${specifiedVersion.version_num}`;
+          if (specifiedVersion.content) {
+            pageContent = `${pageContent}\n\n[Version ${specifiedVersion.version_num} "${specifiedVersion.title}"]: ${specifiedVersion.content.trim()}`;
+          }
+        }
+      } else {
+        const canonicalVersion = page.versions.find(
+          (v) => v.id === page.canonical_version_id || v.is_canonical
+        );
+        const activeVersion = canonicalVersion || page.versions[page.versions.length - 1];
+        if (activeVersion && activeVersion.content) {
+          pageContent = `${pageContent}\n\n[Active Version "${activeVersion.title}"]: ${activeVersion.content.trim()}`;
+        }
       }
     }
     const shortIdStr = page.short_id ? ` [@${page.short_id}]` : '';
-    return `### PINNED ${page.type.toUpperCase()}: [@${page.title}]${shortIdStr}\nContent:\n${pageContent}`;
+    return `### PINNED ${page.type.toUpperCase()}: [@${page.title}${versionLabel}]${shortIdStr}\nContent:\n${pageContent}`;
   });
 
   return `\n\n=== PINNED SESSION KNOWLEDGE (GROUND TRUTH ANCHORS) ===\nThe architect has pinned the following high-priority page(s) for this working session. Treat these as active system constraints:\n\n${blocks.join('\n\n')}\n=== END PINNED SESSION KNOWLEDGE ===`;
@@ -251,7 +320,7 @@ export const KNOWLEDGE_EXPANSION_TOOL_GEMINI = {
   functionDeclarations: [
     {
       name: 'expand_knowledge_page',
-      description: 'Expand an unmentioned recent knowledge page from the workspace catalogue to retrieve its full content, body, and active/canonical version.',
+      description: 'Expand an unmentioned recent knowledge page from the workspace catalogue to retrieve its full content, body, and active/primary version.',
       parameters: {
         type: 'OBJECT',
         properties: {
@@ -271,7 +340,7 @@ export const KNOWLEDGE_EXPANSION_TOOL_OPENAI = [
     type: 'function',
     function: {
       name: 'expand_knowledge_page',
-      description: 'Expand an unmentioned recent knowledge page from the workspace catalogue to retrieve its full content, body, and active/canonical version.',
+      description: 'Expand an unmentioned recent knowledge page from the workspace catalogue to retrieve its full content, body, and active/primary version.',
       parameters: {
         type: 'OBJECT',
         properties: {
@@ -295,8 +364,12 @@ export function expandKnowledgePage(
   }
   const cleanQuery = query.replace(/^@/, '').trim().toLowerCase();
 
+  const verMatch = cleanQuery.match(/^(.+?)\.(\d+)$/);
+  const baseQuery = verMatch ? verMatch[1].trim() : cleanQuery;
+  const targetVersionNum = verMatch ? parseInt(verMatch[2], 10) : undefined;
+
   const index = new MentionIndex(allPages);
-  let page = index.lookupExact(query) || index.lookupExact(cleanQuery);
+  let page = index.lookupExact(query) || index.lookupExact(cleanQuery) || index.lookupExact(baseQuery);
 
   if (!page) {
     page = allPages.find((p) => {
@@ -304,8 +377,10 @@ export function expandKnowledgePage(
       const shortId = (p.short_id || '').trim().toLowerCase();
       return (
         p.id.toLowerCase() === cleanQuery ||
-        (shortId && shortId === cleanQuery) ||
-        cleanTitle === cleanQuery
+        p.id.toLowerCase() === baseQuery ||
+        (shortId && (shortId === cleanQuery || shortId === baseQuery)) ||
+        cleanTitle === cleanQuery ||
+        cleanTitle === baseQuery
       );
     });
   }
@@ -319,21 +394,37 @@ export function expandKnowledgePage(
 
   let pageContent = (page.content || '').trim();
   let versionInfo = '';
+  let versionLabel = '';
+
+  const effectiveVersionNum = targetVersionNum !== undefined ? targetVersionNum : page.target_version_num;
 
   if (page.type === 'entity' && page.versions && page.versions.length > 0) {
-    const canonicalVersion = page.versions.find(
-      (v) => v.id === page.canonical_version_id || v.is_canonical
-    );
-    const activeVersion = canonicalVersion || page.versions[page.versions.length - 1];
-    if (activeVersion && activeVersion.content) {
-      versionInfo = `\nActive/Canonical Version ["${activeVersion.title}"]: ${activeVersion.content.trim()}`;
+    if (effectiveVersionNum !== undefined) {
+      const specifiedVersion = page.versions.find(
+        (v) => v.version_num === effectiveVersionNum || v.title.toLowerCase() === `v${effectiveVersionNum}`
+      ) || page.versions[effectiveVersionNum - 1];
+
+      if (specifiedVersion) {
+        versionLabel = `.${specifiedVersion.version_num}`;
+        if (specifiedVersion.content) {
+          versionInfo = `\nVersion ${specifiedVersion.version_num} ["${specifiedVersion.title}"]: ${specifiedVersion.content.trim()}`;
+        }
+      }
+    } else {
+      const canonicalVersion = page.versions.find(
+        (v) => v.id === page.canonical_version_id || v.is_canonical
+      );
+      const activeVersion = canonicalVersion || page.versions[page.versions.length - 1];
+      if (activeVersion && activeVersion.content) {
+        versionInfo = `\nActive/Primary Version ["${activeVersion.title}"]: ${activeVersion.content.trim()}`;
+      }
     }
   }
 
   const shortIdStr = page.short_id ? ` (ID: ${page.short_id})` : '';
   const statusMeta = page.type === 'todo' ? ` [Status: ${page.done ? 'COMPLETED / DONE' : 'PENDING / OPEN'}]` : '';
 
-  const expandedText = `--- EXPANDED KNOWLEDGE PAGE: [@${page.title.replace(/^@/, '').trim()}]${shortIdStr} [type: ${page.type}]${statusMeta} ---
+  const expandedText = `--- EXPANDED KNOWLEDGE PAGE: [@${page.title.replace(/^@/, '').trim()}${versionLabel}]${shortIdStr} [type: ${page.type}]${statusMeta} ---
 Content:
 ${pageContent}${versionInfo}
 --- END EXPANDED KNOWLEDGE PAGE ---`;
@@ -358,7 +449,7 @@ export function buildKnowledgeCatalogueSection(allPages: Page[]): string {
     return `- ${shortId}[@${cleanTitle}] (${p.type}): ${snippet || 'Architectural page'}`;
   });
 
-  return `\n\n=== WORKSPACE KNOWLEDGE CATALOGUE (TOP 25) ===\nThe workspace contains the following knowledge pages. If relevant, you may reference them by [@title] or short ID. If you need to view the full content or canonical version of an unmentioned page, use the expand_knowledge_page tool:\n${lines.join('\n')}\n=== END WORKSPACE CATALOGUE ===`;
+  return `\n\n=== WORKSPACE KNOWLEDGE CATALOGUE (TOP 25) ===\nThe workspace contains the following knowledge pages. If relevant, you may reference them by [@title] or short ID. If you need to view the full content or primary version of an unmentioned page, use the expand_knowledge_page tool:\n${lines.join('\n')}\n=== END WORKSPACE CATALOGUE ===`;
 }
 
 export function buildDynamicReferencedSection(
@@ -385,13 +476,27 @@ export function buildDynamicReferencedSection(
 
   const blocks = ordered.map((page) => {
     let pageContent = (page.content || '').trim();
+    let versionLabel = '';
     if (page.type === 'entity' && page.versions && page.versions.length > 0) {
-      const canonicalVersion = page.versions.find(
-        (v) => v.id === page.canonical_version_id || v.is_canonical
-      );
-      const activeVersion = canonicalVersion || page.versions[page.versions.length - 1];
-      if (activeVersion && activeVersion.content) {
-        pageContent = `${pageContent}\n\n[Active Version "${activeVersion.title}"]: ${activeVersion.content.trim()}`;
+      if (page.target_version_num !== undefined) {
+        const specifiedVersion = page.versions.find(
+          (v) => v.version_num === page.target_version_num || v.title.toLowerCase() === `v${page.target_version_num}`
+        ) || page.versions[page.target_version_num - 1];
+
+        if (specifiedVersion) {
+          versionLabel = `.${specifiedVersion.version_num}`;
+          if (specifiedVersion.content) {
+            pageContent = `${pageContent}\n\n[Version ${specifiedVersion.version_num} "${specifiedVersion.title}"]: ${specifiedVersion.content.trim()}`;
+          }
+        }
+      } else {
+        const canonicalVersion = page.versions.find(
+          (v) => v.id === page.canonical_version_id || v.is_canonical
+        );
+        const activeVersion = canonicalVersion || page.versions[page.versions.length - 1];
+        if (activeVersion && activeVersion.content) {
+          pageContent = `${pageContent}\n\n[Active Version "${activeVersion.title}"]: ${activeVersion.content.trim()}`;
+        }
       }
     }
     const cleanTitle = page.title.replace(/^@/, '').trim();
@@ -405,7 +510,7 @@ export function buildDynamicReferencedSection(
     const historyPositionMeta = page.type === 'message' && messageTurnLabels?.has(page.id)
       ? `\nIn conversation history as: ${messageTurnLabels.get(page.id)}`
       : '';
-    return `--- REFERENCED PAGE: [@${cleanTitle}]${shortIdStr} [type: ${page.type}]${statusMeta} ---${historyPositionMeta}${userPromptMeta}\nContent:\n${pageContent}\n--- END REFERENCED PAGE ---`;
+    return `--- REFERENCED PAGE: [@${cleanTitle}${versionLabel}]${shortIdStr} [type: ${page.type}]${statusMeta} ---${historyPositionMeta}${userPromptMeta}\nContent:\n${pageContent}\n--- END REFERENCED PAGE ---`;
   });
 
   return `=== REFERENCED CONTEXT FOR THIS TURN ===\n${blocks.join('\n\n')}\n=== END REFERENCED CONTEXT ===`;
@@ -502,11 +607,20 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
     if (turnInjected) {
       const titleMatches = turnInjected.matchAll(/--- REFERENCED PAGE: \[@?([^\]]+)\]/g);
       for (const m of titleMatches) {
-        const title = m[1].replace(/^@/, '').trim();
+        const fullTag = m[1].replace(/^@/, '').trim();
+        const verMatch = fullTag.match(/^(.+?)\.(\d+)$/);
+        const baseTitle = verMatch ? verMatch[1].trim() : fullTag;
+        const versionNum = verMatch ? parseInt(verMatch[2], 10) : undefined;
+
         const p = allPages.find(
-          (page) => page.title.replace(/^@/, '').trim().toLowerCase() === title.toLowerCase()
+          (page) =>
+            page.title.replace(/^@/, '').trim().toLowerCase() === baseTitle.toLowerCase() ||
+            page.short_id?.toLowerCase() === baseTitle.toLowerCase()
         );
-        if (p) referencedIdsInTurn.add(p.id);
+        if (p) {
+          const key = versionNum !== undefined ? `${p.id}.v${versionNum}` : p.id;
+          referencedIdsInTurn.add(key);
+        }
       }
     }
 
@@ -517,31 +631,41 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
       ...allPages.filter((p) => p.type === 'todo' && (p.created_at === turn.created_at || turn.content.includes(p.title))),
     ];
     for (const item of mentionedInTurn) {
+      const itemKey = item.target_version_num !== undefined ? `${item.id}.v${item.target_version_num}` : item.id;
       const itemUpdatedTime = new Date(item.updated_at || item.created_at).getTime();
       const hasChanged = itemUpdatedTime > turnTime;
       if (hasChanged) {
         changedPageIds.add(item.id);
       } else {
-        alreadyVerbatimUnchangedIds.add(item.id);
+        alreadyVerbatimUnchangedIds.add(itemKey);
       }
     }
 
     if (referencedIdsInTurn.size > 0) {
-      for (const refId of referencedIdsInTurn) {
+      for (const refKey of referencedIdsInTurn) {
+        const [refId, verPart] = refKey.split('.v');
+        const targetVersionNum = verPart ? parseInt(verPart, 10) : undefined;
         const page = allPages.find((p) => p.id === refId);
         if (!page) continue;
 
-        let latestVersionTime = 0;
-        if (page.versions && page.versions.length > 0) {
+        let versionUpdatedTime = 0;
+        if (targetVersionNum !== undefined && page.versions) {
+          const targetV = page.versions.find(
+            (v) => v.version_num === targetVersionNum || v.title.toLowerCase() === `v${targetVersionNum}`
+          );
+          if (targetV) {
+            versionUpdatedTime = new Date(targetV.updated_at || targetV.created_at).getTime();
+          }
+        } else if (page.versions && page.versions.length > 0) {
           for (const v of page.versions) {
             const vTime = new Date(v.updated_at || v.created_at).getTime();
-            if (vTime > latestVersionTime) latestVersionTime = vTime;
+            if (vTime > versionUpdatedTime) versionUpdatedTime = vTime;
           }
         }
 
         const pageUpdatedTime = Math.max(
           new Date(page.updated_at || page.created_at).getTime(),
-          latestVersionTime
+          versionUpdatedTime
         );
         const hasChanged = pageUpdatedTime > turnTime;
 
@@ -554,11 +678,11 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
           // Strip duplicate/stale reference block from history
           const cleanTitle = page.title.replace(/^@/, '').trim();
           const escapedTitle = cleanTitle.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
-          const blockRegex = new RegExp(`--- REFERENCED PAGE: \\[@?${escapedTitle}\\][\\s\\S]*?--- END REFERENCED PAGE ---(\\n\\n)?`, 'gi');
+          const blockRegex = new RegExp(`--- REFERENCED PAGE: \\[@?${escapedTitle}(?:\\.\\d+)?\\][\\s\\S]*?--- END REFERENCED PAGE ---(\\n\\n)?`, 'gi');
           turnInjected = turnInjected.replace(blockRegex, '').trim();
         } else {
           // Page has NOT changed: model already has access to it verbatim in history!
-          alreadyVerbatimUnchangedIds.add(page.id);
+          alreadyVerbatimUnchangedIds.add(refKey);
         }
       }
     }
@@ -589,9 +713,10 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
   // TIER 4: Dynamic Turn References
   // Do NOT re-insert pages if the model already has access to them verbatim and unchanged in history!
   // Re-injected changed pages are pushed to the very end of the list of full text bodies!
-  const toInjectCurrentTurn = nonPinnedReferenced.filter(
-    (p) => !alreadyVerbatimUnchangedIds.has(p.id)
-  );
+  const toInjectCurrentTurn = nonPinnedReferenced.filter((p) => {
+    const key = p.target_version_num !== undefined ? `${p.id}.v${p.target_version_num}` : p.id;
+    return !alreadyVerbatimUnchangedIds.has(key);
+  });
 
   // Build a lookup from message page ID -> its labeled turn header, so that when a message-type
   // page is injected into the current turn's context block, the LLM can correlate the injected
@@ -606,9 +731,10 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
   // are already present verbatim and unchanged in conversation history. Emit a one-line backpointer
   // stub for each so the LLM has an ID anchor for every [@mention] in the user prompt even without
   // a full re-injection block.
-  const alreadyInHistoryReferenced = nonPinnedReferenced.filter(
-    (p) => alreadyVerbatimUnchangedIds.has(p.id) && p.type !== 'message' // messages already get turn labels in history
-  );
+  const alreadyInHistoryReferenced = nonPinnedReferenced.filter((p) => {
+    const key = p.target_version_num !== undefined ? `${p.id}.v${p.target_version_num}` : p.id;
+    return alreadyVerbatimUnchangedIds.has(key) && p.type !== 'message';
+  });
   const backpointerStubs = alreadyInHistoryReferenced.length > 0
     ? alreadyInHistoryReferenced
       .map((p) => {

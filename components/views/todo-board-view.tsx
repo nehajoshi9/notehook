@@ -2,10 +2,10 @@
 
 import React, { useState } from 'react';
 import { usePlanet } from '@/lib/context';
-import { CheckSquare, Star, ExternalLink, Edit3, Check } from 'lucide-react';
+import { CheckSquare, Star, ExternalLink, Edit3, Check, Plus } from 'lucide-react';
 
 export const TodoBoardView: React.FC = () => {
-  const { todos, toggleTodoDone, toggleTodoStarred, openInPane2 } = usePlanet();
+  const { todos, toggleTodoDone, toggleTodoStarred, openInPane2, createTodoPage } = usePlanet();
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'completed'>('all');
 
   const filteredTodos = todos
@@ -16,10 +16,15 @@ export const TodoBoardView: React.FC = () => {
     })
     .sort((a, b) => (b.starred ? 1 : 0) - (a.starred ? 1 : 0) || new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
+  const handleCreateTodo = () => {
+    const newTodo = createTodoPage('New Task', '');
+    openInPane2('todo', newTodo.id, newTodo.title);
+  };
+
   return (
     <div className="flex flex-col h-full bg-white text-zinc-900 overflow-hidden font-sans">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-3.5 border-b border-zinc-200 bg-zinc-50/50">
+      <div className="flex items-center justify-between px-6 py-3.5 border-b border-zinc-200 bg-zinc-50/50 shrink-0">
         <div className="flex items-center gap-2.5">
           <div className="p-1.5 bg-emerald-100 text-emerald-700 rounded-md">
             <CheckSquare className="w-4 h-4" />
@@ -30,40 +35,51 @@ export const TodoBoardView: React.FC = () => {
           </div>
         </div>
 
-        {/* Filter Buttons */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-2">
+          {/* Filter Buttons */}
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setStatusFilter('all')}
+              className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-colors ${
+                statusFilter === 'all'
+                  ? 'bg-emerald-100 text-emerald-800'
+                  : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100'
+              }`}
+            >
+              All ({todos.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter('active')}
+              className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-colors ${
+                statusFilter === 'active'
+                  ? 'bg-emerald-100 text-emerald-800'
+                  : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100'
+              }`}
+            >
+              Active
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter('completed')}
+              className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-colors ${
+                statusFilter === 'completed'
+                  ? 'bg-emerald-100 text-emerald-800'
+                  : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100'
+              }`}
+            >
+              Completed
+            </button>
+          </div>
+
           <button
             type="button"
-            onClick={() => setStatusFilter('all')}
-            className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-colors ${
-              statusFilter === 'all'
-                ? 'bg-emerald-100 text-emerald-800'
-                : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100'
-            }`}
+            onClick={handleCreateTodo}
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-zinc-900 hover:bg-zinc-800 text-white transition-colors shadow-2xs cursor-pointer ml-1"
           >
-            All ({todos.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setStatusFilter('active')}
-            className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-colors ${
-              statusFilter === 'active'
-                ? 'bg-emerald-100 text-emerald-800'
-                : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100'
-            }`}
-          >
-            Active
-          </button>
-          <button
-            type="button"
-            onClick={() => setStatusFilter('completed')}
-            className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-colors ${
-              statusFilter === 'completed'
-                ? 'bg-emerald-100 text-emerald-800'
-                : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100'
-            }`}
-          >
-            Completed
+            <Plus className="w-3.5 h-3.5" />
+            <span>New Task</span>
           </button>
         </div>
       </div>

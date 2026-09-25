@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { usePlanet } from '@/lib/context';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, ChevronLeft } from 'lucide-react';
 import { getRankedSuggestions, SuggestionItem } from '@/lib/ranking';
 import { SuggestionList } from '@/components/ai/suggestion-list';
 import { parseScribeMarkup, formatItemTitle, untagReferences, domToMarkdown, cleanMarkdownSpacing, clearAllGutterSelections } from '@/lib/scribe-parser';
@@ -119,6 +119,7 @@ export const FloatingSelectionToolbar: React.FC<FloatingSelectionToolbarProps> =
   const [selectedText, setSelectedText] = useState('');
   const [hasReferenceError, setHasReferenceError] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [menuView, setMenuView] = useState<'root' | 'entity'>('root');
   const [allAvailableEntities, setAllAvailableEntities] = useState<{ entity: Page; nextVer: number }[]>([]);
   const [detectedSourcePageId, setDetectedSourcePageId] = useState<string | undefined>(undefined);
   const detectedSourcePageIdRef = useRef<string | undefined>(undefined);
@@ -130,6 +131,7 @@ export const FloatingSelectionToolbar: React.FC<FloatingSelectionToolbarProps> =
 
   useEffect(() => {
     setSelectedIndex(0);
+    setMenuView('root');
   }, [selectedText]);
 
   // Compute next version number for an entity page (e.g., v5 if 4 versions exist)
@@ -167,6 +169,7 @@ export const FloatingSelectionToolbar: React.FC<FloatingSelectionToolbarProps> =
         setSelectedText('');
         setHasReferenceError(false);
         setAllAvailableEntities([]);
+        setMenuView('root');
         return;
       }
 
@@ -592,32 +595,54 @@ export const FloatingSelectionToolbar: React.FC<FloatingSelectionToolbarProps> =
     };
   }, [pages, mentions]);
 
-  // Construct "Save as [@EntityName]" options with caption `v5` ONLY for entities strictly in scope
-  const saveAsEntityItems: SuggestionItem[] = allAvailableEntities.map(({ entity, nextVer }) => ({
-    id: `save-as-entity-${entity.id}`,
-    title: `Save as [@${entity.title}]`,
-    type: 'page',
-    itemType: 'entity',
-    description: `Save selected text into @${entity.title}`,
-    score: 1000,
-    scopeLabel: `v${nextVer}`,
-    pageId: entity.id,
-    shortId: entity.short_id,
-  }));
+  // Entities available for saving as version: matched ones first, followed by all other existing entities
+  const matchedEntityIds = new Set(allAvailableEntities.map((a) => a.entity.id));
+  const otherEntities = pages
+    .filter((p) => p.type === 'entity' && !matchedEntityIds.has(p.id))
+    .map((ent) => ({
+      entity: ent,
+      nextVer: getNextEntityVersionNum(ent),
+    }));
+
+  const entityPool = [...allAvailableEntities, ...otherEntities];
+
+  const entitySubMenuItems: SuggestionItem[] = [
+    ...entityPool.map(({ entity, nextVer }) => ({
+      id: `save-as-entity-${entity.id}`,
+      title: `Save as [@${entity.title}]`,
+      type: 'page' as const,
+      itemType: 'entity' as const,
+      description: `Save selected text into @${entity.title}`,
+      score: 1000,
+      scopeLabel: `v${nextVer}`,
+      pageId: entity.id,
+      shortId: entity.short_id,
+    })),
+    {
+      id: 'save-to-entity',
+      title: '+ Create New Entity',
+      type: 'page' as const,
+      itemType: 'entity' as const,
+      description: 'Save selected text to a new entity',
+      score: 900,
+      scopeLabel: 'New',
+      isBold: true,
+    },
+  ];
 
   const saveToEntityItem: SuggestionItem = {
-    id: 'save-to-entity',
+    id: 'open-save-to-entity-menu',
     title: 'Save to Entity',
     type: 'page',
     itemType: 'entity',
-    description: 'Save selected text to a new entity',
-    score: 960,
-    scopeLabel: 'Entity',
+    description: 'Save selected text to an entity',
+    score: 1000,
+    scopeLabel: 'Entity →',
   };
 
   const copyToNewNoteItem: SuggestionItem = {
     id: 'copy-to-new-note',
-    title: 'Copy to New Note',
+    title: 'Save to New Note',
     type: 'page',
     itemType: 'note',
     primitiveType: 'note' as any,
@@ -628,27 +653,32 @@ export const FloatingSelectionToolbar: React.FC<FloatingSelectionToolbarProps> =
 
   const baseSuggestions = (!hasReferenceError && selectedText)
     ? getRankedSuggestions(selectedText, pages, null).filter(
-        (b) => !b.id.startsWith('create-note-') && b.id !== 'primitive-note'
+        (b) => !b.id.startsWith('create-note-') && b.id !== 'primitive-note' && !b.id.startsWith('save-as-entity-')
       )
     : [];
 
-  const suggestions: SuggestionItem[] = selectedText
+  const rootSuggestions: SuggestionItem[] = selectedText
     ? (hasReferenceError
-        ? [...saveAsEntityItems, saveToEntityItem, copyToNewNoteItem]
+        ? [copyToNewNoteItem, saveToEntityItem]
         : [
-            ...saveAsEntityItems,
-            saveToEntityItem,
             copyToNewNoteItem,
-            ...baseSuggestions.filter(
-              (b) => !saveAsEntityItems.some((s) => s.pageId === b.pageId) && !b.id.startsWith('create-note-') && b.id !== 'primitive-note'
-            ),
+            saveToEntityItem,
+            ...baseSuggestions.filter((b) => b.id !== 'save-to-entity' && b.id !== 'copy-to-new-note' && !b.id.startsWith('save-as-entity-')),
           ])
     : [];
+
+  const suggestions: SuggestionItem[] = menuView === 'entity' ? entitySubMenuItems : rootSuggestions;
 
   const showReferenceError = hasReferenceError && suggestions.length === 0;
 
   const handleSelectSuggestion = (item: SuggestionItem) => {
     if (!selectedText) return;
+
+    if (item.id === 'open-save-to-entity-menu') {
+      setMenuView('entity');
+      setSelectedIndex(0);
+      return;
+    }
 
     if (item.id === 'save-to-entity') {
       const cleanBodyText = selectedText;
@@ -663,7 +693,8 @@ export const FloatingSelectionToolbar: React.FC<FloatingSelectionToolbarProps> =
       const entityBody = sourceTag && !cleanBodyText.startsWith(`From ${sourceTag}`)
         ? `From ${sourceTag}:\n${cleanBodyText}`
         : cleanBodyText;
-      const newEntity = createEntityPage(cleanTitle, entityBody);
+      const newEntity = createEntityPage(cleanTitle, '');
+      addEntityVersion(newEntity.id, undefined, entityBody);
       if (sourcePage) {
         addManualMention(sourcePage.id, newEntity.title, selectedText);
       }
@@ -673,6 +704,7 @@ export const FloatingSelectionToolbar: React.FC<FloatingSelectionToolbarProps> =
       setSelectedText('');
       setHasReferenceError(false);
       setAllAvailableEntities([]);
+      setMenuView('root');
       window.getSelection()?.removeAllRanges();
       clearAllGutterSelections();
       return;
@@ -698,6 +730,7 @@ export const FloatingSelectionToolbar: React.FC<FloatingSelectionToolbarProps> =
       setSelectedText('');
       setHasReferenceError(false);
       setAllAvailableEntities([]);
+      setMenuView('root');
       window.getSelection()?.removeAllRanges();
       clearAllGutterSelections();
       return;
@@ -722,12 +755,9 @@ export const FloatingSelectionToolbar: React.FC<FloatingSelectionToolbarProps> =
       // Save selected text snippet into target entity page (manual mention link)
       addManualMention(detectedSourcePageId || noteId || targetEntity.id, targetEntity.title, selectedText);
 
-      // Append/update entity content with selected text snippet
-      if (!targetEntity.content) {
-        updatePageContent(targetEntity.id, selectedText);
-      } else if (!targetEntity.content.includes(selectedText)) {
-        updatePageContent(targetEntity.id, `${targetEntity.content}\n\n${selectedText}`);
-      }
+      // Add as a new version for the target entity, without copying into entity body
+      addEntityVersion(targetEntity.id, undefined, selectedText);
+      openInPane2('entity', targetEntity.id, `@${targetEntity.title}`);
     } else if (item.primitiveType === 'todo' || item.itemType === 'todo') {
       createdTagText = `[@todo: ${targetTitle}]`;
       createTodoPage(targetTitle, selectedText, noteId);
@@ -777,6 +807,7 @@ export const FloatingSelectionToolbar: React.FC<FloatingSelectionToolbarProps> =
     setSelectedText('');
     setHasReferenceError(false);
     setAllAvailableEntities([]);
+    setMenuView('root');
     window.getSelection()?.removeAllRanges();
     clearAllGutterSelections();
   };
@@ -790,6 +821,7 @@ export const FloatingSelectionToolbar: React.FC<FloatingSelectionToolbarProps> =
         if (containerRef.current && containerRef.current.contains(e.target as Node)) {
           return;
         }
+        setMenuView('root');
         isMouseDownRef.current = true;
         setIsSelectingText(true);
         document.body.classList.add('is-selecting-text');
@@ -890,13 +922,36 @@ export const FloatingSelectionToolbar: React.FC<FloatingSelectionToolbarProps> =
         }
         return;
       }
-      if (e.key === 'Escape' || e.key === 'ArrowRight') {
+      if (e.key === 'ArrowLeft' && menuView === 'entity') {
         e.preventDefault();
         e.stopPropagation();
+        setMenuView('root');
+        setSelectedIndex(0);
+        return;
+      }
+      if (e.key === 'ArrowRight' && menuView === 'root') {
+        const targetItem = suggestions[selectedIndex];
+        if (targetItem?.id === 'open-save-to-entity-menu') {
+          e.preventDefault();
+          e.stopPropagation();
+          setMenuView('entity');
+          setSelectedIndex(0);
+          return;
+        }
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        if (menuView === 'entity') {
+          setMenuView('root');
+          setSelectedIndex(0);
+          return;
+        }
         setPosition(null);
         setSelectedText('');
         setHasReferenceError(false);
         setAllAvailableEntities([]);
+        setMenuView('root');
         window.getSelection()?.removeAllRanges();
         clearAllGutterSelections();
         return;
@@ -907,7 +962,7 @@ export const FloatingSelectionToolbar: React.FC<FloatingSelectionToolbarProps> =
     return () => {
       window.removeEventListener('keydown', handleKeyDown, true);
     };
-  }, [position, selectedText, suggestions, selectedIndex, detectedSourcePageId, noteId]);
+  }, [position, selectedText, suggestions, selectedIndex, detectedSourcePageId, noteId, menuView]);
 
   if (!position || !selectedText) return null;
 
@@ -928,11 +983,34 @@ export const FloatingSelectionToolbar: React.FC<FloatingSelectionToolbarProps> =
           </span>
         </div>
       ) : (
-        <SuggestionList
-          items={suggestions}
-          selectedIndex={selectedIndex}
-          onSelect={handleSelectSuggestion}
-        />
+        <div className="w-72 bg-white rounded-md border border-zinc-200/90 shadow-xl overflow-hidden flex flex-col">
+          {menuView === 'entity' && (
+            <div className="flex items-center gap-1.5 px-2 py-1.5 bg-zinc-50/90 border-b border-zinc-100 text-xs text-zinc-700 select-none">
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setMenuView('root');
+                  setSelectedIndex(0);
+                }}
+                className="p-1 rounded hover:bg-zinc-200/80 text-zinc-500 hover:text-zinc-900 transition-colors cursor-pointer"
+                title="Back to options"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </button>
+              <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">
+                Save as Version for Entity:
+              </span>
+            </div>
+          )}
+          <SuggestionList
+            items={suggestions}
+            selectedIndex={selectedIndex}
+            onSelect={handleSelectSuggestion}
+            className="border-0 shadow-none rounded-none w-full"
+          />
+        </div>
       )}
     </div>
   );

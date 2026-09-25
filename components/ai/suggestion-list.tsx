@@ -2,18 +2,20 @@
 
 import React from 'react';
 import { SuggestionItem } from '@/lib/ranking';
-import { CheckSquare, Zap, Tag, Plus, MessageSquare, FileText } from 'lucide-react';
+import { CheckSquare, Zap, Tag, Plus, MessageSquare, FileText, ChevronRight } from 'lucide-react';
 
 interface SuggestionListProps {
   items: SuggestionItem[];
   selectedIndex: number;
   onSelect: (item: SuggestionItem) => void;
+  className?: string;
 }
 
 export const SuggestionList: React.FC<SuggestionListProps> = ({
   items,
   selectedIndex,
   onSelect,
+  className,
 }) => {
   const listRef = React.useRef<HTMLDivElement>(null);
 
@@ -29,7 +31,7 @@ export const SuggestionList: React.FC<SuggestionListProps> = ({
   if (items.length === 0) return null;
 
   return (
-    <div ref={listRef} className="z-50 w-72 max-h-56 overflow-y-auto rounded-md bg-white border border-zinc-200/90 p-1 shadow-lg text-xs font-sans animate-in fade-in duration-75 select-none">
+    <div ref={listRef} className={`z-50 w-72 max-h-56 overflow-y-auto rounded-md bg-white border border-zinc-200/90 p-1 shadow-lg text-xs font-sans animate-in fade-in duration-75 select-none ${className || ''}`}>
       <div className="space-y-0.5">
         {items.map((item, idx) => {
           const isSelected = idx === selectedIndex;
@@ -57,6 +59,8 @@ export const SuggestionList: React.FC<SuggestionListProps> = ({
             icon = <Tag className="h-3.5 w-3.5 text-indigo-500 shrink-0" />;
           }
 
+          const isBoldItem = item.isBold || item.id === 'save-to-entity';
+
           return (
             <button
               key={item.id}
@@ -73,7 +77,7 @@ export const SuggestionList: React.FC<SuggestionListProps> = ({
             >
               <div className="flex items-center gap-1.5 truncate min-w-0">
                 {icon}
-                <span className="truncate">{item.title}</span>
+                <span className={`truncate ${isBoldItem ? 'font-bold' : ''}`}>{item.title}</span>
                 {item.shortId && (
                   <span
                     className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-mono font-medium transition-colors shrink-0 ${
@@ -86,9 +90,17 @@ export const SuggestionList: React.FC<SuggestionListProps> = ({
                   </span>
                 )}
               </div>
-              <span className="text-[10px] font-mono text-zinc-400 shrink-0 opacity-80">
-                {item.scopeLabel}
-              </span>
+              <div className="flex items-center gap-1 shrink-0">
+                {item.id === 'open-save-to-entity-menu' ? (
+                  <ChevronRight className={`w-3.5 h-3.5 transition-colors ${isSelected ? 'text-indigo-600' : 'text-zinc-400'}`} />
+                ) : (
+                  item.scopeLabel && (
+                    <span className="text-[10px] font-mono text-zinc-400 opacity-80">
+                      {item.scopeLabel}
+                    </span>
+                  )
+                )}
+              </div>
             </button>
           );
         })}

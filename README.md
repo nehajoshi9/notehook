@@ -28,7 +28,7 @@ In standard AI chat interfaces (ChatGPT, Claude, Cursor), long technical convers
 - 🔍 **Real-time `@` Mention Autocomplete**: Typing `@` in chat inputs or note editors triggers popover suggestions filtered by prefix (`@todo:`, `@decision:`, `@note:`, `@entity`) with keyboard navigation.
 - 🏷️ **Clean Visual Reference Pills**: Raw bracketed tags (`[@todo: ...]`, `[@decision: ...]`) render visually as `@Title` with distinct accessibility icons (`✓`, `⚡`, `📄`, `🏷️`).
 - ✍️ **Floating Selection Toolbar**: Select text anywhere to tag entities, tasks, or decisions with 60fps selection positioning and under-the-hood untruncated copy mapping (`[@Full Title]`).
-- 📜 **Entity Version History & Spec Evolution**: Track evolving entity specs with canonical versioning, snapshot history, and "Promote to Version" bridge actions.
+- 📜 **Entity Version History & Spec Evolution**: Track evolving entity specs with primary versioning, snapshot history, and "Promote to Version" bridge actions.
 - 📝 **Sacred Notes System**: Dedicated human scratchpad notes isolated from automated AI modifications.
 - 🎯 **Instant Context Jumping & Backlinks**: Click any mention excerpt in the right pane to instantly scroll to the exact historical message turn with highlighted visual feedback.
 - 📋 **Interactive Todo Board & Decision Log**: Dedicated index views for viewing, starring, completing, filtering, and organizing action items and ADRs.

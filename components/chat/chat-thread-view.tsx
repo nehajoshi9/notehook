@@ -2,8 +2,11 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { usePlanet } from '@/lib/context';
-import { Sparkles, Tag, CheckSquare, Square, Zap, FileText, BookmarkPlus, Check, Plus, ChevronDown } from 'lucide-react';
-import { convertScribeTextToHtml, findPageForPill, scrollToMentionOrElement, selectMarkdownBlock, clearMarkdownBlockSelection, syncMultiBlockSelection, handleGutterRangeClick, handleGutterMouseDown } from '@/lib/scribe-parser';
+import { Sparkles, Tag, CheckSquare, Square, Zap, FileText, BookmarkPlus, Check, Plus, ChevronDown, Copy, ChevronRight, ChevronLeft, Trash2 } from 'lucide-react';
+import { convertScribeTextToHtml, findPageForPill, scrollToMentionOrElement, selectMarkdownBlock, clearMarkdownBlockSelection, syncMultiBlockSelection, handleGutterRangeClick, handleGutterMouseDown, untagReferences, formatItemTitle } from '@/lib/scribe-parser';
+import { SuggestionList } from '../ai/suggestion-list';
+import { SuggestionItem } from '@/lib/ranking';
+import { AIChatInput } from '../ai/ai-chat-input';
 
 interface GutterCheckboxProps {
   blockId: string;
@@ -39,14 +42,16 @@ interface ChatThreadViewProps {
 }
 
 export const ChatThreadView: React.FC<ChatThreadViewProps> = ({ paneIndex = 1 }) => {
-  const { messages, pages, mentions, openInPane2, openInPane1, isAiGenerating, aiStreamingText, aiStreamingPrompt, leftPane, rightPane, addEntityVersion, createEntityPage } = usePlanet();
+  const { messages, pages, mentions, openInPane2, openInPane1, navigateToMessage, isAiGenerating, aiStreamingText, aiStreamingPrompt, leftPane, rightPane, addEntityVersion, createEntityPage, createNotePage, deletePage } = usePlanet();
   const isDualPane = paneIndex === 2 || rightPane.type !== 'empty';
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const currentPane = paneIndex === 2 ? rightPane : leftPane;
 
   const [openSaveMenuNoteId, setOpenSaveMenuNoteId] = useState<string | null>(null);
-  const [savedToastNoteId, setSavedToastNoteId] = useState<string | null>(null);
+  const [saveMenuView, setSaveMenuView] = useState<'root' | 'entity'>('root');
+  const [savedToast, setSavedToast] = useState<{ noteId: string; label: string } | null>(null);
+  const [copiedNoteId, setCopiedNoteId] = useState<string | null>(null);
   const [copiedShortId, setCopiedShortId] = useState<string | null>(null);
 
   const [isScrolledUp, setIsScrolledUp] = useState(false);
@@ -105,9 +110,15 @@ export const ChatThreadView: React.FC<ChatThreadViewProps> = ({ paneIndex = 1 })
 
   useEffect(() => {
     if (!openSaveMenuNoteId) return;
-    const handleClickOutside = () => setOpenSaveMenuNoteId(null);
+    const handleClickOutside = () => {
+      setOpenSaveMenuNoteId(null);
+      setSaveMenuView('root');
+    };
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpenSaveMenuNoteId(null);
+      if (e.key === 'Escape') {
+        setOpenSaveMenuNoteId(null);
+        setSaveMenuView('root');
+      }
     };
     window.addEventListener('click', handleClickOutside);
     window.addEventListener('keydown', handleKeyDown);
@@ -117,24 +128,64 @@ export const ChatThreadView: React.FC<ChatThreadViewProps> = ({ paneIndex = 1 })
     };
   }, [openSaveMenuNoteId]);
 
-  const lastScrolledTargetRef = useRef<string | null>(null);
-
-  // 1. Navigation effect: Scroll to specific message / mention ONLY once when pane navigation target changes
+  // 1. Navigation effect: Scroll to specific message / mention reliably over multiple layout frames
   useEffect(() => {
     if ((currentPane.type === 'message' || currentPane.type === 'chat') && currentPane.id) {
-      const scrollKey = `${currentPane.id}:${currentPane.highlightSpan || ''}`;
-      if (lastScrolledTargetRef.current === scrollKey) return;
-      lastScrolledTargetRef.current = scrollKey;
+      const targetId = currentPane.id;
+      const targetHighlightSpan = currentPane.highlightSpan;
 
-      const el = document.getElementById(`page-${currentPane.id}`);
-      if (el) {
-        const timer = setTimeout(() => {
-          scrollToMentionOrElement(el, currentPane.highlightSpan);
-        }, 60);
-        return () => clearTimeout(timer);
-      }
+      let canceled = false;
+      let attempts = 0;
+      const maxAttempts = 10;
+
+      const attemptScroll = () => {
+        if (canceled) return;
+        attempts++;
+        const container = scrollContainerRef.current;
+        if (!container) {
+          if (attempts < maxAttempts) setTimeout(attemptScroll, 40);
+          return;
+        }
+
+        const cleanTargetId = targetId.toLowerCase().replace(/^page-/, '');
+        const matchedPage = pages.find(
+          (p) => p.id === targetId || p.id === cleanTargetId || (p.short_id && p.short_id.toLowerCase() === cleanTargetId)
+        );
+        const resolvedId = matchedPage?.id || targetId;
+
+        const el =
+          document.getElementById(`page-${resolvedId}`) ||
+          document.getElementById(`page-${targetId}`) ||
+          document.getElementById(`page-${cleanTargetId}`) ||
+          (container.querySelector(
+            `[data-page-id="${resolvedId}"], [data-page-id="${targetId}"], [data-page-id="${cleanTargetId}"], [data-message-id="${resolvedId}"], [data-message-id="${targetId}"], [data-page-short-id="${cleanTargetId}"]`
+          ) as HTMLElement | null);
+
+        if (el) {
+          const elRect = el.getBoundingClientRect();
+          const containerRect = container.getBoundingClientRect();
+          const currentScrollTop = container.scrollTop;
+          const targetScrollTop = Math.max(
+            0,
+            currentScrollTop + (elRect.top - containerRect.top) - (containerRect.height / 2) + (elRect.height / 2)
+          );
+
+          container.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
+          return;
+        }
+
+        if (attempts < maxAttempts) {
+          setTimeout(attemptScroll, 50);
+        }
+      };
+
+      const timer = setTimeout(attemptScroll, 20);
+      return () => {
+        canceled = true;
+        clearTimeout(timer);
+      };
     }
-  }, [currentPane.type, currentPane.id, currentPane.highlightSpan]);
+  }, [currentPane.type, currentPane.id, currentPane.highlightSpan, currentPane, pages]);
 
   // 2. PRESERVED: Navigation scroll to mentions handled by Effect #1 above.
   // Automatic scroll to bottom is disabled to prevent scroll displacement.
@@ -162,10 +213,46 @@ export const ChatThreadView: React.FC<ChatThreadViewProps> = ({ paneIndex = 1 })
 
     if (matchedPage) {
       e.stopPropagation();
+      if (matchedPage.type === 'message') {
+        const targetSpan = target.getAttribute('data-full') || target.getAttribute('data-title') || target.getAttribute('data-short-id') || target.textContent?.trim();
+        navigateToMessage(matchedPage.id, targetSpan, matchedPage.title);
+        return;
+      }
       const displayTitle = matchedPage.type === 'entity' ? `@${matchedPage.title}` : matchedPage.title;
       const targetSpan = target.getAttribute('data-full') || target.getAttribute('data-title') || target.getAttribute('data-short-id') || target.textContent?.trim();
-      openInPane2(matchedPage.type as any, matchedPage.id, displayTitle, targetSpan);
+      const versionNumAttr = target.getAttribute('data-version-num');
+      const targetVersionNum = versionNumAttr ? parseInt(versionNumAttr, 10) : undefined;
+      openInPane2(matchedPage.type as any, matchedPage.id, displayTitle, targetSpan, targetVersionNum);
     }
+  };
+
+  const handleCopyAndOpenMenu = (note: (typeof messages)[0]) => {
+    const textToCopy = note.content || note.title;
+    if (typeof window !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(textToCopy);
+    }
+    setCopiedNoteId(note.id);
+    setTimeout(() => setCopiedNoteId(null), 1800);
+
+    if (openSaveMenuNoteId === note.id) {
+      setOpenSaveMenuNoteId(null);
+      setSaveMenuView('root');
+    } else {
+      setOpenSaveMenuNoteId(note.id);
+      setSaveMenuView('root');
+    }
+  };
+
+  const handleSaveToNewNote = (content: string, noteId: string) => {
+    const cleanBodyText = content;
+    const untaggedForTitle = untagReferences(cleanBodyText);
+    const cleanTitle = formatItemTitle(untaggedForTitle, 45) || 'New Note';
+    const newNote = createNotePage(cleanTitle, content);
+    openInPane2('note', newNote.id, newNote.title);
+    setOpenSaveMenuNoteId(null);
+    setSaveMenuView('root');
+    setSavedToast({ noteId, label: 'Saved as Note' });
+    setTimeout(() => setSavedToast(null), 2500);
   };
 
   const handleSaveToEntity = (entityId: string, content: string, noteId: string) => {
@@ -175,17 +262,84 @@ export const ChatThreadView: React.FC<ChatThreadViewProps> = ({ paneIndex = 1 })
     addEntityVersion(entityId, undefined, content);
     openInPane2('entity', entityId, `@${entity.title}`);
     setOpenSaveMenuNoteId(null);
-    setSavedToastNoteId(noteId);
-    setTimeout(() => setSavedToastNoteId(null), 2500);
+    setSaveMenuView('root');
+    setSavedToast({ noteId, label: 'Saved as Version' });
+    setTimeout(() => setSavedToast(null), 2500);
   };
 
   const handleCreateAndSaveEntity = (content: string, noteId: string) => {
-    const newEntity = createEntityPage('New Entity', content);
+    const newEntity = createEntityPage('New Entity', '');
     addEntityVersion(newEntity.id, undefined, content);
     openInPane2('entity', newEntity.id, `@${newEntity.title}`);
     setOpenSaveMenuNoteId(null);
-    setSavedToastNoteId(noteId);
-    setTimeout(() => setSavedToastNoteId(null), 2500);
+    setSaveMenuView('root');
+    setSavedToast({ noteId, label: 'Saved as Version' });
+    setTimeout(() => setSavedToast(null), 2500);
+  };
+
+  const chatRootSuggestions: SuggestionItem[] = [
+    {
+      id: 'copy-to-new-note',
+      title: 'Save to New Note',
+      type: 'page',
+      itemType: 'note',
+      primitiveType: 'note',
+      description: 'Create a new note with response text',
+      score: 1000,
+      scopeLabel: 'Note',
+    },
+    {
+      id: 'open-save-to-entity-menu',
+      title: 'Save to Entity',
+      type: 'page',
+      itemType: 'entity',
+      description: 'Save response to an entity',
+      score: 950,
+      scopeLabel: 'Entity',
+    },
+  ];
+
+  const chatEntitySuggestions: SuggestionItem[] = [
+    ...entityPages.map((ent) => ({
+      id: `save-as-entity-${ent.id}`,
+      title: `Save as [@${ent.title}]`,
+      type: 'page' as const,
+      itemType: 'entity' as const,
+      description: `Save response into @${ent.title}`,
+      score: 1000,
+      scopeLabel: `v${(ent.versions?.length || 0) + 1}`,
+      pageId: ent.id,
+      shortId: ent.short_id,
+    })),
+    {
+      id: 'save-to-entity',
+      title: '+ Create New Entity',
+      type: 'page' as const,
+      itemType: 'entity' as const,
+      description: 'Save response to a new entity',
+      score: 900,
+      scopeLabel: 'New',
+      isBold: true,
+    },
+  ];
+
+  const handleSelectChatSuggestion = (item: SuggestionItem, currentNote: (typeof messages)[0]) => {
+    if (item.id === 'open-save-to-entity-menu') {
+      setSaveMenuView('entity');
+      return;
+    }
+    if (item.id === 'copy-to-new-note') {
+      handleSaveToNewNote(currentNote.content || currentNote.title, currentNote.id);
+      return;
+    }
+    if (item.id === 'save-to-entity') {
+      handleCreateAndSaveEntity(currentNote.content || currentNote.title, currentNote.id);
+      return;
+    }
+    if (item.pageId) {
+      handleSaveToEntity(item.pageId, currentNote.content || currentNote.title, currentNote.id);
+      return;
+    }
   };
 
   return (
@@ -195,15 +349,14 @@ export const ChatThreadView: React.FC<ChatThreadViewProps> = ({ paneIndex = 1 })
         <button
           type="button"
           onClick={scrollToBottom}
-          className={`absolute bottom-4 left-1/2 -translate-x-1/2 z-30 transition-all cursor-pointer shadow-sm select-none px-3.5 py-1.5 rounded-full text-xs flex items-center gap-1.5 border backdrop-blur-md ${
-            hasUnreadAtBottom
-              ? 'bg-zinc-100/95 text-zinc-950 border-zinc-300/90 hover:bg-zinc-200/90 font-bold shadow-md'
-              : 'bg-white/95 text-zinc-600 border-zinc-200/90 hover:bg-zinc-50 hover:text-zinc-950 font-medium'
-          }`}
+          className={`absolute bottom-4 left-1/2 -translate-x-1/2 z-30 transition-all cursor-pointer shadow-sm select-none px-3.5 py-1.5 rounded-full text-xs flex items-center gap-1.5 border backdrop-blur-md ${hasUnreadAtBottom
+            ? 'bg-zinc-100/95 text-zinc-950 border-zinc-300/90 hover:bg-zinc-200/90 font-bold shadow-md'
+            : 'bg-white/95 text-zinc-600 border-zinc-200/90 hover:bg-zinc-50 hover:text-zinc-950 font-medium'
+            }`}
           title={hasUnreadAtBottom ? 'New unread messages below — click to scroll down' : 'Scroll to bottom'}
         >
           {hasUnreadAtBottom ? (
-            <span className="w-2 h-2 rounded-full bg-zinc-900 animate-pulse shrink-0" />
+            <span className="w-2 h-2 rounded-full bg-green-600 animate-pulse shrink-0" />
           ) : (
             <ChevronDown className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
           )}
@@ -211,7 +364,7 @@ export const ChatThreadView: React.FC<ChatThreadViewProps> = ({ paneIndex = 1 })
         </button>
       )}
       {/* Scrollable Chat Conversation Feed */}
-      <div ref={scrollContainerRef} className={`flex-1 overflow-y-auto overflow-x-hidden space-y-6 bg-white ${isDualPane ? 'p-4 pl-8 md:p-6 md:pl-10' : 'p-4 md:p-6'}`}>
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto overflow-x-hidden space-y-6 bg-white p-4 md:p-6">
         {sortedNotes.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full min-h-[280px] text-center space-y-3">
             <div className="p-3 bg-zinc-900 text-white rounded-2xl shadow-sm">
@@ -237,7 +390,7 @@ export const ChatThreadView: React.FC<ChatThreadViewProps> = ({ paneIndex = 1 })
             const isUserTurnOnly = note.role === 'user' || (note.user_prompt === note.content && note.role !== 'assistant');
 
             return (
-              <div key={note.id} id={`page-${note.id}`} data-page-id={note.id} data-message-id={note.id} data-page-short-id={note.short_id || ''} onClick={handleInlinePillClick} onMouseDown={handleMouseDown} className="max-w-3xl mx-auto space-y-2 relative">
+              <div key={note.id} id={`page-${note.id}`} data-page-id={note.id} data-message-id={note.id} data-page-short-id={note.short_id || ''} onClick={handleInlinePillClick} onMouseDown={handleMouseDown} className="w-full space-y-2 relative">
                 {/* Turn Header: ID pill on left (aligned with AI response bubble), View as Page & Time on right */}
                 <div className="flex items-center justify-between w-full px-0 text-[10px] text-zinc-400 font-medium select-none" data-ignore-selection="true">
                   <div>
@@ -273,6 +426,17 @@ export const ChatThreadView: React.FC<ChatThreadViewProps> = ({ paneIndex = 1 })
                       <FileText className="w-3 h-3 text-zinc-500 select-none" />
                       <span className="select-none">View as Page</span>
                     </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deletePage(note.id);
+                      }}
+                      className="inline-flex items-center justify-center p-1 rounded-full bg-white text-zinc-400 hover:text-red-600 border border-zinc-200 hover:border-red-200 hover:bg-red-50/80 transition-colors shadow-2xs cursor-pointer select-none"
+                      title="Delete message from chat and AI context"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
                     <span className="select-none">
                       {new Date(note.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
@@ -300,7 +464,7 @@ export const ChatThreadView: React.FC<ChatThreadViewProps> = ({ paneIndex = 1 })
 
                 {/* 2. AI Assistant Response Bubble (Left Aligned) */}
                 {!isUserTurnOnly && (
-                  <div className="flex flex-col items-start space-y-1.5 mr-auto max-w-2xl relative w-full">
+                  <div className="flex flex-col items-start space-y-1.5 mr-auto relative w-full">
 
                     {/* Assistant Response Bubble */}
                     <div
@@ -314,80 +478,67 @@ export const ChatThreadView: React.FC<ChatThreadViewProps> = ({ paneIndex = 1 })
                         }}
                       />
 
-                      {/* Save as Entity Version Button in Bottom Right Corner (2-Click Flow) */}
+                      {/* Copy & Save Menu in Bottom Right Corner */}
                       <div className="absolute right-3 bottom-2.5 flex items-center gap-1 select-none" data-ignore-selection="true">
-                        {savedToastNoteId === note.id ? (
+                        {savedToast?.noteId === note.id ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/80 shadow-2xs animate-in fade-in duration-150">
                             <Check className="w-3.5 h-3.5 text-emerald-600" />
-                            <span>Saved as Version</span>
+                            <span>{savedToast.label}</span>
                           </span>
                         ) : (
                           <button
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              setOpenSaveMenuNoteId(openSaveMenuNoteId === note.id ? null : note.id);
+                              handleCopyAndOpenMenu(note);
                             }}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-zinc-100/90 hover:bg-zinc-200/80 border border-zinc-200/90 text-[11px] font-semibold text-zinc-600 hover:text-zinc-950 transition-colors shadow-2xs cursor-pointer"
-                            title="Save response as Entity Version (2-click)"
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-zinc-100/90 hover:bg-zinc-200/80 border border-zinc-200/90 text-[11px] font-medium text-zinc-600 hover:text-zinc-950 transition-colors shadow-2xs cursor-pointer"
+                            title="Copy response to clipboard and choose save option"
                           >
-                            <BookmarkPlus className="w-3.5 h-3.5 text-zinc-500" />
-                            <span>Save to Entity</span>
+                            {copiedNoteId === note.id ? (
+                              <>
+                                <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                <span className="text-emerald-700 font-semibold">Copied</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-3.5 h-3.5 text-zinc-500" />
+                                <span>Copy</span>
+                              </>
+                            )}
                           </button>
                         )}
 
-                        {/* Popover Menu displaying all entities in scope */}
+                        {/* Popover Menu displaying options */}
                         {openSaveMenuNoteId === note.id && (
                           <div
-                            className="absolute right-0 bottom-full mb-1 z-50 w-64 bg-white rounded-xl border border-zinc-200 shadow-xl p-1.5 text-xs animate-in fade-in zoom-in-95 duration-100 select-none text-left"
+                            className="absolute right-0 bottom-full mb-1.5 z-50 w-72 bg-white rounded-md border border-zinc-200/90 shadow-xl overflow-hidden flex flex-col text-xs animate-in fade-in zoom-in-95 duration-100 select-none text-left"
                             onClick={(e) => e.stopPropagation()}
                           >
-                            <div className="px-2 py-1 text-[10px] font-bold text-zinc-400 uppercase tracking-wider border-b border-zinc-100 mb-1">
-                              Save as Version for Entity:
-                            </div>
-                            <div className="max-h-48 overflow-y-auto space-y-0.5">
-                              {entityPages.length === 0 ? (
-                                <div className="px-2 py-1.5 text-[11px] text-zinc-400 italic">
-                                  No entities in scope yet
-                                </div>
-                              ) : (
-                                entityPages.map((ent) => (
-                                  <button
-                                    key={ent.id}
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleSaveToEntity(ent.id, note.content || note.title, note.id);
-                                    }}
-                                    className="w-full text-left px-2.5 py-1.5 rounded-lg flex items-center justify-between hover:bg-zinc-100 transition-colors cursor-pointer group"
-                                  >
-                                    <div className="flex items-center gap-2 truncate min-w-0">
-                                      <Tag className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
-                                      <span className="truncate font-semibold text-zinc-800 group-hover:text-zinc-950">
-                                        {ent.title}
-                                      </span>
-                                    </div>
-                                    <span className="text-[10px] text-zinc-400 font-mono shrink-0 ml-1">
-                                      +v{(ent.versions?.length || 1) + 1}
-                                    </span>
-                                  </button>
-                                ))
-                              )}
-                            </div>
-
-                            <div className="pt-1 mt-1 border-t border-zinc-100">
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleCreateAndSaveEntity(note.content || note.title, note.id);
-                                }}
-                                className="w-full text-left px-2.5 py-1.5 rounded-lg flex items-center gap-2 text-indigo-600 hover:bg-indigo-50 font-bold transition-colors cursor-pointer"
-                              >
-                                <Plus className="w-3.5 h-3.5 shrink-0" />
-                                <span>Create New Entity</span>
-                              </button>
-                            </div>
+                            {saveMenuView === 'entity' && (
+                              <div className="flex items-center gap-1.5 px-2 py-1.5 bg-zinc-50/90 border-b border-zinc-100 text-xs text-zinc-700 select-none">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSaveMenuView('root');
+                                  }}
+                                  className="p-1 rounded hover:bg-zinc-200/80 text-zinc-500 hover:text-zinc-900 transition-colors cursor-pointer"
+                                  title="Back to options"
+                                >
+                                  <ChevronLeft className="w-3.5 h-3.5" />
+                                </button>
+                                <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">
+                                  Save as Version for Entity:
+                                </span>
+                              </div>
+                            )}
+                            <SuggestionList
+                              items={saveMenuView === 'entity' ? chatEntitySuggestions : chatRootSuggestions}
+                              selectedIndex={-1}
+                              onSelect={(item) => handleSelectChatSuggestion(item, note)}
+                              className="border-0 shadow-none rounded-none w-full"
+                            />
                           </div>
                         )}
                       </div>
@@ -401,7 +552,7 @@ export const ChatThreadView: React.FC<ChatThreadViewProps> = ({ paneIndex = 1 })
 
         {/* Streaming Turn State (User Prompt + AI Assistant Response) */}
         {isAiGenerating && (
-          <div className="max-w-3xl mx-auto space-y-3">
+          <div className="w-full space-y-3">
             {/* User Prompt Bubble */}
             {aiStreamingPrompt && (
               <div className="flex flex-col items-end text-right space-y-1 ml-auto max-w-xl w-full">
@@ -422,7 +573,7 @@ export const ChatThreadView: React.FC<ChatThreadViewProps> = ({ paneIndex = 1 })
             )}
 
             {/* AI Assistant Streaming Response Bubble */}
-            <div className="flex flex-col items-start space-y-1.5 mr-auto max-w-2xl relative w-full">
+            <div className="flex flex-col items-start space-y-1.5 mr-auto relative w-full">
               <div className="flex items-center gap-1.5 text-xs text-zinc-500 font-semibold px-1">
                 <Sparkles className="w-3.5 h-3.5 animate-spin" />
                 <span>AI Assistant typing…</span>

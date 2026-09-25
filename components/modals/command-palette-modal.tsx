@@ -24,7 +24,7 @@ export function openCommandPalette() {
 
 export const CommandPaletteModal: React.FC = () => {
   const isMac = useIsMac();
-  const { pages, openInPane2, leftHistory, rightHistory, navigationHistory } = usePlanet();
+  const { pages, openInPane2, navigateToMessage, leftHistory, rightHistory, navigationHistory } = usePlanet();
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -118,7 +118,11 @@ export const CommandPaletteModal: React.FC = () => {
   if (!isOpen) return null;
 
   const handleSelect = (page: Page) => {
-    openInPane2(page.type, page.id, page.title);
+    if (page.type === 'message') {
+      navigateToMessage(page.id);
+    } else {
+      openInPane2(page.type, page.id, page.title);
+    }
     setIsOpen(false);
   };
 

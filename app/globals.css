@@ -517,38 +517,3 @@ body.is-selecting-text .page-mention-pill:hover .pill-short {
 .scribe-markdown-block.is-block-selected code {
   background-color: rgba(255, 255, 255, 0.55) !important;
 }
-
-/* Temporary Blue Border Box for Mention / Tag Navigation */
-.mention-target-highlight {
-  outline: 2px solid #2563eb !important;
-  outline-offset: 2px !important;
-  border-radius: 8px !important;
-  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.25) !important;
-  animation: mention-pulse-glow 0.35s ease-out !important;
-}
-
-.mention-target-highlight.page-mention-pill,
-.page-mention-pill.mention-target-highlight,
-button[data-short-id].mention-target-highlight,
-button.mention-target-highlight {
-  border-radius: 9999px !important;
-}
-
-
-@keyframes mention-pulse-glow {
-  0% {
-    transform: scale(0.97);
-    outline-color: #1d4ed8;
-    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.4);
-  }
-  50% {
-    transform: scale(1.04);
-    outline-color: #3b82f6;
-    box-shadow: 0 0 0 6px rgba(37, 99, 235, 0.3);
-  }
-  100% {
-    transform: scale(1);
-    outline-color: #2563eb;
-    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.25);
-  }
-}

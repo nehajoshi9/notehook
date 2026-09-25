@@ -40,7 +40,7 @@ All raw text representations maintain canonical bracket syntax:
 1. **Entities (`type: entity`)**:
    - Tracked recurring concepts, tools, people, or evolving documents (e.g. `@Stripe`, `@Pitch`).
    - **Created manually by the user only** via text selection floating toolbar — NEVER auto-detected by the LLM model.
-   - Supports canonical versioning, snapshot history, and "Promote to Version" bridge actions.
+   - Supports primary versioning, snapshot history, and "Promote to Version" bridge actions.
 2. **Todos (`type: todo`)**:
    - Actionable next steps (`@todo:`).
    - Created automatically by LLM classification during response generation or asserted manually by user.

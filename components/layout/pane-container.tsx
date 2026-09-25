@@ -25,27 +25,27 @@ export const PaneContainer: React.FC = () => {
 
   const renderPaneContent = (pane: typeof leftPane, paneIndex: 1 | 2) => {
     if ((pane.type === 'message' || pane.type === 'note' || pane.type === 'entity' || pane.type === 'todo' || pane.type === 'decision') && pane.id) {
-      return <PageCardView pageId={pane.id} paneIndex={paneIndex} />;
+      return <PageCardView key={`pane-${paneIndex}-${pane.type}-${pane.id}`} pageId={pane.id} paneIndex={paneIndex} />;
     }
 
     if (pane.type === 'todo_board') {
-      return <TodoBoardView />;
+      return <TodoBoardView key={`pane-${paneIndex}-todo_board`} />;
     }
 
     if (pane.type === 'decision_log') {
-      return <DecisionLogView />;
+      return <DecisionLogView key={`pane-${paneIndex}-decision_log`} />;
     }
 
     if (pane.type === 'entity_index') {
-      return <EntityIndexView />;
+      return <EntityIndexView key={`pane-${paneIndex}-entity_index`} />;
     }
 
     if (pane.type === 'note_index') {
-      return <NoteIndexView />;
+      return <NoteIndexView key={`pane-${paneIndex}-note_index`} />;
     }
 
     // Default main view: Continuous Chat Thread feed
-    return <ChatThreadView paneIndex={paneIndex} />;
+    return <ChatThreadView key={`pane-${paneIndex}-chat`} paneIndex={paneIndex} />;
   };
 
   const getPaneIcon = (pane: typeof leftPane) => {

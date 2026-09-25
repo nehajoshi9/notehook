@@ -139,6 +139,14 @@ export function formatItemTitle(text: string, maxLen?: number): string {
 
   return normalized;
 }
+export function sanitizeEntityTitle(title: string): string {
+  let cleaned = title.replace(/^@/, '').trim();
+  while (/\.\d+$/.test(cleaned)) {
+    cleaned = cleaned.replace(/\.\d+$/, '').trim();
+  }
+  return cleaned || 'Untitled Entity';
+}
+
 /**
  * Formats canonical raw bracket tag syntax according to architecture rules:
  * - Entity: [@Entity Title]
@@ -384,17 +392,35 @@ export function parseScribeMarkup(
     }
   }
 
-  // 5. Entities: [@EntityName] or legacy @EntityName / @[EntityName]
-  const entityRegex = /\[@(?!(?:todo|decision|note|message):)([^\]]+)\]|@(?:\[([^\]]+)\]|(?!todo:|decision:|note:|message:|\s)([a-zA-Z0-9_\-\.]+))/gi;
+  // 5. Entities: [@EntityName], [@EntityName.4], [@e1.4], or legacy @EntityName / @[EntityName]
+  const entityRegex = /\[@(?!(?:todo|decision|note|message):)([^\]]+)\]|@(?:\[([^\]]+)\]|(?!todo:|decision:|note:|message:|\s)([a-zA-Z0-9_\-\.]+(?:\.\d+)?))/gi;
   while ((match = entityRegex.exec(cleanText)) !== null) {
     const rawName = (match[1] || match[2] || match[3] || '').trim();
     const start = match.index;
     const end = match.index + match[0].length;
     if (rawName && !rawName.startsWith('todo:') && !rawName.startsWith('decision:') && !rawName.startsWith('note:') && !rawName.startsWith('message:') && !isOverlapping(start, end)) {
-      const existing = existingEntities.find(
-        (e) => e.title.toLowerCase() === rawName.toLowerCase()
-      );
-      const canonicalName = existing ? existing.title : rawName;
+      let baseLookup = rawName;
+      const exactExisting = existingEntities.find((e) => {
+        const cleanT = e.title.toLowerCase();
+        const cleanRaw = rawName.toLowerCase();
+        const shortId = e.short_id?.toLowerCase();
+        return cleanT === cleanRaw || shortId === cleanRaw || e.id.toLowerCase() === cleanRaw;
+      });
+
+      let existing = exactExisting;
+      if (!existing) {
+        const verMatch = rawName.match(/^(.+?)\.(\d+)$/);
+        if (verMatch) {
+          baseLookup = verMatch[1].trim();
+          existing = existingEntities.find((e) => {
+            const cleanT = e.title.toLowerCase();
+            const cleanLookup = baseLookup.toLowerCase();
+            const shortId = e.short_id?.toLowerCase();
+            return cleanT === cleanLookup || shortId === cleanLookup || e.id.toLowerCase() === cleanLookup;
+          });
+        }
+      }
+      const canonicalName = existing ? existing.title : baseLookup;
 
       items.push({
         type: 'entity',
@@ -571,29 +597,45 @@ export function convertScribeTextToHtml(
     }
   }
 
-  // [@EntityName] -> Truncates to 2 words by default, untruncates on hover
-  html = html.replace(/\[@(?!(?:todo|decision|note|message):)([^\]]+)\]|@(?:\[([^\]]+)\]|(?!todo:|decision:|note:|message:|\s)([a-zA-Z0-9_\-\.]+))/gi, (match, bracket1, bracket2, unbracketed) => {
+  // [@EntityName] or [@EntityName.4] or [@e1.4] -> Truncates to 2 words by default, untruncates on hover
+  html = html.replace(/\[@(?!(?:todo|decision|note|message):)([^\]]+)\]|@(?:\[([^\]]+)\]|(?!todo:|decision:|note:|message:|\s)([a-zA-Z0-9_\-\.]+(?:\.\d+)?))/gi, (match, bracket1, bracket2, unbracketed) => {
     let entityName = (bracket1 || bracket2 || unbracketed || '').trim();
     if (!entityName) return match;
 
-    const clean = entityName.replace(/^@/, '').trim().toLowerCase();
-    const existingByShortId = pages?.find((p) => p.short_id?.toLowerCase() === clean);
-    const existingEntity = existingByShortId || pages?.find(
-      (p) => p.type === 'entity' && (p.title.toLowerCase() === clean || p.title.toLowerCase().startsWith(clean) || clean.startsWith(p.title.toLowerCase()))
-    );
+    let targetVersionNum: number | undefined = undefined;
+    let baseEntityName = entityName;
+    const cleanRaw = entityName.replace(/^@/, '').trim().toLowerCase();
+    const exactEntity = pages?.find((p) => p.short_id?.toLowerCase() === cleanRaw || (p.type === 'entity' && p.title.toLowerCase() === cleanRaw));
 
-    const fullEntityName = existingEntity ? existingEntity.title : entityName;
-    const shortTitle = truncateTitleWords(fullEntityName, 2);
+    let existingEntity = exactEntity;
+    if (!existingEntity) {
+      const verMatch = entityName.match(/^(.+?)\.(\d+)$/);
+      if (verMatch) {
+        baseEntityName = verMatch[1].trim();
+        targetVersionNum = parseInt(verMatch[2], 10);
+      }
 
-    if (pages && !isPageExists('entity', entityName)) {
+      const clean = baseEntityName.replace(/^@/, '').trim().toLowerCase();
+      const existingByShortId = pages?.find((p) => p.short_id?.toLowerCase() === clean);
+      existingEntity = existingByShortId || pages?.find(
+        (p) => p.type === 'entity' && (p.title.toLowerCase() === clean || p.title.toLowerCase().startsWith(clean) || clean.startsWith(p.title.toLowerCase()))
+      );
+    }
+
+    if (pages && !isPageExists('entity', baseEntityName)) {
       return match;
     }
+    const fullEntityName = existingEntity ? existingEntity.title : baseEntityName;
+    const shortTitle = truncateTitleWords(fullEntityName, 2);
+    const versionSuffix = targetVersionNum !== undefined ? `.${targetVersionNum}` : '';
+
     const targetType = existingEntity?.type || 'entity';
     const colorHex = getPastelColorForTitle(fullEntityName, targetType);
-    const bodyContent = `<span class="pill-short">@${shortTitle}</span><span class="pill-full">@${fullEntityName}</span>`;
+    const bodyContent = `<span class="pill-short">@${shortTitle}${versionSuffix}</span><span class="pill-full">@${fullEntityName}${versionSuffix}</span>`;
     const shortIdAttr = existingEntity?.short_id ? `data-short-id="${existingEntity.short_id}"` : '';
+    const versionAttr = targetVersionNum !== undefined ? `data-version-num="${targetVersionNum}"` : '';
 
-    return storePill(`<span class="page-mention-pill inline-scribe-${targetType} cursor-pointer" style="background-color: ${colorHex}; color: #0f172a;" data-type="${targetType}" ${shortIdAttr} data-entity="${fullEntityName}" data-full="${fullEntityName}" ${sourceAttr} title="${targetType} - ${fullEntityName}">${bodyContent}</span>`);
+    return storePill(`<span class="page-mention-pill inline-scribe-${targetType} cursor-pointer" style="background-color: ${colorHex}; color: #0f172a;" data-type="${targetType}" ${shortIdAttr} ${versionAttr} data-entity="${fullEntityName}" data-full="${fullEntityName}${versionSuffix}" ${sourceAttr} title="${targetType} - ${fullEntityName}${versionSuffix}">${bodyContent}</span>`);
   });
 
   // 5. Open-Source Markdown Parsing via `marked`
@@ -1259,41 +1301,47 @@ export function findPageForPill(target: HTMLElement, pages: Page[]): Page | unde
   const primaryQuery = entityAttr || titleAttr || fullAttr || target.innerText || '';
   if (!primaryQuery) return undefined;
 
-  const cleanQuery = primaryQuery
+  let cleanQuery = primaryQuery
     .replace(/^@/, '')
     .replace(/^(todo:|decision:)\s*/i, '')
     .trim()
     .toLowerCase();
 
-  if (!cleanQuery) return undefined;
+  // If query targets a specific version like Auth Service.2 or e1.4, extract base query
+  const verMatch = cleanQuery.match(/^(.+?)\.(\d+)$/);
+  const baseCleanQuery = verMatch ? verMatch[1].trim() : cleanQuery;
+
+  if (!cleanQuery && !baseCleanQuery) return undefined;
 
   // 1. Direct ID or Short ID match
-  let matched = pages.find((p) => p.id.toLowerCase() === cleanQuery || p.short_id?.toLowerCase() === cleanQuery);
+  let matched = pages.find((p) => p.id.toLowerCase() === cleanQuery || p.short_id?.toLowerCase() === cleanQuery || p.id.toLowerCase() === baseCleanQuery || p.short_id?.toLowerCase() === baseCleanQuery);
   if (matched) return matched;
 
   // 2. Exact Title match
-  matched = candidatePages.find((p) => p.title.toLowerCase() === cleanQuery);
+  matched = candidatePages.find((p) => p.title.toLowerCase() === cleanQuery || p.title.toLowerCase() === baseCleanQuery);
   if (matched) return matched;
 
   // 3. Exact Title match against data-title attribute
   if (titleAttr) {
     const cleanTitle = titleAttr.replace(/^(todo:|decision:)\s*/i, '').trim().toLowerCase();
-    matched = candidatePages.find((p) => p.title.toLowerCase() === cleanTitle);
+    const baseCleanTitle = cleanTitle.replace(/\.\d+$/, '').trim();
+    matched = candidatePages.find((p) => p.title.toLowerCase() === cleanTitle || p.title.toLowerCase() === baseCleanTitle);
     if (matched) return matched;
   }
 
   // 4. Exact Content or fullText match
   if (fullAttr) {
     const cleanFull = fullAttr.trim().toLowerCase();
-    matched = candidatePages.find((p) => p.content.toLowerCase() === cleanFull || p.title.toLowerCase() === cleanFull);
+    const baseCleanFull = cleanFull.replace(/\.\d+$/, '').trim();
+    matched = candidatePages.find((p) => p.content.toLowerCase() === cleanFull || p.title.toLowerCase() === cleanFull || p.title.toLowerCase() === baseCleanFull);
     if (matched) return matched;
   }
 
   // 5. Prefix / Substring match (scoped ONLY to candidatePages of matching pillType!)
   matched = candidatePages.find(
     (p) =>
-      p.title.toLowerCase().startsWith(cleanQuery) ||
-      cleanQuery.startsWith(p.title.toLowerCase())
+      p.title.toLowerCase().startsWith(baseCleanQuery) ||
+      baseCleanQuery.startsWith(p.title.toLowerCase())
   );
   if (matched) return matched;
 
@@ -1317,12 +1365,6 @@ export function scrollToMentionOrElement(
   highlightSpan?: string
 ): HTMLElement | null {
   if (!container) return null;
-
-  // Clean up any previously active mention highlight border boxes
-  document.querySelectorAll('.mention-target-highlight').forEach((el) => {
-    el.classList.remove('mention-target-highlight');
-  });
-
   let targetEl: HTMLElement | null = null;
 
   if (highlightSpan && highlightSpan.trim()) {
@@ -1389,14 +1431,6 @@ export function scrollToMentionOrElement(
   } catch (e) {
     // fallback if smooth inline scrolling unsupported
     elToScroll.scrollIntoView({ block: 'center' });
-  }
-
-  // Apply temporary blue border box around the tag (never in mentions area)
-  if (targetEl && !targetEl.closest('.mentions-card-container, [data-mentions-feed], .mentions-panel-excerpt')) {
-    targetEl.classList.add('mention-target-highlight');
-    setTimeout(() => {
-      targetEl?.classList.remove('mention-target-highlight');
-    }, 2500);
   }
 
   return elToScroll;

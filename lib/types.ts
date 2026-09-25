@@ -33,6 +33,7 @@ export interface Page {
   versions?: EntityVersion[];
   canonical_version_id?: string;
   current_version_num?: number;
+  target_version_num?: number; // Target specific version for [@Entity.N] or [@e1.N] mentions
   pinned?: boolean; // Pinned to AI context for prefix caching (max 3 knowledge pages)
 }
 
@@ -64,6 +65,8 @@ export interface PaneState {
   id: string | null; // page id or view type
   title?: string;
   highlightSpan?: string;
+  targetVersionNum?: number;
+  targetVersionId?: string;
 }
 
 export interface AISettings {

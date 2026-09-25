@@ -148,10 +148,12 @@ export const Sidebar: React.FC = () => {
     decisions,
     openInPane1,
     openInPane2,
+    navigateToMessage,
     leftPane,
     rightPane,
     clearAllData,
     deletePage,
+    deletePages,
     toggleTodoDone,
     toggleTodoStarred,
     createEntityPage,
@@ -161,58 +163,23 @@ export const Sidebar: React.FC = () => {
   } = usePlanet();
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [messagesExpanded, setMessagesExpanded] = useState(true);
+  const [messagesExpanded, setMessagesExpanded] = useState(false);
   const [notesExpanded, setNotesExpanded] = useState(true);
   const [todosExpanded, setTodosExpanded] = useState(true);
   const [decisionsExpanded, setDecisionsExpanded] = useState(true);
   const [entitiesExpanded, setEntitiesExpanded] = useState(true);
 
+  const [selectedPageIds, setSelectedPageIds] = useState<string[]>([]);
+  const [anchorPageId, setAnchorPageId] = useState<string | null>(null);
+
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
-    pageId: string;
+    selectedIds: string[];
     pageTitle: string;
   } | null>(null);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
-
-  const handleContextMenu = (e: React.MouseEvent, pageId: string, pageTitle: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const x = Math.min(e.clientX, window.innerWidth - 180);
-    const y = Math.min(e.clientY, window.innerHeight - 80);
-    setContextMenu({ x, y, pageId, pageTitle });
-  };
-
-  useEffect(() => {
-    if (!contextMenu) return;
-    const handleClick = () => setContextMenu(null);
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setContextMenu(null);
-    };
-    window.addEventListener('click', handleClick);
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('click', handleClick);
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [contextMenu]);
-
-  // Global Ctrl+Shift+F / Cmd+Shift+F key listener to focus cute pill search bar
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'f') {
-        e.preventDefault();
-        if (searchInputRef.current) {
-          searchInputRef.current.focus();
-          searchInputRef.current.select();
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
 
   // Substring filtering based on search query over titles, content, IDs, & slug filenames
   const queryLower = searchQuery.toLowerCase().trim();
@@ -229,10 +196,112 @@ export const Sidebar: React.FC = () => {
   const filteredTodos = filterPages(todos);
   const filteredDecisions = filterPages(decisions);
 
+  const isMessagesExpanded = messagesExpanded || Boolean(queryLower);
+
+  // Ordered list of currently visible pages across all expanded sections in the sidebar
+  const visiblePages = [
+    ...(isMessagesExpanded ? filteredMessages : []),
+    ...(notesExpanded ? filteredNotes : []),
+    ...(todosExpanded ? filteredTodos : []),
+    ...(decisionsExpanded ? filteredDecisions : []),
+    ...(entitiesExpanded ? filteredEntities : []),
+  ];
+
+  const handlePageClick = (e: React.MouseEvent, pageId: string, openAction: () => void) => {
+    if (e.shiftKey) {
+      e.preventDefault();
+      const anchorId = anchorPageId && visiblePages.some((p) => p.id === anchorPageId)
+        ? anchorPageId
+        : (selectedPageIds.length > 0 && visiblePages.some((p) => p.id === selectedPageIds[0])
+          ? selectedPageIds[0]
+          : pageId);
+
+      const anchorIdx = visiblePages.findIndex((p) => p.id === anchorId);
+      const targetIdx = visiblePages.findIndex((p) => p.id === pageId);
+
+      if (anchorIdx !== -1 && targetIdx !== -1) {
+        const start = Math.min(anchorIdx, targetIdx);
+        const end = Math.max(anchorIdx, targetIdx);
+        const range = visiblePages.slice(start, end + 1).map((p) => p.id);
+        setSelectedPageIds(range);
+        setAnchorPageId(anchorId);
+      } else {
+        setSelectedPageIds([pageId]);
+        setAnchorPageId(pageId);
+      }
+    } else {
+      setSelectedPageIds([pageId]);
+      setAnchorPageId(pageId);
+      openAction();
+    }
+  };
+
+  const handleContextMenu = (e: React.MouseEvent, pageId: string, pageTitle: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    let targetIds = selectedPageIds;
+    if (!selectedPageIds.includes(pageId)) {
+      targetIds = [pageId];
+      setSelectedPageIds([pageId]);
+      setAnchorPageId(pageId);
+    }
+
+    const x = Math.min(e.clientX, window.innerWidth - 180);
+    const y = Math.min(e.clientY, window.innerHeight - 80);
+    setContextMenu({
+      x,
+      y,
+      selectedIds: targetIds,
+      pageTitle: targetIds.length === 1 ? pageTitle : `${targetIds.length} Pages`,
+    });
+  };
+
+  useEffect(() => {
+    if (!contextMenu) return;
+    const handleClick = () => setContextMenu(null);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setContextMenu(null);
+    };
+    window.addEventListener('click', handleClick);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('click', handleClick);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [contextMenu]);
+
+  // Global Ctrl+Shift+F / Cmd+Shift+F key listener to focus cute pill search bar & Escape to clear selection
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        if (searchInputRef.current) {
+          searchInputRef.current.focus();
+          searchInputRef.current.select();
+        }
+      } else if (e.key === 'Escape') {
+        setSelectedPageIds([]);
+        setAnchorPageId(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   return (
     <aside className="w-64 bg-zinc-50 border-r border-zinc-200 flex flex-col h-full z-20 select-none text-zinc-900 font-sans">
       {/* Sidebar Content */}
-      <div className="flex-1 overflow-y-auto px-3 py-4 space-y-4">
+      <div
+        className="flex-1 overflow-y-auto px-3 py-4 space-y-4"
+        onClick={(e) => {
+          if (e.target === e.currentTarget && !e.shiftKey) {
+            setSelectedPageIds([]);
+            setAnchorPageId(null);
+          }
+        }}
+      >
 
         {/* Cute Pill Search Bar */}
         <div className="px-1">
@@ -268,16 +337,16 @@ export const Sidebar: React.FC = () => {
           <div className="flex items-center justify-between px-2 text-xs font-bold text-zinc-700 tracking-wider">
             <button
               type="button"
-              onClick={() => setMessagesExpanded(!messagesExpanded)}
+              onClick={() => setMessagesExpanded(!isMessagesExpanded)}
               className="flex items-center gap-1 hover:text-zinc-950"
             >
-              {messagesExpanded ? <ChevronDown className="h-3.5 w-3.5 text-zinc-500" /> : <ChevronRight className="h-3.5 w-3.5 text-zinc-500" />}
+              {isMessagesExpanded ? <ChevronDown className="h-3.5 w-3.5 text-zinc-500" /> : <ChevronRight className="h-3.5 w-3.5 text-zinc-500" />}
               <MessageSquare className="h-3.5 w-3.5 text-sky-600 mr-1" />
               <span>Messages ({filteredMessages.length})</span>
             </button>
           </div>
 
-          {messagesExpanded && (
+          {isMessagesExpanded && (
             <div className="space-y-0.5 pl-3 pt-0.5 border-l-2 border-zinc-200 ml-3">
               {filteredMessages.length === 0 ? (
                 <p className="px-2 text-[11px] text-zinc-400 italic">
@@ -286,6 +355,7 @@ export const Sidebar: React.FC = () => {
               ) : (
                 filteredMessages.map((msg) => {
                   const isSelected =
+                    selectedPageIds.includes(msg.id) ||
                     (rightPane.type === 'message' && rightPane.id === msg.id) ||
                     (leftPane.type === 'message' && leftPane.id === msg.id);
                   const excerpt = queryLower ? getContextExcerpt(msg.content || msg.user_prompt || '', queryLower, pages) : null;
@@ -293,12 +363,13 @@ export const Sidebar: React.FC = () => {
                     <button
                       key={msg.id}
                       type="button"
-                      onClick={() => openInPane2('message', msg.id, msg.title, searchQuery.trim() || undefined)}
+                      onClick={(e) => handlePageClick(e, msg.id, () => navigateToMessage(msg.id, searchQuery.trim() || undefined))}
                       onContextMenu={(e) => handleContextMenu(e, msg.id, msg.title)}
-                      className={`w-full text-left px-2 py-1 rounded-md flex flex-col text-xs transition-all ${isSelected
-                        ? 'bg-white text-zinc-950 font-semibold border border-zinc-200 shadow-2xs'
-                        : 'text-zinc-700 hover:text-zinc-950 hover:bg-zinc-100 font-medium'
-                        }`}
+                      className={`w-full text-left px-2 py-1 rounded-md flex flex-col text-xs ${
+                        isSelected
+                          ? 'bg-white text-zinc-950 font-semibold border border-zinc-200 shadow-2xs'
+                          : 'text-zinc-700 hover:text-zinc-950 hover:bg-zinc-100 font-medium'
+                      }`}
                     >
                       <div className="flex items-center gap-2 truncate min-w-0 w-full">
                         <MessageSquare className="h-3.5 w-3.5 text-sky-600 shrink-0" />
@@ -360,6 +431,7 @@ export const Sidebar: React.FC = () => {
               ) : (
                 filteredNotes.map((note) => {
                   const isSelected =
+                    selectedPageIds.includes(note.id) ||
                     (rightPane.type === 'note' && rightPane.id === note.id) ||
                     (leftPane.type === 'note' && leftPane.id === note.id);
                   const excerpt = queryLower ? getContextExcerpt(note.content || '', queryLower, pages) : null;
@@ -367,12 +439,13 @@ export const Sidebar: React.FC = () => {
                     <button
                       key={note.id}
                       type="button"
-                      onClick={() => openInPane2('note', note.id, note.title, searchQuery.trim() || undefined)}
+                      onClick={(e) => handlePageClick(e, note.id, () => openInPane2('note', note.id, note.title, searchQuery.trim() || undefined))}
                       onContextMenu={(e) => handleContextMenu(e, note.id, note.title)}
-                      className={`w-full text-left px-2 py-1 rounded-md flex flex-col text-xs transition-all ${isSelected
-                        ? 'bg-white text-zinc-950 font-semibold border border-zinc-200 shadow-2xs'
-                        : 'text-zinc-700 hover:text-zinc-950 hover:bg-zinc-100 font-medium'
-                        }`}
+                      className={`w-full text-left px-2 py-1 rounded-md flex flex-col text-xs ${
+                        isSelected
+                          ? 'bg-white text-zinc-950 font-semibold border border-zinc-200 shadow-2xs'
+                          : 'text-zinc-700 hover:text-zinc-950 hover:bg-zinc-100 font-medium'
+                      }`}
                     >
                       <div className="flex items-center gap-2 truncate min-w-0 w-full">
                         <FileText className="h-3.5 w-3.5 text-amber-500 shrink-0" />
@@ -437,6 +510,7 @@ export const Sidebar: React.FC = () => {
                 ) : (
                   filteredTodos.map((todo) => {
                     const isSelected =
+                      selectedPageIds.includes(todo.id) ||
                       (rightPane.type === 'todo' && rightPane.id === todo.id) ||
                       (leftPane.type === 'todo' && leftPane.id === todo.id);
                     const excerpt = queryLower ? getContextExcerpt(todo.content || '', queryLower, pages) : null;
@@ -444,12 +518,13 @@ export const Sidebar: React.FC = () => {
                       <button
                         key={todo.id}
                         type="button"
-                        onClick={() => openInPane2('todo', todo.id, todo.title, searchQuery.trim() || undefined)}
+                        onClick={(e) => handlePageClick(e, todo.id, () => openInPane2('todo', todo.id, todo.title, searchQuery.trim() || undefined))}
                         onContextMenu={(e) => handleContextMenu(e, todo.id, todo.title)}
-                        className={`w-full text-left px-2 py-1 rounded-md flex flex-col text-xs transition-all group ${isSelected
-                          ? 'bg-white text-zinc-950 font-semibold border border-zinc-200 shadow-2xs'
-                          : 'text-zinc-700 hover:text-zinc-950 hover:bg-zinc-100 font-medium'
-                          }`}
+                        className={`w-full text-left px-2 py-1 rounded-md flex flex-col text-xs group ${
+                          isSelected
+                            ? 'bg-white text-zinc-950 font-semibold border border-zinc-200 shadow-2xs'
+                            : 'text-zinc-700 hover:text-zinc-950 hover:bg-zinc-100 font-medium'
+                        }`}
                       >
                         <div className="flex items-center justify-between w-full min-w-0">
                           <div className="flex items-center gap-2 truncate min-w-0 pr-1">
@@ -481,10 +556,11 @@ export const Sidebar: React.FC = () => {
                             title={todo.starred ? 'Unstar todo' : 'Star todo'}
                           >
                             <Star
-                              className={`h-3.5 w-3.5 transition-colors ${todo.starred
-                                ? 'fill-amber-400 text-amber-400'
-                                : 'text-zinc-300 opacity-0 group-hover:opacity-100 hover:text-amber-400'
-                                }`}
+                              className={`h-3.5 w-3.5 transition-colors ${
+                                todo.starred
+                                  ? 'fill-amber-400 text-amber-400'
+                                  : 'text-zinc-300 opacity-0 group-hover:opacity-100 hover:text-amber-400'
+                              }`}
                             />
                           </span>
                         </div>
@@ -544,6 +620,7 @@ export const Sidebar: React.FC = () => {
                 ) : (
                   filteredDecisions.map((dec) => {
                     const isSelected =
+                      selectedPageIds.includes(dec.id) ||
                       (rightPane.type === 'decision' && rightPane.id === dec.id) ||
                       (leftPane.type === 'decision' && leftPane.id === dec.id);
                     const excerpt = queryLower ? getContextExcerpt(dec.content || '', queryLower, pages) : null;
@@ -551,12 +628,13 @@ export const Sidebar: React.FC = () => {
                       <button
                         key={dec.id}
                         type="button"
-                        onClick={() => openInPane2('decision', dec.id, dec.title, searchQuery.trim() || undefined)}
+                        onClick={(e) => handlePageClick(e, dec.id, () => openInPane2('decision', dec.id, dec.title, searchQuery.trim() || undefined))}
                         onContextMenu={(e) => handleContextMenu(e, dec.id, dec.title)}
-                        className={`w-full text-left px-2 py-1 rounded-md flex flex-col text-xs transition-all ${isSelected
-                          ? 'bg-white text-zinc-950 font-semibold border border-zinc-200 shadow-2xs'
-                          : 'text-zinc-700 hover:text-zinc-950 hover:bg-zinc-100 font-medium'
-                          }`}
+                        className={`w-full text-left px-2 py-1 rounded-md flex flex-col text-xs ${
+                          isSelected
+                            ? 'bg-white text-zinc-950 font-semibold border border-zinc-200 shadow-2xs'
+                            : 'text-zinc-700 hover:text-zinc-950 hover:bg-zinc-100 font-medium'
+                        }`}
                       >
                         <div className="flex items-center gap-2 truncate w-full min-w-0">
                           <Zap className="h-3.5 w-3.5 text-orange-500 shrink-0" />
@@ -618,6 +696,7 @@ export const Sidebar: React.FC = () => {
                 ) : (
                   filteredEntities.map((ent) => {
                     const isSelected =
+                      selectedPageIds.includes(ent.id) ||
                       (rightPane.type === 'entity' && rightPane.id === ent.id) ||
                       (leftPane.type === 'entity' && leftPane.id === ent.id);
                     const excerpt = queryLower ? getContextExcerpt(ent.content || '', queryLower, pages) : null;
@@ -625,12 +704,13 @@ export const Sidebar: React.FC = () => {
                       <button
                         key={ent.id}
                         type="button"
-                        onClick={() => openInPane2('entity', ent.id, ent.title, searchQuery.trim() || undefined)}
+                        onClick={(e) => handlePageClick(e, ent.id, () => openInPane2('entity', ent.id, ent.title, searchQuery.trim() || undefined))}
                         onContextMenu={(e) => handleContextMenu(e, ent.id, ent.title)}
-                        className={`w-full text-left px-2 py-1 rounded-md flex flex-col text-xs transition-all ${isSelected
-                          ? 'bg-white text-zinc-950 font-bold border border-zinc-200 shadow-2xs'
-                          : 'text-zinc-700 hover:text-zinc-950 hover:bg-zinc-100 font-medium'
-                          }`}
+                        className={`w-full text-left px-2 py-1 rounded-md flex flex-col text-xs ${
+                          isSelected
+                            ? 'bg-white text-zinc-950 font-bold border border-zinc-200 shadow-2xs'
+                            : 'text-zinc-700 hover:text-zinc-950 hover:bg-zinc-100 font-medium'
+                        }`}
                       >
                         <div className="flex items-center gap-2 truncate w-full min-w-0">
                           <Tag className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
@@ -673,19 +753,25 @@ export const Sidebar: React.FC = () => {
       {contextMenu && (
         <div
           style={{ top: `${contextMenu.y}px`, left: `${contextMenu.x}px` }}
-          className="fixed z-50 bg-white border border-zinc-200/90 shadow-lg rounded-lg p-1 min-w-[160px] animate-in fade-in zoom-in-95 duration-100"
+          className="fixed z-50 bg-white border border-zinc-200/90 shadow-lg rounded-lg p-1 min-w-[170px] animate-in fade-in zoom-in-95 duration-100"
           onClick={(e) => e.stopPropagation()}
         >
           <button
             type="button"
             onClick={() => {
-              deletePage(contextMenu.pageId);
+              deletePages(contextMenu.selectedIds);
+              setSelectedPageIds([]);
+              setAnchorPageId(null);
               setContextMenu(null);
             }}
-            className="w-full flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-zinc-500 hover:text-red-600 hover:bg-zinc-100 transition-colors"
+            className="w-full flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-zinc-700 hover:text-red-600 hover:bg-red-50/80 transition-colors cursor-pointer"
           >
-            <Trash2 className="h-3.5 w-3.5" />
-            <span>Delete Page</span>
+            <Trash2 className="h-3.5 w-3.5 text-red-500" />
+            <span>
+              {contextMenu.selectedIds.length > 1
+                ? `Delete ${contextMenu.selectedIds.length} Selected Pages`
+                : 'Delete Page'}
+            </span>
           </button>
         </div>
       )}

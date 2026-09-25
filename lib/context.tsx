@@ -26,11 +26,13 @@ interface PlanetContextType {
   // 2-Pane Split View State
   leftPane: PaneState;
   rightPane: PaneState;
-  openInPane2: (type: PaneState['type'], id: string | null, title?: string, highlightSpan?: string) => void;
-  openInPane1: (type: PaneState['type'], id: string | null, title?: string, highlightSpan?: string) => void;
+  openInPane2: (type: PaneState['type'], id: string | null, title?: string, highlightSpan?: string, targetVersionNum?: number, targetVersionId?: string) => void;
+  openInPane1: (type: PaneState['type'], id: string | null, title?: string, highlightSpan?: string, targetVersionNum?: number, targetVersionId?: string) => void;
   closePane1: () => void;
   closePane2: () => void;
   swapPanes: () => void;
+  navigateToMessage: (messageId: string, highlightSpan?: string, title?: string) => void;
+  scrollToMessageInChat: (messageId: string, highlightSpan?: string) => void;
 
   // Navigation History
   leftHistory: PaneState[];
@@ -50,6 +52,7 @@ interface PlanetContextType {
   updatePageContent: (id: string, newContent: string) => void;
   updatePageUserPrompt: (id: string, newPrompt: string) => void;
   deletePage: (id: string) => void;
+  deletePages: (ids: string[]) => void;
   addEntityVersion: (entityId: string, title?: string, content?: string) => EntityVersion;
   updateEntityVersion: (entityId: string, versionId: string, newTitle: string, newContent: string) => void;
   setCanonicalVersion: (entityId: string, versionId: string) => void;
@@ -284,24 +287,28 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const decisions = pages.filter((p) => p.type === 'decision').reverse();
 
   // Pane Navigation Handlers
-  const openInPane2 = (type: PaneState['type'], id: string | null, title?: string, highlightSpan?: string) => {
+  const openInPane2 = (type: PaneState['type'], id: string | null, title?: string, highlightSpan?: string, targetVersionNum?: number, targetVersionId?: string) => {
     const newState: PaneState = {
       type,
       id,
       title: title || (type === 'chat' ? 'Chat Thread' : type === 'todo_board' ? 'Todo Board' : type === 'decision_log' ? 'Decision Log' : type === 'entity_index' ? 'Entity Index' : type === 'note_index' ? 'Note Archive' : id || ''),
       highlightSpan,
+      targetVersionNum,
+      targetVersionId,
     };
     setRightHistory((prev) => [...prev, newState]);
     setNavigationHistory((prev) => [...prev, newState]);
     setRightPane(newState);
   };
 
-  const openInPane1 = (type: PaneState['type'], id: string | null, title?: string, highlightSpan?: string) => {
+  const openInPane1 = (type: PaneState['type'], id: string | null, title?: string, highlightSpan?: string, targetVersionNum?: number, targetVersionId?: string) => {
     const newState: PaneState = {
       type,
       id,
       title: title || (type === 'chat' ? 'Chat Thread' : type === 'todo_board' ? 'Todo Board' : type === 'decision_log' ? 'Decision Log' : type === 'entity_index' ? 'Entity Index' : type === 'note_index' ? 'Note Archive' : id || ''),
       highlightSpan,
+      targetVersionNum,
+      targetVersionId,
     };
     setLeftHistory((prev) => [...prev, newState]);
     setNavigationHistory((prev) => [...prev, newState]);
@@ -352,9 +359,58 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setRightHistory(tempHistory);
   };
 
+  const scrollToMessageInChat = (messageId: string, highlightSpan?: string) => {
+    // 1. If leftPane is already 'chat', update leftPane and scroll to message
+    if (leftPane.type === 'chat') {
+      openInPane1('chat', messageId, 'Chat Thread', highlightSpan);
+      return;
+    }
+
+    // 2. If rightPane is already 'chat', update rightPane and scroll to message
+    if (rightPane.type === 'chat') {
+      openInPane2('chat', messageId, 'Chat Thread', highlightSpan);
+      return;
+    }
+
+    // 3. Neither pane is 'chat' (e.g. leftPane has a page view and rightPane is empty after chat was closed):
+    // Move the active page to rightPane so it stays open, and put Chat Thread on the left (dual pane mode!)
+    if (leftPane.type !== 'empty') {
+      if (rightPane.type === 'empty') {
+        setRightPane(leftPane);
+        setRightHistory(leftHistory.length > 0 ? leftHistory : [leftPane]);
+      }
+    }
+
+    // Open Chat Thread on left pane
+    const chatState: PaneState = {
+      type: 'chat',
+      id: messageId,
+      title: 'Chat Thread',
+      highlightSpan,
+    };
+    setLeftPane(chatState);
+    setLeftHistory((prev) => [...prev, chatState]);
+    setNavigationHistory((prev) => [...prev, chatState]);
+  };
+
+  const navigateToMessage = (messageId: string, highlightSpan?: string, title?: string) => {
+    const isChatOpen = leftPane.type === 'chat' || rightPane.type === 'chat';
+
+    if (isChatOpen) {
+      // Chat pane is already open -> open message in page view (Pane 2)
+      const msgPage = pages.find((p) => p.id === messageId);
+      const displayTitle = title || msgPage?.title || 'Message';
+      openInPane2('message', messageId, displayTitle, highlightSpan);
+      return;
+    }
+
+    // Chat pane was closed -> route to message in chat view & enter dual pane mode
+    scrollToMessageInChat(messageId, highlightSpan);
+  };
+
   // Helper for generating non-colliding unique title: "Name", "Name 2", "Name 3"
   const getUniqueTitleForType = (type: Page['type'], baseTitle: string, currentPages: Page[]): string => {
-    const cleanBase = formatItemTitle(
+    let cleanBase = formatItemTitle(
       baseTitle
         .replace(/^@(?:todo|decision|note)?:\s*/i, '')
         .replace(/^@/, '')
@@ -427,7 +483,7 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       short_id: generateShortId('todo', pages),
       type: 'todo' as const,
       title: uniqueTitle,
-      content: content || uniqueTitle,
+      content: content || '',
       done: false,
       starred: false,
       created_at: new Date().toISOString(),
@@ -462,7 +518,7 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       short_id: generateShortId('decision', pages),
       type: 'decision' as const,
       title: uniqueTitle,
-      content: content || uniqueTitle,
+      content: content || '',
       created_at: new Date().toISOString(),
     };
 
@@ -491,7 +547,7 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     proposedTitle: string,
     currentPages: Page[]
   ): string => {
-    const cleanBase = formatItemTitle(
+    let cleanBase = formatItemTitle(
       proposedTitle
         .replace(/^@(?:todo|decision|note)?:\s*/i, '')
         .replace(/^@/, '')
@@ -725,9 +781,18 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     );
   };
 
+  const deletePages = (ids: string[]) => {
+    if (!ids || ids.length === 0) return;
+    const idSet = new Set(ids);
+    setPages((prev) => prev.filter((p) => !idSet.has(p.id)));
+    setMentions((prev) => prev.filter((m) => !idSet.has(m.target_page_id) && !idSet.has(m.source_page_id)));
+    setPinnedPageIds((prev) => prev.filter((pid) => !idSet.has(pid)));
+    setLeftPane((prev) => (prev.id && idSet.has(prev.id) ? { type: 'chat', id: null, title: 'Chat Thread' } : prev));
+    setRightPane((prev) => (prev.id && idSet.has(prev.id) ? { type: 'empty', id: null } : prev));
+  };
+
   const deletePage = (id: string) => {
-    setPages((prev) => prev.filter((p) => p.id !== id));
-    setMentions((prev) => prev.filter((m) => m.target_page_id !== id && m.source_page_id !== id));
+    deletePages([id]);
   };
 
   const toggleTodoDone = (id: string) => {
@@ -944,6 +1009,8 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         closePane1,
         closePane2,
         swapPanes,
+        navigateToMessage,
+        scrollToMessageInChat,
         leftPaneCanGoBack,
         rightPaneCanGoBack,
         goBackPane1,
@@ -956,6 +1023,7 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         updatePageContent,
         updatePageUserPrompt,
         deletePage,
+        deletePages,
         addEntityVersion,
         updateEntityVersion,
         setCanonicalVersion,
