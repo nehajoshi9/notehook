@@ -401,8 +401,10 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
         );
         const hasChanged = pageUpdatedTime > turnTime;
 
-        if (hasChanged) {
-          // File changed since this turn! Strip stale reference block from history
+        const isPinned = pinnedPageIds.includes(page.id);
+        if (hasChanged || isPinned) {
+          // File changed since this turn, or is already pinned in Tier 3 session anchors!
+          // Strip duplicate/stale reference block from history
           const cleanTitle = page.title.replace(/^@/, '').trim();
           const escapedTitle = cleanTitle.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
           const blockRegex = new RegExp(`--- REFERENCED PAGE: \\[@?${escapedTitle}\\][\\s\\S]*?--- END REFERENCED PAGE ---(\\n\\n)?`, 'gi');
