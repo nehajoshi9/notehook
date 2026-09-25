@@ -247,6 +247,100 @@ export function buildPinnedKnowledgeSection(allPages: Page[], pinnedPageIds: str
   return `\n\n=== PINNED SESSION KNOWLEDGE (GROUND TRUTH ANCHORS) ===\nThe architect has pinned the following high-priority page(s) for this working session. Treat these as active system constraints:\n\n${blocks.join('\n\n')}\n=== END PINNED SESSION KNOWLEDGE ===`;
 }
 
+export const KNOWLEDGE_EXPANSION_TOOL_GEMINI = {
+  functionDeclarations: [
+    {
+      name: 'expand_knowledge_page',
+      description: 'Expand an unmentioned recent knowledge page from the workspace catalogue to retrieve its full content, body, and active/canonical version.',
+      parameters: {
+        type: 'OBJECT',
+        properties: {
+          page_id_or_title: {
+            type: 'STRING',
+            description: 'The page ID (e.g. "e1", "m3"), short ID, or title of the knowledge page to expand.',
+          },
+        },
+        required: ['page_id_or_title'],
+      },
+    },
+  ],
+};
+
+export const KNOWLEDGE_EXPANSION_TOOL_OPENAI = [
+  {
+    type: 'function',
+    function: {
+      name: 'expand_knowledge_page',
+      description: 'Expand an unmentioned recent knowledge page from the workspace catalogue to retrieve its full content, body, and active/canonical version.',
+      parameters: {
+        type: 'OBJECT',
+        properties: {
+          page_id_or_title: {
+            type: 'STRING',
+            description: 'The page ID (e.g. "e1", "m3"), short ID, or title of the knowledge page to expand.',
+          },
+        },
+        required: ['page_id_or_title'],
+      },
+    },
+  },
+];
+
+export function expandKnowledgePage(
+  query: string,
+  allPages: Page[]
+): { page: Page | null; expandedText: string } {
+  if (!query || !allPages || allPages.length === 0) {
+    return { page: null, expandedText: `No page query provided.` };
+  }
+  const cleanQuery = query.replace(/^@/, '').trim().toLowerCase();
+
+  const index = new MentionIndex(allPages);
+  let page = index.lookupExact(query) || index.lookupExact(cleanQuery);
+
+  if (!page) {
+    page = allPages.find((p) => {
+      const cleanTitle = p.title.replace(/^@/, '').trim().toLowerCase();
+      const shortId = (p.short_id || '').trim().toLowerCase();
+      return (
+        p.id.toLowerCase() === cleanQuery ||
+        (shortId && shortId === cleanQuery) ||
+        cleanTitle === cleanQuery
+      );
+    });
+  }
+
+  if (!page) {
+    return {
+      page: null,
+      expandedText: `Knowledge page "${query}" was not found in the workspace catalogue.`,
+    };
+  }
+
+  let pageContent = (page.content || '').trim();
+  let versionInfo = '';
+
+  if (page.type === 'entity' && page.versions && page.versions.length > 0) {
+    const canonicalVersion = page.versions.find(
+      (v) => v.id === page.canonical_version_id || v.is_canonical
+    );
+    const activeVersion = canonicalVersion || page.versions[page.versions.length - 1];
+    if (activeVersion && activeVersion.content) {
+      versionInfo = `\nActive/Canonical Version ["${activeVersion.title}"]: ${activeVersion.content.trim()}`;
+    }
+  }
+
+  const shortIdStr = page.short_id ? ` (ID: ${page.short_id})` : '';
+  const statusMeta = page.type === 'todo' ? ` [Status: ${page.done ? 'COMPLETED / DONE' : 'PENDING / OPEN'}]` : '';
+
+  const expandedText = `--- EXPANDED KNOWLEDGE PAGE: [@${page.title.replace(/^@/, '').trim()}]${shortIdStr} [type: ${page.type}]${statusMeta} ---
+Content:
+${pageContent}${versionInfo}
+--- END EXPANDED KNOWLEDGE PAGE ---`;
+
+  return { page, expandedText };
+}
+
 export function buildKnowledgeCatalogueSection(allPages: Page[]): string {
   const knowledgePages = allPages
     .filter((p) => p.type === 'entity' || p.type === 'decision' || p.type === 'note')
@@ -264,7 +358,7 @@ export function buildKnowledgeCatalogueSection(allPages: Page[]): string {
     return `- ${shortId}[@${cleanTitle}] (${p.type}): ${snippet || 'Architectural page'}`;
   });
 
-  return `\n\n=== WORKSPACE KNOWLEDGE CATALOGUE (TOP 25) ===\nThe workspace contains the following knowledge pages. If relevant, you may reference them by [@title] or short ID:\n${lines.join('\n')}\n=== END WORKSPACE CATALOGUE ===`;
+  return `\n\n=== WORKSPACE KNOWLEDGE CATALOGUE (TOP 25) ===\nThe workspace contains the following knowledge pages. If relevant, you may reference them by [@title] or short ID. If you need to view the full content or canonical version of an unmentioned page, use the expand_knowledge_page tool:\n${lines.join('\n')}\n=== END WORKSPACE CATALOGUE ===`;
 }
 
 export function buildDynamicReferencedSection(
@@ -588,26 +682,31 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
       userPrompt,
       existingEntities,
       onChunk,
-      dynamicRefSection || undefined,
+      dynamicRefSectionBase || undefined,
       currentReferencedPageIds.length > 0 ? currentReferencedPageIds : undefined
     );
   }
 
   // 2. Gemini Provider
   if (effectiveProvider === 'gemini') {
-    const primaryModel = aiSettings.model && aiSettings.model !== 'gpt-4o-mini' && aiSettings.model !== 'gemini-1.5-flash' && aiSettings.model !== 'gemini-2.5-flash'
-      ? aiSettings.model
-      : 'gemini-3.6-flash';
-    // Broader candidate list: newer models first, stable fallbacks at the end.
-    // gemini-2.0-flash and gemini-1.5-flash are on separate infra and less likely
-    // to share the same overload queue as 3.x / 2.5 models.
+    const normalizeGeminiModel = (m: string) => {
+      if (!m || m.startsWith('gpt-')) return 'gemini-3.6-flash';
+      if (m === 'gemini-1.5-flash' || m === 'gemini-2.0-flash' || m === 'gemini-2.0-flash-lite' || m === 'gemini-2.5-flash' || m === 'gemini-2.5-pro') {
+        return 'gemini-3.6-flash';
+      }
+      return m;
+    };
+
+    const primaryModel = normalizeGeminiModel(aiSettings.model || '');
+    // Confirmed active models on generativelanguage.googleapis.com/v1beta
     const candidateModels = Array.from(new Set([
       primaryModel,
       'gemini-3.6-flash',
+      'gemini-3.1-flash-lite',
+      'gemini-3.7-flash',
+      'gemini-3.5-flash-lite',
       'gemini-3.5-flash',
       'gemini-flash-latest',
-      'gemini-2.0-flash',
-      'gemini-1.5-flash',
     ]));
 
     let lastErrorDetails = '';
@@ -615,15 +714,18 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
 
     for (const model of candidateModels) {
       try {
+        const geminiRequestBody: any = {
+          system_instruction: { parts: [{ text: cachedSystemPrompt }] },
+          contents: geminiContents,
+          tools: [KNOWLEDGE_EXPANSION_TOOL_GEMINI],
+        };
+
         const res = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              system_instruction: { parts: [{ text: cachedSystemPrompt }] },
-              contents: geminiContents,
-            }),
+            body: JSON.stringify(geminiRequestBody),
           }
         );
 
@@ -631,6 +733,7 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
           const reader = res.body?.getReader();
           const decoder = new TextDecoder();
           let fullText = '';
+          let toolCallToExecute: { name: string; args: any } | null = null;
 
           if (reader) {
             while (true) {
@@ -642,10 +745,15 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
                 if (line.startsWith('data: ')) {
                   try {
                     const json = JSON.parse(line.substring(6));
-                    const textPart = json.candidates?.[0]?.content?.parts?.[0]?.text || '';
-                    if (textPart) {
-                      fullText += textPart;
-                      if (onChunk) onChunk(textPart);
+                    const parts = json.candidates?.[0]?.content?.parts || [];
+                    for (const part of parts) {
+                      if (part.text) {
+                        fullText += part.text;
+                        if (onChunk) onChunk(part.text);
+                      }
+                      if (part.functionCall) {
+                        toolCallToExecute = part.functionCall;
+                      }
                     }
                   } catch (e) {
                     // ignore SSE parse errors
@@ -655,37 +763,103 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
             }
           }
 
+          // Handle function tool call if requested by model
+          if (toolCallToExecute && toolCallToExecute.name === 'expand_knowledge_page') {
+            const pageQuery = toolCallToExecute.args?.page_id_or_title || '';
+            const { page, expandedText } = expandKnowledgePage(pageQuery, allPages.length > 0 ? allPages : existingEntities);
+
+            if (page && !currentReferencedPageIds.includes(page.id)) {
+              currentReferencedPageIds.push(page.id);
+            }
+
+            // Perform second turn execution passing tool response back to Gemini
+            const updatedContents = [
+              ...geminiContents,
+              {
+                role: 'model',
+                parts: [{ functionCall: toolCallToExecute }],
+              },
+              {
+                role: 'user',
+                parts: [
+                  {
+                    functionResponse: {
+                      name: 'expand_knowledge_page',
+                      response: { content: expandedText },
+                    },
+                  },
+                ],
+              },
+            ];
+
+            const secondRes = await fetch(
+              `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  system_instruction: { parts: [{ text: cachedSystemPrompt }] },
+                  contents: updatedContents,
+                }),
+              }
+            );
+
+            if (secondRes.ok) {
+              const secondReader = secondRes.body?.getReader();
+              let secondFullText = '';
+              if (secondReader) {
+                while (true) {
+                  const { done, value } = await secondReader.read();
+                  if (done) break;
+                  const chunk = decoder.decode(value, { stream: true });
+                  const lines = chunk.split('\n');
+                  for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                      try {
+                        const json = JSON.parse(line.substring(6));
+                        const textPart = json.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                        if (textPart) {
+                          secondFullText += textPart;
+                          if (onChunk) onChunk(textPart);
+                        }
+                      } catch (e) {}
+                    }
+                  }
+                }
+              }
+              if (secondFullText) {
+                fullText = secondFullText;
+              }
+            }
+          }
+
           if (fullText) {
             const parsedItems = parseScribeMarkup(fullText, existingEntities);
             return {
               text: fullText,
               parsedItems,
-              injectedContext: dynamicRefSection || undefined,
+              injectedContext: dynamicRefSectionBase || undefined,
               referencedPageIds: currentReferencedPageIds.length > 0 ? currentReferencedPageIds : undefined,
             };
           }
         }
 
-        // Check if this was a 503/overloaded response — if so, skip the non-streaming
-        // retry for this model (hitting it again will get the same error).
-        const isOverloaded = res.status === 503;
-        if (!isOverloaded) allOverloaded = false;
+        // Check if this was a 429 (rate limit) or 503 (overloaded) response
+        const isOverloadedOrRateLimited = res.status === 503 || res.status === 429;
+        if (!isOverloadedOrRateLimited && res.status !== 200) allOverloaded = false;
 
-        if (isOverloaded) {
-          lastErrorDetails = `${model}: 503 UNAVAILABLE (overloaded)`;
+        if (isOverloadedOrRateLimited) {
+          lastErrorDetails = `${model}: ${res.status === 429 ? '429 Rate Limit (Free tier quota exceeded; please wait a few seconds)' : '503 High Demand'}`;
           continue; // skip non-streaming retry, try next candidate model
         }
 
-        // Fallback to non-streaming POST (only for non-503 errors)
+        // Fallback to non-streaming POST (only for non-429/503 errors)
         const fallbackRes = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              system_instruction: { parts: [{ text: cachedSystemPrompt }] },
-              contents: geminiContents,
-            }),
+            body: JSON.stringify(geminiRequestBody),
           }
         );
 
@@ -698,12 +872,13 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
             return {
               text,
               parsedItems,
-              injectedContext: dynamicRefSection || undefined,
+              injectedContext: dynamicRefSectionBase || undefined,
               referencedPageIds: currentReferencedPageIds.length > 0 ? currentReferencedPageIds : undefined,
             };
           }
         } else {
-          if (fallbackRes.status !== 503) allOverloaded = false;
+          const isFallbackOverloaded = fallbackRes.status === 503 || fallbackRes.status === 429;
+          if (!isFallbackOverloaded) allOverloaded = false;
           lastErrorDetails = await fallbackRes.text();
         }
       } catch (err: any) {
@@ -716,14 +891,14 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
     // rather than falling back to the simulator (which would produce fake output).
     console.warn('Gemini model calls failed:', lastErrorDetails);
     const errorMsg = allOverloaded
-      ? `⚠️ Gemini is currently experiencing high demand across all fallback models. Please wait a moment and try again.\n\n*Models tried: ${candidateModels.join(', ')}*`
+      ? `⚠️ Gemini is currently experiencing high demand or free-tier rate limits. Please wait a few seconds and try again.\n\n*Last status: ${lastErrorDetails}*`
       : `⚠️ All Gemini model calls failed. Last error: ${lastErrorDetails}\n\n*Models tried: ${candidateModels.join(', ')}*`;
     if (onChunk) onChunk(errorMsg);
     const parsedItems = parseScribeMarkup(errorMsg, existingEntities);
     return {
       text: errorMsg,
       parsedItems,
-      injectedContext: dynamicRefSection || undefined,
+      injectedContext: dynamicRefSectionBase || undefined,
       referencedPageIds: currentReferencedPageIds.length > 0 ? currentReferencedPageIds : undefined,
     };
   }
@@ -779,7 +954,7 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
       return {
         text: fullText,
         parsedItems,
-        injectedContext: dynamicRefSection || undefined,
+        injectedContext: dynamicRefSectionBase || undefined,
         referencedPageIds: currentReferencedPageIds.length > 0 ? currentReferencedPageIds : undefined,
       };
     } catch (err: any) {
@@ -799,7 +974,7 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
     userPrompt,
     existingEntities,
     onChunk,
-    dynamicRefSection || undefined,
+    dynamicRefSectionBase || undefined,
     currentReferencedPageIds.length > 0 ? currentReferencedPageIds : undefined
   );
 }

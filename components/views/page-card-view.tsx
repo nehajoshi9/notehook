@@ -262,6 +262,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
   const contentRef = useRef<HTMLTextAreaElement>(null);
   const promptRef = useRef<HTMLTextAreaElement>(null);
   const versionContentRef = useRef<HTMLTextAreaElement>(null);
+  const titleRef = useRef<HTMLHeadingElement>(null);
 
   const [contentCursorPos, setContentCursorPos] = useState(0);
   const [contentSelectedIndex, setContentSelectedIndex] = useState(0);
@@ -400,9 +401,23 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
       setPromptText(targetPage.user_prompt || '');
       if (!targetPage.content) {
         setIsEditing(true);
+        setTimeout(() => {
+          if (titleRef.current) {
+            titleRef.current.focus();
+            try {
+              const range = document.createRange();
+              range.selectNodeContents(titleRef.current);
+              const sel = window.getSelection();
+              if (sel) {
+                sel.removeAllRanges();
+                sel.addRange(range);
+              }
+            } catch (err) {}
+          }
+        }, 60);
       }
     }
-  }, [targetPage?.id, targetPage?.content, pages]);
+  }, [targetPage?.id]);
 
   useEffect(() => {
     if (isEditing && contentRef.current) {
@@ -1278,6 +1293,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
             </button>
           </div>
           <h1
+            ref={titleRef}
             contentEditable={!isEditingPrompt}
             suppressContentEditableWarning
             onBlur={(e) => {
@@ -1295,6 +1311,12 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
               if (e.key === 'Enter') {
                 e.preventDefault();
                 e.currentTarget.blur();
+                setIsEditing(true);
+                setTimeout(() => {
+                  if (contentRef.current) {
+                    contentRef.current.focus();
+                  }
+                }, 50);
               } else if (e.key === 'Escape') {
                 e.preventDefault();
                 e.currentTarget.innerText = targetPage.title;
@@ -1479,7 +1501,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
         )}
 
         {/* Seamless Canvas (Automatic Edit / Blur Transition) */}
-        <div className="flex flex-col flex-1 relative">
+        <div className={`flex flex-col relative ${targetPage.type === 'entity' ? 'flex-none' : 'flex-1'}`}>
           {isEditing ? (
             <>
               {isTypingAtContent && contentSuggestions.length > 0 && (
@@ -1567,7 +1589,6 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
                 }}
                 placeholder="Type page content (markdown and @tags supported)..."
                 className="w-full min-h-[32px] text-xs md:text-sm text-zinc-900 leading-relaxed font-sans bg-transparent border-0 outline-none focus:outline-none focus:ring-0 ring-0 shadow-none resize-none p-0 m-0 overflow-hidden"
-                autoFocus
               />
             </>
           ) : (
@@ -1576,7 +1597,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
               onMouseDown={(e) => {
                 handleGutterMouseDown(e, e.currentTarget);
               }}
-              className={`cursor-text flex-1 w-full py-2 ${targetPage.type === 'entity' ? 'min-h-[32px]' : 'min-h-[180px]'}`}
+              className={`cursor-text w-full py-2 ${targetPage.type === 'entity' ? 'flex-none min-h-[32px]' : 'flex-1 min-h-[180px]'}`}
               title="Click anywhere on the document to edit"
             >
               <div

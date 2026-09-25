@@ -342,9 +342,9 @@ describe('AI Scribe Architecture & Prefix Caching Tests', () => {
       });
     }
 
-    // 1. Mentioning @m3 (which is inside the 15-turn active verbatim buffer)
+    // 1. Mentioning @m5 (which is inside the 12-turn active verbatim buffer)
     const resultRecent = await generateScribeResponse(
-      'What did you say in [@m3]?',
+      'What did you say in [@m5]?',
       [],
       dummySettings,
       undefined,
@@ -352,11 +352,11 @@ describe('AI Scribe Architecture & Prefix Caching Tests', () => {
       messages,
       []
     );
-    // Since m3 is already present verbatim in active history, it must NOT be duplicate-injected into Tier 4
+    // Since m5 is already present verbatim in active history, it must NOT be duplicate-injected into Tier 4
     assert.equal(
       resultRecent.injectedContext,
       undefined,
-      'Recent message m3 must not be re-injected since it is already in verbatim history'
+      'Recent message m5 must not be re-injected since it is already in verbatim history'
     );
 
     // 2. Mentioning @m1 (which is turn 1, outside the 15-turn buffer)

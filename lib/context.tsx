@@ -242,7 +242,7 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       if (storedAi) {
         const parsedAi: AISettings = JSON.parse(storedAi);
         // If stored settings were 'simulated' or had old models, auto-upgrade to Gemini 3.6 Flash
-        if ((parsedAi.provider === 'simulated' || parsedAi.model === 'gemini-1.5-flash' || parsedAi.model === 'gemini-2.5-flash') && envGeminiKey) {
+        if ((parsedAi.provider === 'simulated' || parsedAi.model === 'gemini-1.5-flash' || parsedAi.model === 'gemini-2.0-flash' || parsedAi.model === 'gemini-2.0-flash-lite' || parsedAi.model === 'gemini-2.5-flash' || parsedAi.model === 'gemini-3.5-flash-lite') && envGeminiKey) {
           setAiSettings({
             provider: 'gemini',
             apiKey: envGeminiKey,
@@ -393,7 +393,7 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       short_id: generateShortId('entity', pages),
       type: 'entity',
       title: uniqueTitle,
-      content: content || `Tracked concept: @${uniqueTitle}`,
+      content: content || '',
       created_at: new Date().toISOString(),
     };
     setPages((prev) => [newPage, ...prev]);

@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { usePlanet } from '@/lib/context';
-import { Sparkles, Tag, CheckSquare, Square, Zap, FileText, BookmarkPlus, Check, Plus } from 'lucide-react';
+import { Sparkles, Tag, CheckSquare, Square, Zap, FileText, BookmarkPlus, Check, Plus, ChevronDown } from 'lucide-react';
 import { convertScribeTextToHtml, findPageForPill, scrollToMentionOrElement, selectMarkdownBlock, clearMarkdownBlockSelection, syncMultiBlockSelection, handleGutterRangeClick, handleGutterMouseDown } from '@/lib/scribe-parser';
 
 interface GutterCheckboxProps {
@@ -42,11 +42,55 @@ export const ChatThreadView: React.FC<ChatThreadViewProps> = ({ paneIndex = 1 })
   const { messages, pages, mentions, openInPane2, openInPane1, isAiGenerating, aiStreamingText, aiStreamingPrompt, leftPane, rightPane, addEntityVersion, createEntityPage } = usePlanet();
   const isDualPane = paneIndex === 2 || rightPane.type !== 'empty';
   const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const currentPane = paneIndex === 2 ? rightPane : leftPane;
 
   const [openSaveMenuNoteId, setOpenSaveMenuNoteId] = useState<string | null>(null);
   const [savedToastNoteId, setSavedToastNoteId] = useState<string | null>(null);
   const [copiedShortId, setCopiedShortId] = useState<string | null>(null);
+
+  const [isScrolledUp, setIsScrolledUp] = useState(false);
+  const [hasUnreadAtBottom, setHasUnreadAtBottom] = useState(false);
+  const prevMessagesLengthRef = useRef(messages.length);
+  const prevAiStreamingRef = useRef(Boolean(aiStreamingText));
+
+  const checkScrollPosition = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+    const isUp = distanceFromBottom > 60;
+    setIsScrolledUp(isUp);
+    if (!isUp) {
+      setHasUnreadAtBottom(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    container.addEventListener('scroll', checkScrollPosition, { passive: true });
+    checkScrollPosition();
+    return () => container.removeEventListener('scroll', checkScrollPosition);
+  }, [checkScrollPosition, messages.length]);
+
+  // Track unread messages arriving when user is scrolled up (NEVER auto-scroll)
+  useEffect(() => {
+    const messageCountIncreased = messages.length > prevMessagesLengthRef.current;
+    const aiStartedStreaming = Boolean(aiStreamingText) && !prevAiStreamingRef.current;
+
+    prevMessagesLengthRef.current = messages.length;
+    prevAiStreamingRef.current = Boolean(aiStreamingText);
+
+    if ((messageCountIncreased || aiStartedStreaming) && isScrolledUp) {
+      setHasUnreadAtBottom(true);
+    }
+  }, [messages.length, aiStreamingText, isScrolledUp]);
+
+  const scrollToBottom = () => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    setHasUnreadAtBottom(false);
+    setIsScrolledUp(false);
+  };
 
   const handleCopyShortId = (shortId: string) => {
     const textToCopy = `[@${shortId}]`;
@@ -92,14 +136,8 @@ export const ChatThreadView: React.FC<ChatThreadViewProps> = ({ paneIndex = 1 })
     }
   }, [currentPane.type, currentPane.id, currentPane.highlightSpan]);
 
-  // 2. Chat stream / message arrival effect: Scroll to bottom on new messages or active AI generation
-  useEffect(() => {
-    if (isAiGenerating || aiStreamingText) {
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-    } else if (!currentPane.id && currentPane.type === 'chat') {
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [messages.length, aiStreamingText, isAiGenerating, currentPane.type, currentPane.id]);
+  // 2. PRESERVED: Navigation scroll to mentions handled by Effect #1 above.
+  // Automatic scroll to bottom is disabled to prevent scroll displacement.
 
   const sortedNotes = [...messages].sort(
     (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
@@ -152,8 +190,28 @@ export const ChatThreadView: React.FC<ChatThreadViewProps> = ({ paneIndex = 1 })
 
   return (
     <div data-chat-thread="true" className="relative flex flex-col h-full w-full bg-white text-zinc-900 overflow-hidden select-text font-sans">
+      {/* Sticky Floating Action Button when scrolled up */}
+      {isScrolledUp && (
+        <button
+          type="button"
+          onClick={scrollToBottom}
+          className={`absolute bottom-4 left-1/2 -translate-x-1/2 z-30 transition-all cursor-pointer shadow-sm select-none px-3.5 py-1.5 rounded-full text-xs flex items-center gap-1.5 border backdrop-blur-md ${
+            hasUnreadAtBottom
+              ? 'bg-zinc-100/95 text-zinc-950 border-zinc-300/90 hover:bg-zinc-200/90 font-bold shadow-md'
+              : 'bg-white/95 text-zinc-600 border-zinc-200/90 hover:bg-zinc-50 hover:text-zinc-950 font-medium'
+          }`}
+          title={hasUnreadAtBottom ? 'New unread messages below — click to scroll down' : 'Scroll to bottom'}
+        >
+          {hasUnreadAtBottom ? (
+            <span className="w-2 h-2 rounded-full bg-zinc-900 animate-pulse shrink-0" />
+          ) : (
+            <ChevronDown className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+          )}
+          <span>{hasUnreadAtBottom ? 'New messages below' : 'Scroll to bottom'}</span>
+        </button>
+      )}
       {/* Scrollable Chat Conversation Feed */}
-      <div className={`flex-1 overflow-y-auto overflow-x-hidden space-y-6 bg-white ${isDualPane ? 'p-4 pl-8 md:p-6 md:pl-10' : 'p-4 md:p-6'}`}>
+      <div ref={scrollContainerRef} className={`flex-1 overflow-y-auto overflow-x-hidden space-y-6 bg-white ${isDualPane ? 'p-4 pl-8 md:p-6 md:pl-10' : 'p-4 md:p-6'}`}>
         {sortedNotes.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full min-h-[280px] text-center space-y-3">
             <div className="p-3 bg-zinc-900 text-white rounded-2xl shadow-sm">

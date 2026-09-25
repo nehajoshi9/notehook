@@ -70,7 +70,7 @@ export const AISettingsModal: React.FC<AISettingsModalProps> = ({ isOpen, onClos
                 type="button"
                 onClick={() => {
                   setProvider('gemini');
-                  if (!model || model === 'gpt-4o-mini' || model === 'gemini-1.5-flash' || model === 'gemini-2.5-flash') setModel('gemini-3.6-flash');
+                  if (!model || model === 'gpt-4o-mini' || model === 'gemini-1.5-flash' || model === 'gemini-2.0-flash' || model === 'gemini-2.0-flash-lite' || model === 'gemini-2.5-flash' || model === 'gemini-3.5-flash-lite') setModel('gemini-3.6-flash');
                 }}
                 className={`flex items-center justify-center gap-1.5 p-2 rounded-xl border text-xs font-semibold transition-all ${
                   provider === 'gemini'
