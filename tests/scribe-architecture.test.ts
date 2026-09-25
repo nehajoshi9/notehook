@@ -433,4 +433,72 @@ describe('AI Scribe Architecture & Prefix Caching Tests', () => {
     assert.ok(resultCompleted.injectedContext, 'Modified/completed todo must be re-injected with updated status');
     assert.match(resultCompleted.injectedContext, /\[Status: COMPLETED \/ DONE\]/);
   });
+
+  it('11. Pushes re-injected changed pages to the end of the full text bodies list', async () => {
+    const turn1Time = '2026-09-24T10:00:00.000Z';
+
+    // Page Alpha was injected in Turn 1
+    const pageAlpha: Page = {
+      id: 'p-alpha',
+      short_id: 'e1',
+      type: 'entity',
+      title: 'Alpha Architecture',
+      content: 'Alpha initial specification',
+      created_at: turn1Time,
+      updated_at: turn1Time,
+    };
+
+    const turn1Message: Page = {
+      id: 'turn-1',
+      type: 'message',
+      role: 'assistant',
+      title: 'Alpha Discussion',
+      user_prompt: 'Explain [@Alpha Architecture]',
+      content: 'Here is alpha...',
+      injected_context: `=== REFERENCED CONTEXT FOR THIS TURN ===\n--- REFERENCED PAGE: [@Alpha Architecture] (ID: e1) [type: entity] ---\nContent:\nAlpha initial specification\n--- END REFERENCED PAGE ---\n=== END REFERENCED CONTEXT ===`,
+      referenced_page_ids: ['p-alpha'],
+      created_at: turn1Time,
+    };
+
+    // Now Page Alpha is modified
+    const pageAlphaModified: Page = {
+      ...pageAlpha,
+      content: 'Alpha updated v2 specification',
+      updated_at: '2026-09-24T12:00:00.000Z',
+    };
+
+    // Page Zeta is a brand new page never mentioned before
+    const pageZeta: Page = {
+      id: 'p-zeta',
+      short_id: 'e99',
+      type: 'entity',
+      title: 'Zeta Service',
+      content: 'Zeta fresh specification',
+      created_at: '2026-09-24T12:00:00.000Z',
+    };
+
+    // In Turn 2, user asks about both Alpha (modified, re-injected) and Zeta (fresh)
+    const result = await generateScribeResponse(
+      'Compare [@Alpha Architecture] with [@Zeta Service]',
+      [],
+      dummySettings,
+      undefined,
+      [],
+      [pageAlphaModified, pageZeta, turn1Message],
+      []
+    );
+
+    assert.ok(result.injectedContext);
+    // Zeta is fresh (new), Alpha is re-injected (changed).
+    // Even though alphabetically "Alpha" comes before "Zeta", Zeta MUST be placed first and Alpha pushed to the end!
+    const zetaIndex = result.injectedContext.indexOf('[@Zeta Service]');
+    const alphaIndex = result.injectedContext.indexOf('[@Alpha Architecture]');
+
+    assert.ok(zetaIndex !== -1, 'Zeta must be in injected context');
+    assert.ok(alphaIndex !== -1, 'Alpha must be in injected context');
+    assert.ok(
+      zetaIndex < alphaIndex,
+      `Fresh page (Zeta at index ${zetaIndex}) must appear BEFORE re-injected changed page (Alpha at index ${alphaIndex})`
+    );
+  });
 });

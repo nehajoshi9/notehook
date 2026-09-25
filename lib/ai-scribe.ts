@@ -267,12 +267,26 @@ export function buildKnowledgeCatalogueSection(allPages: Page[]): string {
   return `\n\n=== WORKSPACE KNOWLEDGE CATALOGUE (TOP 25) ===\nThe workspace contains the following knowledge pages. If relevant, you may reference them by [@title] or short ID:\n${lines.join('\n')}\n=== END WORKSPACE CATALOGUE ===`;
 }
 
-export function buildDynamicReferencedSection(referencedPages: Page[]): string {
+export function buildDynamicReferencedSection(
+  referencedPages: Page[],
+  changedPageIds?: Set<string>
+): string {
   if (!referencedPages || referencedPages.length === 0) return '';
 
-  const sorted = [...referencedPages].sort((a, b) => (a.short_id || a.title).localeCompare(b.short_id || b.title));
+  let ordered = referencedPages;
+  if (changedPageIds && changedPageIds.size > 0) {
+    const fresh = referencedPages
+      .filter((p) => !changedPageIds.has(p.id))
+      .sort((a, b) => (a.short_id || a.title).localeCompare(b.short_id || b.title));
+    const reinjected = referencedPages
+      .filter((p) => changedPageIds.has(p.id))
+      .sort((a, b) => (a.short_id || a.title).localeCompare(b.short_id || b.title));
+    ordered = [...fresh, ...reinjected];
+  } else {
+    ordered = [...referencedPages].sort((a, b) => (a.short_id || a.title).localeCompare(b.short_id || b.title));
+  }
 
-  const blocks = sorted.map((page) => {
+  const blocks = ordered.map((page) => {
     let pageContent = (page.content || '').trim();
     if (page.type === 'entity' && page.versions && page.versions.length > 0) {
       const canonicalVersion = page.versions.find(
@@ -365,6 +379,8 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
 
   // Set of page IDs that are already present verbatim in history and have NOT changed since that turn
   const alreadyVerbatimUnchangedIds = new Set<string>();
+  // Set of page IDs that were previously present in history but changed, requiring re-injection to the end
+  const changedPageIds = new Set<string>();
 
   // 1. Any message turn already in the active verbatim history buffer is already present verbatim to the LLM
   for (const turn of pastTurns) {
@@ -401,7 +417,9 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
     for (const item of mentionedInTurn) {
       const itemUpdatedTime = new Date(item.updated_at || item.created_at).getTime();
       const hasChanged = itemUpdatedTime > turnTime;
-      if (!hasChanged) {
+      if (hasChanged) {
+        changedPageIds.add(item.id);
+      } else {
         alreadyVerbatimUnchangedIds.add(item.id);
       }
     }
@@ -427,6 +445,9 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
 
         const isPinned = pinnedPageIds.includes(page.id);
         if (hasChanged || isPinned) {
+          if (hasChanged) {
+            changedPageIds.add(page.id);
+          }
           // File changed since this turn, or is already pinned in Tier 3 session anchors!
           // Strip duplicate/stale reference block from history
           const cleanTitle = page.title.replace(/^@/, '').trim();
@@ -457,11 +478,14 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
 
   // TIER 4: Dynamic Turn References
   // Do NOT re-insert pages if the model already has access to them verbatim and unchanged in history!
+  // Re-injected changed pages are pushed to the very end of the list of full text bodies!
   const toInjectCurrentTurn = nonPinnedReferenced.filter(
     (p) => !alreadyVerbatimUnchangedIds.has(p.id)
   );
-  const dynamicRefSection = buildDynamicReferencedSection(toInjectCurrentTurn);
-  const currentReferencedPageIds = toInjectCurrentTurn.map((p) => p.id);
+  const dynamicRefSection = buildDynamicReferencedSection(toInjectCurrentTurn, changedPageIds);
+  const freshIds = toInjectCurrentTurn.filter((p) => !changedPageIds.has(p.id)).map((p) => p.id);
+  const reinjectedIds = toInjectCurrentTurn.filter((p) => changedPageIds.has(p.id)).map((p) => p.id);
+  const currentReferencedPageIds = [...freshIds, ...reinjectedIds];
 
   // Gemini contents: Alternating user/model history concluding with current prompt + dynamic references
   const geminiContents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> = [];
