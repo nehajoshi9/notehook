@@ -831,7 +831,7 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const topicTitle = generateTopicTitle(prompt);
 
     try {
-      const { text, parsedItems } = await generateScribeResponse(
+      const { text, parsedItems, injectedContext, referencedPageIds } = await generateScribeResponse(
         prompt,
         entities,
         aiSettings,
@@ -852,6 +852,8 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         title: topicTitle,
         content: text,
         user_prompt: prompt.trim(),
+        injected_context: injectedContext,
+        referenced_page_ids: referencedPageIds,
         created_at: new Date().toISOString(),
       };
 

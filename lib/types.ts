@@ -28,6 +28,8 @@ export interface Page {
   done?: boolean; // for type: 'todo'
   starred?: boolean; // for type: 'todo'
   user_prompt?: string; // Framing metadata: exact user prompt text
+  injected_context?: string; // Injected reference blocks for this turn
+  referenced_page_ids?: string[]; // IDs of knowledge pages injected in this turn
   versions?: EntityVersion[];
   canonical_version_id?: string;
   current_version_num?: number;

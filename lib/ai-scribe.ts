@@ -97,6 +97,7 @@ export function buildPinnedKnowledgeSection(allPages: Page[], pinnedPageIds: str
 
   const pinnedPages = allPages
     .filter((p) => pinnedPageIds.includes(p.id) && (p.type === 'entity' || p.type === 'decision' || p.type === 'note'))
+    .slice(0, 3)
     .sort((a, b) => (a.short_id || a.title).localeCompare(b.short_id || b.title));
 
   if (pinnedPages.length === 0) return '';
@@ -119,9 +120,9 @@ export function buildPinnedKnowledgeSection(allPages: Page[], pinnedPageIds: str
   return `\n\n=== PINNED SESSION KNOWLEDGE (GROUND TRUTH ANCHORS) ===\nThe architect has pinned the following high-priority page(s) for this working session. Treat these as active system constraints:\n\n${blocks.join('\n\n')}\n=== END PINNED SESSION KNOWLEDGE ===`;
 }
 
-export function buildKnowledgeCatalogueSection(allPages: Page[], pinnedPageIds: string[] = []): string {
+export function buildKnowledgeCatalogueSection(allPages: Page[]): string {
   const knowledgePages = allPages
-    .filter((p) => (p.type === 'entity' || p.type === 'decision' || p.type === 'note') && !pinnedPageIds.includes(p.id))
+    .filter((p) => p.type === 'entity' || p.type === 'decision' || p.type === 'note')
     .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
     .slice(0, 25)
     .sort((a, b) => (a.short_id || a.title).localeCompare(b.short_id || b.title));
@@ -155,9 +156,10 @@ export function buildDynamicReferencedSection(referencedPages: Page[]): string {
         pageContent = `${pageContent}\n\n[Active Version "${activeVersion.title}"]: ${activeVersion.content.trim()}`;
       }
     }
+    const cleanTitle = page.title.replace(/^@/, '').trim();
     const shortIdStr = page.short_id ? ` (ID: ${page.short_id})` : '';
     const userPromptMeta = page.user_prompt ? `\nUser Prompt Framing: "${page.user_prompt}"` : '';
-    return `--- REFERENCED PAGE: [@${page.title}]${shortIdStr} [type: ${page.type}] ---${userPromptMeta}\nContent:\n${pageContent}`;
+    return `--- REFERENCED PAGE: [@${cleanTitle}]${shortIdStr} [type: ${page.type}] ---${userPromptMeta}\nContent:\n${pageContent}\n--- END REFERENCED PAGE ---`;
   });
 
   return `=== REFERENCED CONTEXT FOR THIS TURN ===\n${blocks.join('\n\n')}\n=== END REFERENCED CONTEXT ===`;
@@ -171,7 +173,7 @@ export async function generateScribeResponse(
   mentions: Mention[] = [],
   allPages: Page[] = [],
   pinnedPageIds: string[] = []
-): Promise<{ text: string; parsedItems: ReturnType<typeof parseScribeMarkup> }> {
+): Promise<{ text: string; parsedItems: ReturnType<typeof parseScribeMarkup>; injectedContext?: string; referencedPageIds?: string[] }> {
   // TIER 1: Invariant System Contract (100% frozen)
   const baseSystemPrompt = `Role: Engineering intelligence engine for Notehook, a Git-backed architectural workspace. Human reviews and commits all state.
 
@@ -210,19 +212,14 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
   - [@decision: Cap PostgreSQL max connection pool at 20]
   - [@todo: Update DATABASE_POOL_MAX in environment variables]"`;
 
-  // TIER 2: Pinned Knowledge Session Anchors (Session-wide cacheable)
+  // TIER 2: Top 25 Knowledge Catalogue (100% stable, deterministic, decoupled from pin state)
+  const catalogueSection = buildKnowledgeCatalogueSection(allPages);
+
+  // TIER 3: Pinned Knowledge Session Anchors (Session-wide cacheable)
   const pinnedSection = buildPinnedKnowledgeSection(allPages, pinnedPageIds);
 
-  // TIER 3: Top 25 Knowledge Catalogue (Deterministically sorted, cacheable)
-  const catalogueSection = buildKnowledgeCatalogueSection(allPages, pinnedPageIds);
-
-  // CACHED SYSTEM PREFIX: Tier 1 + Tier 2 + Tier 3 (Evaluated at request head, 100% stable)
-  const cachedSystemPrompt = `${baseSystemPrompt}${pinnedSection}${catalogueSection}`;
-
-  // TIER 4: Dynamic Turn References (exclude any already pinned in Tier 2)
-  const allReferenced = getReferencedPagesFromPrompt(userPrompt, allPages.length > 0 ? allPages : existingEntities);
-  const dynamicReferenced = allReferenced.filter((p) => !pinnedPageIds.includes(p.id));
-  const dynamicRefSection = buildDynamicReferencedSection(dynamicReferenced);
+  // CACHED SYSTEM PREFIX: Tier 1 (Contract) + Tier 2 (Catalogue) + Tier 3 (Pinned)
+  const cachedSystemPrompt = `${baseSystemPrompt}${catalogueSection}${pinnedSection}`;
 
   // TIER 5: Verbatim Conversation History (Last 15 completed turns)
   const MAX_VERBATIM_TURNS = 15;
@@ -231,16 +228,87 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
     .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
     .slice(-MAX_VERBATIM_TURNS);
 
+  // Extract all referenced pages in current prompt
+  const allReferenced = getReferencedPagesFromPrompt(userPrompt, allPages.length > 0 ? allPages : existingEntities);
+  // Exclude any already pinned in Tier 3 (since Tier 3 already has their full canonical content)
+  const nonPinnedReferenced = allReferenced.filter((p) => !pinnedPageIds.includes(p.id));
+
+  // Set of page IDs that are already present verbatim in history and have NOT changed since that turn
+  const alreadyVerbatimUnchangedIds = new Set<string>();
+
+  // Process past turns:
+  // If an injected page in a past turn was modified after that turn, remove its stale reference block
+  const processedPastTurns = pastTurns.map((turn) => {
+    let turnInjected = turn.injected_context || '';
+    const turnTime = new Date(turn.created_at).getTime();
+
+    // Identify referenced pages either from referenced_page_ids or extracted from injected_context
+    const referencedIdsInTurn = new Set<string>(turn.referenced_page_ids || []);
+    if (turnInjected) {
+      const titleMatches = turnInjected.matchAll(/--- REFERENCED PAGE: \[@?([^\]]+)\]/g);
+      for (const m of titleMatches) {
+        const title = m[1].replace(/^@/, '').trim();
+        const p = allPages.find(
+          (page) => page.title.replace(/^@/, '').trim().toLowerCase() === title.toLowerCase()
+        );
+        if (p) referencedIdsInTurn.add(p.id);
+      }
+    }
+
+    if (referencedIdsInTurn.size > 0) {
+      for (const refId of referencedIdsInTurn) {
+        const page = allPages.find((p) => p.id === refId);
+        if (!page) continue;
+
+        const pageUpdatedTime = new Date(page.updated_at || page.created_at).getTime();
+        const hasChanged = pageUpdatedTime > turnTime;
+
+        if (hasChanged) {
+          // File changed since this turn! Strip stale reference block from history
+          const cleanTitle = page.title.replace(/^@/, '').trim();
+          const escapedTitle = cleanTitle.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+          const blockRegex = new RegExp(`--- REFERENCED PAGE: \\[@?${escapedTitle}\\][\\s\\S]*?--- END REFERENCED PAGE ---(\\n\\n)?`, 'gi');
+          turnInjected = turnInjected.replace(blockRegex, '').trim();
+        } else {
+          // Page has NOT changed: model already has access to it verbatim in history!
+          alreadyVerbatimUnchangedIds.add(page.id);
+        }
+      }
+    }
+
+    // Clean up empty section wrapper if all reference blocks inside were removed
+    if (!turnInjected.includes('--- REFERENCED PAGE:')) {
+      turnInjected = '';
+    }
+
+    const turnFullPrompt = turnInjected
+      ? `${turnInjected}\n\n${turn.user_prompt!.trim()}`
+      : turn.user_prompt!.trim();
+
+    return {
+      userText: turnFullPrompt,
+      modelText: turn.content.trim(),
+    };
+  });
+
+  // TIER 4: Dynamic Turn References
+  // Do NOT re-insert pages if the model already has access to them verbatim and unchanged in history!
+  const toInjectCurrentTurn = nonPinnedReferenced.filter(
+    (p) => !alreadyVerbatimUnchangedIds.has(p.id)
+  );
+  const dynamicRefSection = buildDynamicReferencedSection(toInjectCurrentTurn);
+  const currentReferencedPageIds = toInjectCurrentTurn.map((p) => p.id);
+
   // Gemini contents: Alternating user/model history concluding with current prompt + dynamic references
   const geminiContents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> = [];
-  for (const turn of pastTurns) {
+  for (const turn of processedPastTurns) {
     geminiContents.push({
       role: 'user',
-      parts: [{ text: turn.user_prompt!.trim() }],
+      parts: [{ text: turn.userText }],
     });
     geminiContents.push({
       role: 'model',
-      parts: [{ text: turn.content.trim() }],
+      parts: [{ text: turn.modelText }],
     });
   }
 
@@ -258,14 +326,14 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
   const openAiMessages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
     { role: 'system', content: cachedSystemPrompt },
   ];
-  for (const turn of pastTurns) {
+  for (const turn of processedPastTurns) {
     openAiMessages.push({
       role: 'user',
-      content: turn.user_prompt!.trim(),
+      content: turn.userText,
     });
     openAiMessages.push({
       role: 'assistant',
-      content: turn.content.trim(),
+      content: turn.modelText,
     });
   }
   openAiMessages.push({
@@ -278,7 +346,13 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
 
   // 1. If no API key or simulated provider, fallback to simulator
   if (effectiveProvider === 'simulated' || !apiKey) {
-    return generateSimulatedResponse(userPrompt, existingEntities, onChunk);
+    return generateSimulatedResponse(
+      userPrompt,
+      existingEntities,
+      onChunk,
+      dynamicRefSection || undefined,
+      currentReferencedPageIds.length > 0 ? currentReferencedPageIds : undefined
+    );
   }
 
   // 2. Gemini Provider
@@ -334,7 +408,12 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
 
           if (fullText) {
             const parsedItems = parseScribeMarkup(fullText, existingEntities);
-            return { text: fullText, parsedItems };
+            return {
+              text: fullText,
+              parsedItems,
+              injectedContext: dynamicRefSection || undefined,
+              referencedPageIds: currentReferencedPageIds.length > 0 ? currentReferencedPageIds : undefined,
+            };
           }
         }
 
@@ -357,7 +436,12 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
           if (text) {
             if (onChunk) onChunk(text);
             const parsedItems = parseScribeMarkup(text, existingEntities);
-            return { text, parsedItems };
+            return {
+              text,
+              parsedItems,
+              injectedContext: dynamicRefSection || undefined,
+              referencedPageIds: currentReferencedPageIds.length > 0 ? currentReferencedPageIds : undefined,
+            };
           }
         } else {
           lastErrorDetails = await fallbackRes.text();
@@ -368,7 +452,13 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
     }
 
     console.warn('Gemini model calls failed, falling back to simulator:', lastErrorDetails);
-    return generateSimulatedResponse(userPrompt, existingEntities, onChunk);
+    return generateSimulatedResponse(
+      userPrompt,
+      existingEntities,
+      onChunk,
+      dynamicRefSection || undefined,
+      currentReferencedPageIds.length > 0 ? currentReferencedPageIds : undefined
+    );
   }
 
   // 3. OpenAI Provider
@@ -419,22 +509,46 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
       }
 
       const parsedItems = parseScribeMarkup(fullText, existingEntities);
-      return { text: fullText, parsedItems };
+      return {
+        text: fullText,
+        parsedItems,
+        injectedContext: dynamicRefSection || undefined,
+        referencedPageIds: currentReferencedPageIds.length > 0 ? currentReferencedPageIds : undefined,
+      };
     } catch (err: any) {
       console.warn('OpenAI call failed, falling back to simulator:', err);
-      return generateSimulatedResponse(userPrompt, existingEntities, onChunk);
+      return generateSimulatedResponse(
+        userPrompt,
+        existingEntities,
+        onChunk,
+        dynamicRefSection || undefined,
+        currentReferencedPageIds.length > 0 ? currentReferencedPageIds : undefined
+      );
     }
   }
 
   // Fallback to simulator
-  return generateSimulatedResponse(userPrompt, existingEntities, onChunk);
+  return generateSimulatedResponse(
+    userPrompt,
+    existingEntities,
+    onChunk,
+    dynamicRefSection || undefined,
+    currentReferencedPageIds.length > 0 ? currentReferencedPageIds : undefined
+  );
 }
 
 async function generateSimulatedResponse(
   userPrompt: string,
   existingEntities: Page[],
-  onChunk?: (chunk: string) => void
-): Promise<{ text: string; parsedItems: ReturnType<typeof parseScribeMarkup> }> {
+  onChunk?: (chunk: string) => void,
+  injectedContext?: string,
+  referencedPageIds?: string[]
+): Promise<{
+  text: string;
+  parsedItems: ReturnType<typeof parseScribeMarkup>;
+  injectedContext?: string;
+  referencedPageIds?: string[];
+}> {
   // Generate intelligent mock response based on prompt context
   const p = userPrompt.toLowerCase();
 
@@ -495,6 +609,11 @@ Next steps:
   }
 
   const parsedItems = parseScribeMarkup(currentText, existingEntities);
-  return { text: currentText, parsedItems };
+  return {
+    text: currentText,
+    parsedItems,
+    injectedContext,
+    referencedPageIds,
+  };
 }
 
