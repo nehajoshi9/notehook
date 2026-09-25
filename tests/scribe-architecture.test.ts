@@ -278,4 +278,51 @@ describe('AI Scribe Architecture & Prefix Caching Tests', () => {
       'Pinned page should not be re-injected in Tier 4 dynamic context'
     );
   });
+
+  it('7. MentionIndex resolves mentions in O(L) time across short IDs, titles, and typed tags', () => {
+    const prompt = 'Please check [@e1] alongside @PostgreSQL DB and [@decision: Cap Pool Size at 20] for performance.';
+    const referenced = getReferencedPagesFromPrompt(prompt, samplePages);
+
+    const referencedIds = referenced.map((p) => p.id).sort();
+    assert.deepEqual(
+      referencedIds,
+      ['page-auth', 'page-db', 'page-decision'].sort(),
+      'Must resolve all 3 referenced pages accurately'
+    );
+  });
+
+  it('8. MentionIndex Trie correctly handles longest-prefix matches and avoids false substrings', () => {
+    const pages: Page[] = [
+      {
+        id: 'p-auth',
+        short_id: 'e10',
+        type: 'entity',
+        title: 'Auth',
+        content: 'Auth base',
+        created_at: '2026-09-20T00:00:00.000Z',
+      },
+      {
+        id: 'p-auth-service',
+        short_id: 'e11',
+        type: 'entity',
+        title: 'Auth Service',
+        content: 'Auth Service full',
+        created_at: '2026-09-20T00:00:00.000Z',
+      },
+    ];
+
+    // Longest prefix match should resolve "Auth Service", not just "Auth"
+    const matchLongest = getReferencedPagesFromPrompt('How does @Auth Service connect to external identity?', pages);
+    assert.equal(matchLongest.length, 1);
+    assert.equal(matchLongest[0].id, 'p-auth-service');
+
+    // Prompt mentioning "@author" must NOT match "@Auth"
+    const noFalsePositive = getReferencedPagesFromPrompt('Contact the @author for permissions.', pages);
+    assert.equal(noFalsePositive.length, 0, '@author must not match @Auth');
+
+    // Prompt mentioning "@Auth" specifically
+    const matchAuth = getReferencedPagesFromPrompt('Check @Auth configuration.', pages);
+    assert.equal(matchAuth.length, 1);
+    assert.equal(matchAuth[0].id, 'p-auth');
+  });
 });

@@ -17,50 +17,177 @@ export function getTopRecentEntityTitles(entities: Page[], mentions: Mention[] =
   return sorted.slice(0, 25).map((e) => e.title);
 }
 
-export function getReferencedPagesFromPrompt(prompt: string, allPages: Page[] = []): Page[] {
-  if (!prompt || !allPages || allPages.length === 0) return [];
+interface TrieNode {
+  children: Map<string, TrieNode>;
+  page?: Page;
+}
 
-  const referencedMap = new Map<string, Page>();
+export class MentionIndex {
+  private exactMap = new Map<string, Page>();
+  private root: TrieNode = { children: new Map() };
 
-  // 1. Parse scribe markup tags in prompt
-  const parsedItems = parseScribeMarkup(prompt, allPages);
-  for (const item of parsedItems) {
-    const cleanTitle = (item.nameOrTitle || item.fullText || '').trim().toLowerCase();
-    if (!cleanTitle) continue;
-
-    const matched = allPages.find((p) => {
-      if (p.id.toLowerCase() === cleanTitle) return true;
-      if (p.short_id && p.short_id.toLowerCase() === cleanTitle) return true;
-      const cleanPTitle = p.title.replace(/^@/, '').trim().toLowerCase();
-      if (cleanPTitle === cleanTitle) return true;
-      return false;
-    });
-
-    if (matched && !referencedMap.has(matched.id)) {
-      referencedMap.set(matched.id, matched);
+  constructor(pages: Page[]) {
+    for (const page of pages) {
+      this.indexPage(page);
     }
   }
 
-  // 2. Scan all pages for short_id (e.g. [@m1], @m1) or title matches in prompt
-  for (const page of allPages) {
-    if (referencedMap.has(page.id)) continue;
+  private addKey(key: string, page: Page) {
+    const normalized = key.toLowerCase();
+    this.exactMap.set(normalized, page);
 
+    let node = this.root;
+    for (let i = 0; i < normalized.length; i++) {
+      const ch = normalized[i];
+      let next = node.children.get(ch);
+      if (!next) {
+        next = { children: new Map() };
+        node.children.set(ch, next);
+      }
+      node = next;
+    }
+    if (!node.page) {
+      node.page = page;
+    }
+  }
+
+  private indexPage(page: Page) {
+    // 1. Direct page IDs
+    this.exactMap.set(page.id.toLowerCase(), page);
+
+    // 2. Short ID
     if (page.short_id) {
-      const escapedShort = page.short_id.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
-      const shortRegex = new RegExp(`\\[@${escapedShort}\\]|@${escapedShort}\\b`, 'i');
-      if (shortRegex.test(prompt)) {
-        referencedMap.set(page.id, page);
-        continue;
+      const shortId = page.short_id.trim();
+      this.exactMap.set(shortId.toLowerCase(), page);
+      this.addKey(`[@${shortId}]`, page);
+      this.addKey(`@${shortId}`, page);
+    }
+
+    // 3. Title variations
+    const cleanTitle = page.title.replace(/^@/, '').trim();
+    if (cleanTitle) {
+      this.exactMap.set(cleanTitle.toLowerCase(), page);
+      this.addKey(`[@${cleanTitle}]`, page);
+      this.addKey(`@${cleanTitle}`, page);
+
+      if (page.type) {
+        this.addKey(`[@${page.type}:${cleanTitle}]`, page);
+        this.addKey(`[@${page.type}: ${cleanTitle}]`, page);
       }
     }
 
-    const cleanTitle = page.title.replace(/^@/, '').trim();
-    if (cleanTitle && cleanTitle.length >= 2) {
-      const escapedTitle = cleanTitle.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
-      const titleRegex = new RegExp(`\\[@(todo:|decision:|note:|message:)?\\s*${escapedTitle}\\s*\\]|@${escapedTitle}\\b`, 'i');
-      if (titleRegex.test(prompt)) {
-        referencedMap.set(page.id, page);
+    // 4. Version titles (for entities)
+    if (page.versions && page.versions.length > 0) {
+      for (const v of page.versions) {
+        const vTitle = v.title.replace(/^@/, '').trim();
+        if (vTitle) {
+          this.exactMap.set(vTitle.toLowerCase(), page);
+          this.addKey(`[@${vTitle}]`, page);
+          this.addKey(`@${vTitle}`, page);
+        }
       }
+    }
+  }
+
+  public lookupExact(key: string): Page | undefined {
+    if (!key) return undefined;
+    const clean = key.replace(/^@/, '').trim().toLowerCase();
+    return this.exactMap.get(clean) || this.exactMap.get(key.trim().toLowerCase());
+  }
+
+  // Scan text in O(L) time using the Trie with exact span tracking
+  public searchMentionsWithSpans(text: string): Array<{ page: Page; start: number; end: number }> {
+    const matches: Array<{ page: Page; start: number; end: number }> = [];
+    const lower = text.toLowerCase();
+    const len = lower.length;
+
+    let i = 0;
+    while (i < len) {
+      // Mentions start with '@' or '[@'
+      if (lower[i] === '@' || (lower[i] === '[' && i + 1 < len && lower[i + 1] === '@')) {
+        let node = this.root;
+        let lastMatchedPage: Page | undefined;
+        let matchEndIndex = -1;
+
+        let j = i;
+        while (j < len) {
+          const ch = lower[j];
+          const next = node.children.get(ch);
+          if (!next) break;
+
+          node = next;
+          j++;
+
+          if (node.page) {
+            const isBracketed = lower[i] === '[';
+            if (isBracketed) {
+              if (lower[j - 1] === ']') {
+                lastMatchedPage = node.page;
+                matchEndIndex = j;
+              }
+            } else {
+              const nextChar = j < len ? lower[j] : '';
+              const isWordChar = /[a-z0-9_]/i.test(nextChar);
+              if (!isWordChar) {
+                lastMatchedPage = node.page;
+                matchEndIndex = j;
+              }
+            }
+          }
+        }
+
+        if (lastMatchedPage) {
+          matches.push({
+            page: lastMatchedPage,
+            start: i,
+            end: matchEndIndex,
+          });
+          i = matchEndIndex;
+          continue;
+        }
+      }
+      i++;
+    }
+
+    return matches;
+  }
+
+  public searchMentions(text: string): Page[] {
+    const spans = this.searchMentionsWithSpans(text);
+    const results = new Map<string, Page>();
+    for (const match of spans) {
+      results.set(match.page.id, match.page);
+    }
+    return Array.from(results.values());
+  }
+}
+
+export function getReferencedPagesFromPrompt(prompt: string, allPages: Page[] = []): Page[] {
+  if (!prompt || !allPages || allPages.length === 0) return [];
+
+  const index = new MentionIndex(allPages);
+  const referencedMap = new Map<string, Page>();
+
+  // 1. O(L) Trie scan for bracketed and unbracketed mentions with span tracking
+  const foundSpans = index.searchMentionsWithSpans(prompt);
+  for (const match of foundSpans) {
+    referencedMap.set(match.page.id, match.page);
+  }
+
+  // 2. Parse scribe markup tags and resolve in O(1) via inverted index, ignoring tags subsumed by longer Trie spans
+  const parsedItems = parseScribeMarkup(prompt, allPages);
+  for (const item of parsedItems) {
+    if (item.spanStart !== undefined && item.spanEnd !== undefined) {
+      const isSubsumed = foundSpans.some(
+        (span) => item.spanStart! >= span.start && item.spanEnd! <= span.end && (item.spanEnd! - item.spanStart!) < (span.end - span.start)
+      );
+      if (isSubsumed) continue;
+    }
+
+    const key = item.nameOrTitle || item.fullText || '';
+    const matched = index.lookupExact(key);
+    if (matched && !referencedMap.has(matched.id)) {
+      referencedMap.set(matched.id, matched);
     }
   }
 
