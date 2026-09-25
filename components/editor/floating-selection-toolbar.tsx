@@ -605,6 +605,16 @@ export const FloatingSelectionToolbar: React.FC<FloatingSelectionToolbarProps> =
     shortId: entity.short_id,
   }));
 
+  const saveToEntityItem: SuggestionItem = {
+    id: 'save-to-entity',
+    title: 'Save to Entity',
+    type: 'page',
+    itemType: 'entity',
+    description: 'Save selected text to a new entity',
+    score: 960,
+    scopeLabel: 'Entity',
+  };
+
   const copyToNewNoteItem: SuggestionItem = {
     id: 'copy-to-new-note',
     title: 'Copy to New Note',
@@ -624,9 +634,10 @@ export const FloatingSelectionToolbar: React.FC<FloatingSelectionToolbarProps> =
 
   const suggestions: SuggestionItem[] = selectedText
     ? (hasReferenceError
-        ? [...saveAsEntityItems, copyToNewNoteItem]
+        ? [...saveAsEntityItems, saveToEntityItem, copyToNewNoteItem]
         : [
             ...saveAsEntityItems,
+            saveToEntityItem,
             copyToNewNoteItem,
             ...baseSuggestions.filter(
               (b) => !saveAsEntityItems.some((s) => s.pageId === b.pageId) && !b.id.startsWith('create-note-') && b.id !== 'primitive-note'
@@ -639,12 +650,44 @@ export const FloatingSelectionToolbar: React.FC<FloatingSelectionToolbarProps> =
   const handleSelectSuggestion = (item: SuggestionItem) => {
     if (!selectedText) return;
 
+    if (item.id === 'save-to-entity') {
+      const cleanBodyText = selectedText;
+      const untaggedForTitle = untagReferences(cleanBodyText);
+      const cleanTitle = formatItemTitle(untaggedForTitle, 45) || 'New Entity';
+      const activeBlocks = document.querySelectorAll<HTMLElement>('.scribe-markdown-block.is-block-selected');
+      const targetContainer = activeBlocks.length > 0 ? activeBlocks[0].closest<HTMLElement>('[data-page-id], [data-message-id]') : null;
+      const pId = targetContainer?.getAttribute('data-page-id') || targetContainer?.getAttribute('data-message-id') || detectedSourcePageId;
+      const sourcePage = pId ? pages.find((p) => p.id === pId) : null;
+      const sourceShortId = targetContainer?.getAttribute('data-page-short-id') || targetContainer?.getAttribute('data-short-id') || sourcePage?.short_id;
+      const sourceTag = sourceShortId ? `[@${sourceShortId}]` : (sourcePage ? `[@${sourcePage.id}]` : '');
+      const entityBody = sourceTag && !cleanBodyText.startsWith(`From ${sourceTag}`)
+        ? `From ${sourceTag}:\n${cleanBodyText}`
+        : cleanBodyText;
+      const newEntity = createEntityPage(cleanTitle, entityBody);
+      if (sourcePage) {
+        addManualMention(sourcePage.id, newEntity.title, selectedText);
+      }
+      openInPane2('entity', newEntity.id, newEntity.title);
+
+      setPosition(null);
+      setSelectedText('');
+      setHasReferenceError(false);
+      setAllAvailableEntities([]);
+      window.getSelection()?.removeAllRanges();
+      clearAllGutterSelections();
+      return;
+    }
+
     if (item.id === 'copy-to-new-note') {
       const cleanBodyText = selectedText;
       const untaggedForTitle = untagReferences(cleanBodyText);
       const cleanTitle = formatItemTitle(untaggedForTitle, 45) || 'Untitled Note';
-      const sourcePage = detectedSourcePageId ? pages.find((p) => p.id === detectedSourcePageId) : null;
-      const sourceTag = sourcePage?.short_id ? `[@${sourcePage.short_id}]` : (sourcePage ? `[@${sourcePage.id}]` : '');
+      const activeBlocks = document.querySelectorAll<HTMLElement>('.scribe-markdown-block.is-block-selected');
+      const targetContainer = activeBlocks.length > 0 ? activeBlocks[0].closest<HTMLElement>('[data-page-id], [data-message-id]') : null;
+      const pId = targetContainer?.getAttribute('data-page-id') || targetContainer?.getAttribute('data-message-id') || detectedSourcePageId;
+      const sourcePage = pId ? pages.find((p) => p.id === pId) : null;
+      const sourceShortId = targetContainer?.getAttribute('data-page-short-id') || targetContainer?.getAttribute('data-short-id') || sourcePage?.short_id;
+      const sourceTag = sourceShortId ? `[@${sourceShortId}]` : (sourcePage ? `[@${sourcePage.id}]` : '');
       const noteBody = sourceTag && !cleanBodyText.startsWith(`From ${sourceTag}`)
         ? `From ${sourceTag}:\n${cleanBodyText}`
         : cleanBodyText;
