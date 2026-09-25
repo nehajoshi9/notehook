@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { usePlanet } from '@/lib/context';
 import { EntityVersion } from '@/lib/types';
 import { Tag, CheckSquare, Square, Zap, ArrowLeft, FileText, MessageSquare, Star, Bookmark, Trash2, Search, ChevronUp, ChevronDown, X, Check } from 'lucide-react';
-import { convertScribeTextToHtml, findPageForPill, isCursorInsideReference, getCaretOffsetFromPoint, normalizeRawContentToCanonicalBrackets, scrollToMentionOrElement, selectMarkdownBlock, clearMarkdownBlockSelection, syncMultiBlockSelection, handleGutterRangeClick, handleGutterMouseDown } from '@/lib/scribe-parser';
+import { convertScribeTextToHtml, findPageForPill, isCursorInsideReference, getCaretOffsetFromPoint, normalizeRawContentToCanonicalBrackets, scrollToMentionOrElement, selectMarkdownBlock, clearMarkdownBlockSelection, syncMultiBlockSelection, handleGutterRangeClick, handleGutterMouseDown, clearAllGutterSelections, htmlToMarkdown, parseScribeMarkup } from '@/lib/scribe-parser';
 import { getPastelColorForTitle } from '@/lib/color';
 import { getMentionSnippetsForPage, MentionHighlightedText, matchesExplicitReference } from '@/lib/mentions';
 import { getRankedSuggestions, SuggestionItem } from '@/lib/ranking';
@@ -313,11 +313,15 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
   const currentPaneState = paneIndex === 1 ? leftPane : rightPane;
   useEffect(() => {
     if (targetPage && currentPaneState?.highlightSpan && currentPaneState.id === targetPage.id) {
-      setIsPageSearchOpen(true);
-      setPageSearchQuery(currentPaneState.highlightSpan);
-      setCurrentMatchIndex(0);
+      const container = pageViewContainerRef.current;
+      if (container) {
+        const timer = setTimeout(() => {
+          scrollToMentionOrElement(container, currentPaneState.highlightSpan);
+        }, 80);
+        return () => clearTimeout(timer);
+      }
     }
-  }, [targetPage?.id, currentPaneState?.id, currentPaneState?.highlightSpan]);
+  }, [targetPage?.id, currentPaneState, bodyText, targetPage?.versions, targetPage?.content, targetPage?.user_prompt]);
 
   const { renderedTitleHtml, renderedPromptHtml, renderedBodyHtml, totalMatchCount } = React.useMemo(() => {
     const query = pageSearchQuery.trim();
@@ -449,7 +453,10 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
   const insertContentSuggestion = (item: SuggestionItem) => {
     if (!contentAtMatch || contentAtMatch.index === undefined || !targetPage) return;
     const prefix = contentTextBeforeCursor.slice(0, contentAtMatch.index);
-    const textAfter = bodyText.slice(activeContentCursor);
+    let textAfter = bodyText.slice(activeContentCursor);
+    if (textAfter.startsWith(']')) {
+      textAfter = textAfter.slice(1);
+    }
     let inserted = '';
 
     if (item.type === 'primitive') {
@@ -482,6 +489,8 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
         inserted = `[@decision: ${rawTitle}] `;
       } else if (item.itemType === 'note') {
         inserted = `[@note: ${rawTitle}] `;
+      } else if (item.itemType === 'message') {
+        inserted = item.shortId ? `[@${item.shortId}] ` : `[@message: ${rawTitle}] `;
       } else {
         inserted = `[@${rawTitle}] `;
       }
@@ -505,7 +514,10 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
   const insertPromptSuggestion = (item: SuggestionItem) => {
     if (!promptAtMatch || promptAtMatch.index === undefined || !targetPage) return;
     const prefix = promptTextBeforeCursor.slice(0, promptAtMatch.index);
-    const textAfter = promptText.slice(activePromptCursor);
+    let textAfter = promptText.slice(activePromptCursor);
+    if (textAfter.startsWith(']')) {
+      textAfter = textAfter.slice(1);
+    }
     let inserted = '';
 
     if (item.type === 'primitive') {
@@ -538,6 +550,8 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
         inserted = `[@decision: ${rawTitle}] `;
       } else if (item.itemType === 'note') {
         inserted = `[@note: ${rawTitle}] `;
+      } else if (item.itemType === 'message') {
+        inserted = item.shortId ? `[@${item.shortId}] ` : `[@message: ${rawTitle}] `;
       } else {
         inserted = `[@${rawTitle}] `;
       }
@@ -766,7 +780,10 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
   const insertVersionSuggestion = (item: SuggestionItem) => {
     if (!versionAtMatch || versionAtMatch.index === undefined || !targetPage || !activeVersion) return;
     const prefix = versionTextBeforeCursor.slice(0, versionAtMatch.index);
-    const textAfter = activeVersionText.slice(activeVersionCursor);
+    let textAfter = activeVersionText.slice(activeVersionCursor);
+    if (textAfter.startsWith(']')) {
+      textAfter = textAfter.slice(1);
+    }
     let inserted = '';
 
     if (item.type === 'primitive') {
@@ -799,6 +816,8 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
         inserted = `[@decision: ${rawTitle}] `;
       } else if (item.itemType === 'note') {
         inserted = `[@note: ${rawTitle}] `;
+      } else if (item.itemType === 'message') {
+        inserted = item.shortId ? `[@${item.shortId}] ` : `[@message: ${rawTitle}] `;
       } else {
         inserted = `[@${rawTitle}] `;
       }
@@ -815,6 +834,66 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
         versionContentRef.current.focus();
         versionContentRef.current.setSelectionRange(newCursorPos, newCursorPos);
       }
+    }, 0);
+  };
+
+  const handleMarkdownPaste = (
+    e: React.ClipboardEvent<HTMLTextAreaElement>,
+    currentText: string,
+    onTextChange: (newText: string) => void,
+    onCursorChange: (newCursor: number) => void
+  ) => {
+    let pastedText = e.clipboardData.getData('text/plain');
+    const htmlText = e.clipboardData.getData('text/html');
+
+    if (htmlText && (!pastedText || !/(?:^|\n)[#>\-*`\[]/.test(pastedText))) {
+      const converted = htmlToMarkdown(htmlText);
+      if (converted && converted.length > 0) {
+        pastedText = converted;
+      }
+    }
+
+    if (!pastedText) return;
+
+    const normalized = normalizeRawContentToCanonicalBrackets(pastedText, pages);
+    const parsed = parseScribeMarkup(normalized, pages);
+
+    parsed.forEach((item) => {
+      const cleanTitle = (item.nameOrTitle || item.fullText || '').trim();
+      if (!cleanTitle) return;
+
+      const cleanLower = cleanTitle.toLowerCase();
+      const isPageIDPattern = /^(m|e|n|d|t)\d+$/i.test(cleanLower);
+      const pageExists = pages.some(
+        (p) => (p.short_id && p.short_id.toLowerCase() === cleanLower) || p.title.toLowerCase() === cleanLower
+      );
+
+      if (isPageIDPattern || pageExists) return;
+
+      if (item.type === 'todo') {
+        createTodoPage(cleanTitle, '', targetPage?.id);
+      } else if (item.type === 'decision') {
+        createDecisionPage(cleanTitle, '', targetPage?.id);
+      } else if (item.type === 'note') {
+        createNotePage(cleanTitle, '');
+      } else if (item.type === 'entity') {
+        createEntityPage(cleanTitle);
+      }
+    });
+
+    e.preventDefault();
+    const textarea = e.currentTarget;
+    const start = textarea.selectionStart || 0;
+    const end = textarea.selectionEnd || 0;
+    const newVal = currentText.slice(0, start) + normalized + currentText.slice(end);
+    const newCursor = start + normalized.length;
+
+    onTextChange(newVal);
+    onCursorChange(newCursor);
+
+    setTimeout(() => {
+      textarea.setSelectionRange(newCursor, newCursor);
+      autoResizeTextarea(textarea, 32);
     }, 0);
   };
 
@@ -859,11 +938,16 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
   };
 
   const handleMentionClick = (bp: (typeof pages)[0], mentionSnippet?: string) => {
+    const targetSpan = targetPage?.title || targetPage?.short_id || mentionSnippet;
     if (bp.type === 'message') {
-      handleScrollToChatWithId(bp.id, targetPage?.title || targetPage?.short_id || mentionSnippet);
+      handleScrollToChatWithId(bp.id, targetSpan);
     } else {
       const displayTitle = bp.type === 'entity' ? `@${bp.title}` : bp.title;
-      openInPane2(bp.type as any, bp.id, displayTitle);
+      if (paneIndex === 1) {
+        openInPane1(bp.type as any, bp.id, displayTitle, targetSpan);
+      } else {
+        openInPane2(bp.type as any, bp.id, displayTitle, targetSpan);
+      }
     }
   };
 
@@ -883,6 +967,11 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
       return;
     }
 
+    // If user has selected gutters, clicking away deselects them and prevents entering edit mode on this click
+    if (clearAllGutterSelections()) {
+      return;
+    }
+
     const pillTarget = (e.target as HTMLElement).closest('.page-mention-pill, [data-entity], [data-title]') as HTMLElement;
     if (pillTarget) {
       e.stopPropagation();
@@ -890,7 +979,8 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
 
       if (matchedPage) {
         const displayTitle = matchedPage.type === 'entity' ? `@${matchedPage.title}` : matchedPage.title;
-        openInPane2(matchedPage.type as any, matchedPage.id, displayTitle);
+        const targetSpan = pillTarget.getAttribute('data-full') || pillTarget.getAttribute('data-title') || pillTarget.getAttribute('data-short-id') || pillTarget.textContent?.trim();
+        openInPane2(matchedPage.type as any, matchedPage.id, displayTitle, targetSpan);
         return;
       }
       return;
@@ -990,7 +1080,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
       }
     }
 
-    handleScrollToChatWithId(sourceNoteId);
+    handleScrollToChatWithId(sourceNoteId, targetPage.title || targetPage.short_id);
   };
 
   return (
@@ -1074,6 +1164,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
             {targetPage.short_id && (
               <button
                 type="button"
+                data-short-id={targetPage.short_id}
                 onClick={(e) => {
                   e.stopPropagation();
                   handleCopyShortId(targetPage.short_id!);
@@ -1189,6 +1280,17 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
               <textarea
                 ref={promptRef}
                 value={promptText}
+                onPaste={(e) =>
+                  handleMarkdownPaste(
+                    e,
+                    promptText,
+                    (t) => {
+                      setPromptText(t);
+                      if (targetPage) updatePageUserPrompt(targetPage.id, t);
+                    },
+                    setPromptCursorPos
+                  )
+                }
                 onChange={(e) => {
                   setPromptText(e.target.value);
                   setPromptCursorPos(e.target.selectionStart ?? e.target.value.length);
@@ -1261,7 +1363,8 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
                   const matchedPage = findPageForPill(pillTarget, pages);
                   if (matchedPage) {
                     const displayTitle = matchedPage.type === 'entity' ? `@${matchedPage.title}` : matchedPage.title;
-                    openInPane2(matchedPage.type as any, matchedPage.id, displayTitle);
+                    const targetSpan = pillTarget.getAttribute('data-full') || pillTarget.getAttribute('data-title') || pillTarget.getAttribute('data-short-id') || pillTarget.textContent?.trim();
+                    openInPane2(matchedPage.type as any, matchedPage.id, displayTitle, targetSpan);
                     return;
                   }
                   return;
@@ -1320,6 +1423,17 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
               <textarea
                 ref={contentRef}
                 value={bodyText}
+                onPaste={(e) =>
+                  handleMarkdownPaste(
+                    e,
+                    bodyText,
+                    (t) => {
+                      setBodyText(t);
+                      if (targetPage) updatePageContent(targetPage.id, t);
+                    },
+                    setContentCursorPos
+                  )
+                }
                 onChange={(e) => {
                   const val = e.target.value;
                   setBodyText(val);
@@ -1538,6 +1652,14 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
                       <textarea
                         ref={versionContentRef}
                         value={activeVersion.content}
+                        onPaste={(e) =>
+                          handleMarkdownPaste(
+                            e,
+                            activeVersionText,
+                            (t) => handleVersionContentChange(t),
+                            setVersionCursorPos
+                          )
+                        }
                         onChange={(e) => {
                           const val = e.target.value;
                           const cur = e.target.selectionStart ?? val.length;
@@ -1606,7 +1728,8 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
                           const matchedPage = findPageForPill(pillTarget, pages);
                           if (matchedPage) {
                             const displayTitle = matchedPage.type === 'entity' ? `@${matchedPage.title}` : matchedPage.title;
-                            openInPane2(matchedPage.type as any, matchedPage.id, displayTitle);
+                            const targetSpan = pillTarget.getAttribute('data-full') || pillTarget.getAttribute('data-title') || pillTarget.getAttribute('data-short-id') || pillTarget.textContent?.trim();
+                            openInPane2(matchedPage.type as any, matchedPage.id, displayTitle, targetSpan);
                             return;
                           }
                           return;
@@ -1644,7 +1767,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
 
         {/* Backlinks & Mentions Feed Section */}
         {backlinkedPages.length > 0 && (
-          <div className="border-t border-zinc-200 bg-zinc-50/40 pt-4 pb-4 shrink-0 -mx-6 -mb-6 mt-auto px-6 space-y-3">
+          <div data-mentions-feed="true" className="border-t border-zinc-200 bg-zinc-50/40 pt-4 pb-4 shrink-0 -mx-6 -mb-6 mt-auto px-6 space-y-3">
             <div className="flex items-center justify-between text-xs font-bold text-zinc-800 tracking-tight">
               <div className="flex items-center gap-1.5">
                 <span>Mentions ({backlinkedPages.length})</span>
@@ -1682,9 +1805,31 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
                         {getSourcePageIcon()}
                         <span className="truncate group-hover:text-zinc-950 transition-colors">{bp.title}</span>
                       </div>
-                      <span className="text-[10px] text-zinc-400 font-normal shrink-0">
-                        {bp.created_at ? new Date(bp.created_at).toLocaleDateString() : ''}
-                      </span>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {bp.short_id && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCopyShortId(bp.short_id!);
+                            }}
+                            className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-zinc-100/90 text-zinc-600 hover:text-zinc-950 border border-zinc-200/90 hover:border-zinc-300 hover:bg-zinc-200/70 transition-all shadow-2xs cursor-pointer select-none"
+                            title="Copy id"
+                          >
+                            {copiedShortId === bp.short_id ? (
+                              <>
+                                <Check className="w-2.5 h-2.5 text-emerald-600" />
+                                <span className="text-emerald-700 font-sans font-semibold text-[10px]">Copied!</span>
+                              </>
+                            ) : (
+                              <span>[@{bp.short_id}]</span>
+                            )}
+                          </button>
+                        )}
+                        <span className="text-[10px] text-zinc-400 font-normal">
+                          {bp.created_at ? new Date(bp.created_at).toLocaleDateString() : ''}
+                        </span>
+                      </div>
                     </div>
 
                     {/* Mention Excerpt Snippet */}

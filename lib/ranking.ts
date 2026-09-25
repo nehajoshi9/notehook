@@ -11,6 +11,7 @@ export interface SuggestionItem {
   score: number;
   scopeLabel: string;
   pageId?: string;
+  shortId?: string;
 }
 
 export function normalizeAutocompleteKey(value: string): string {
@@ -43,13 +44,14 @@ export function compareAutocompleteOptions(
 /**
  * Deterministic Ranking Engine for Unified Pages:
  * Ranks primitives & existing pages when typing @ or selecting text.
+ * Recognizes both page titles and chip id tags (e.g. e1, m2, n1, d1, t3).
  */
 export function getRankedSuggestions(
   query: string,
   pages: Page[],
   _currentPage: Page | null = null
 ): SuggestionItem[] {
-  const cleanQuery = query.toLowerCase().trim().replace(/^@/, '');
+  const cleanQuery = query.toLowerCase().trim().replace(/^[\[@]+/, '').replace(/[\]]+$/, '').trim();
   const suggestions: SuggestionItem[] = [];
 
   // Primitive creation shortcuts
@@ -93,10 +95,16 @@ export function getRankedSuggestions(
   }
 
   // Match known pages by Page sub-type (Entity vs Note vs Message vs Todo vs Decision)
+  // Supports searching by title OR by chip ID tag (e.g. e1, m2, t3, d1, n4)
   pages.forEach((page) => {
     const titleLower = page.title.toLowerCase();
+    const shortIdLower = page.short_id?.toLowerCase() || '';
 
-    if (!cleanQuery || titleLower.startsWith(cleanQuery) || titleLower.includes(cleanQuery)) {
+    const titleMatches = !cleanQuery || titleLower.startsWith(cleanQuery) || titleLower.includes(cleanQuery);
+    const shortIdExactMatch = Boolean(shortIdLower && shortIdLower === cleanQuery);
+    const shortIdPrefixMatch = Boolean(shortIdLower && cleanQuery && shortIdLower.startsWith(cleanQuery));
+
+    if (titleMatches || shortIdExactMatch || shortIdPrefixMatch) {
       let score = 100;
       let scopeLabel = 'Page';
       const pageSubtype = page.type || 'entity';
@@ -114,7 +122,7 @@ export function getRankedSuggestions(
         score = 200;
         scopeLabel = 'Decision';
       } else if (pageSubtype === 'message') {
-        score = 10; // Messages score lowest as requested (rarely referenced)
+        score = 10; // Messages score lowest by default (rarely referenced)
         scopeLabel = 'Message';
       }
 
@@ -124,21 +132,37 @@ export function getRankedSuggestions(
         score += 25;
       }
 
+      // ID Tag relevance scoring: exact ID tag match jumps directly to top (#1)
+      if (shortIdExactMatch) {
+        score = 1000;
+      } else if (shortIdPrefixMatch && cleanQuery.length >= 2) {
+        score += 200;
+      } else if (shortIdPrefixMatch) {
+        score += 25;
+      }
+
       suggestions.push({
         id: page.id,
         title: page.title,
         type: 'page',
         itemType: pageSubtype as any,
-        description: `${scopeLabel} page`,
+        description: page.short_id ? `[@${page.short_id}] ${scopeLabel} page` : `${scopeLabel} page`,
         score,
         scopeLabel,
         pageId: page.id,
+        shortId: page.short_id,
       });
     }
   });
 
   suggestions.sort((a, b) => {
     if (b.score !== a.score) return b.score - a.score;
+    if (cleanQuery) {
+      const aExact = a.shortId?.toLowerCase() === cleanQuery;
+      const bExact = b.shortId?.toLowerCase() === cleanQuery;
+      if (aExact && !bExact) return -1;
+      if (!aExact && bExact) return 1;
+    }
     return compareAutocompleteOptions(a.title, b.title, cleanQuery);
   });
 
@@ -146,9 +170,12 @@ export function getRankedSuggestions(
   if (cleanQuery) {
     const isTodoQuery = cleanQuery.startsWith('todo:') || cleanQuery.startsWith('todo ');
     const isDecisionQuery = cleanQuery.startsWith('decision:') || cleanQuery.startsWith('decision ');
+    const isExistingShortId = pages.some(
+      (p) => p.short_id && p.short_id.toLowerCase() === cleanQuery
+    );
 
     if (isTodoQuery) {
-      const taskTitle = query.replace(/^[\[@]*todo:?\s*/i, '').trim();
+      const taskTitle = query.replace(/^[\[@]*todo:?\s*/i, '').replace(/[\]]+$/, '').trim();
       if (taskTitle && !pages.some((p) => p.type === 'todo' && p.title.toLowerCase() === taskTitle.toLowerCase())) {
         suggestions.unshift({
           id: `create-todo-${normalizeAutocompleteKey(taskTitle)}`,
@@ -162,7 +189,7 @@ export function getRankedSuggestions(
         });
       }
     } else if (isDecisionQuery) {
-      const decisionTitle = query.replace(/^[\[@]*decision:?\s*/i, '').trim();
+      const decisionTitle = query.replace(/^[\[@]*decision:?\s*/i, '').replace(/[\]]+$/, '').trim();
       if (decisionTitle && !pages.some((p) => p.type === 'decision' && p.title.toLowerCase() === decisionTitle.toLowerCase())) {
         suggestions.unshift({
           id: `create-decision-${normalizeAutocompleteKey(decisionTitle)}`,
@@ -175,8 +202,13 @@ export function getRankedSuggestions(
           scopeLabel: 'New Decision',
         });
       }
-    } else if (cleanQuery !== 'todo' && cleanQuery !== 'decision' && cleanQuery !== 'note') {
-      const formattedTitle = query.replace(/^[\[@]+/, '').trim();
+    } else if (
+      cleanQuery !== 'todo' &&
+      cleanQuery !== 'decision' &&
+      cleanQuery !== 'note' &&
+      !isExistingShortId
+    ) {
+      const formattedTitle = query.replace(/^[\[@]+/, '').replace(/[\]]+$/, '').trim();
       if (formattedTitle) {
         suggestions.push({
           id: `create-entity-${normalizeAutocompleteKey(formattedTitle)}`,

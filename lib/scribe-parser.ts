@@ -193,10 +193,15 @@ export function normalizeRawContentToCanonicalBrackets(text: string, pages?: Pag
     return `[@message: ${title.trim()}]`;
   });
 
-  // 6. Unbracketed page titles matching existing pages (entities, messages, notes, etc.)
+  // 6. Unbracketed page titles and chip id tags matching existing pages
   if (pages && pages.length > 0) {
     const sortedPages = [...pages].sort((a, b) => b.title.length - a.title.length);
     for (const p of sortedPages) {
+      if (p.short_id) {
+        const escapedShort = p.short_id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const shortRegex = new RegExp(`(?<!\\[)@${escapedShort}(?!\\])`, 'gi');
+        result = result.replace(shortRegex, `[@${p.short_id}]`);
+      }
       const cleanTitle = p.title.replace(/^@/, '').trim();
       if (!cleanTitle) continue;
       const escaped = cleanTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -424,11 +429,12 @@ export function convertScribeTextToHtml(
 
   // 1. Preserve Code Blocks ``` ... ```
   const codeBlocks: string[] = [];
-  html = html.replace(/```([\s\S]*?)```/g, (_, code) => {
+  html = html.replace(/```([a-zA-Z0-9_\-\+]*)\s*\n?([\s\S]*?)```/g, (_, lang, code) => {
     const placeholder = `%%%CODEBLOCK${codeBlocks.length}%%%`;
     const escapedCode = code.trim().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const langAttr = lang ? ` data-lang="${lang}"` : '';
     codeBlocks.push(
-      `<pre class="bg-zinc-900 text-zinc-100 p-3 rounded-xl text-xs font-mono my-2.5 overflow-x-auto shadow-2xs"><code>${escapedCode}</code></pre>`
+      `<pre class="bg-zinc-900 text-zinc-100 p-3 rounded-xl text-xs font-mono my-2.5 overflow-x-auto shadow-2xs"${langAttr}><code>${escapedCode}</code></pre>`
     );
     return placeholder;
   });
@@ -452,7 +458,9 @@ export function convertScribeTextToHtml(
     try {
       const rendered = katex.renderToString(text, { displayMode: true, throwOnError: false });
       const placeholder = `%%%KATEXMATH${mathBlocks.length}%%%`;
-      mathBlocks.push(`<div class="my-3 overflow-x-auto text-center font-sans">${rendered}</div>`);
+      mathBlocks.push(
+        `<div class="my-3 overflow-x-auto text-center font-sans katex-display-container" data-latex="${encodeURIComponent(text)}" data-math-mode="display">${rendered}</div>`
+      );
       return placeholder;
     } catch (e) {
       return match;
@@ -465,7 +473,9 @@ export function convertScribeTextToHtml(
     try {
       const rendered = katex.renderToString(text, { displayMode: false, throwOnError: false });
       const placeholder = `%%%KATEXMATH${mathBlocks.length}%%%`;
-      mathBlocks.push(rendered);
+      mathBlocks.push(
+        `<span class="inline-math font-sans katex-inline-container" data-latex="${encodeURIComponent(text)}" data-math-mode="inline">${rendered}</span>`
+      );
       return placeholder;
     } catch (e) {
       return match;
@@ -605,51 +615,15 @@ export function convertScribeTextToHtml(
   return `<div class="prose-scribe">${parsedHtml}</div>`;
 }
 
-function setRangeStart(range: Range, block: HTMLElement): void {
-  const contentNodes = Array.from(block.childNodes).filter(
-    (n) => !(n instanceof HTMLElement && n.classList.contains('scribe-gutter-handle'))
-  );
-  const first = contentNodes[0] || block;
-  let curr: Node = first;
-  while (curr.firstChild) {
-    curr = curr.firstChild;
-  }
-  if (curr.nodeType === Node.TEXT_NODE) {
-    range.setStart(curr, 0);
-  } else {
-    range.setStartBefore(curr);
-  }
-}
-
-function setRangeEnd(range: Range, block: HTMLElement): void {
-  const contentNodes = Array.from(block.childNodes).filter(
-    (n) => !(n instanceof HTMLElement && n.classList.contains('scribe-gutter-handle'))
-  );
-  const last = contentNodes[contentNodes.length - 1] || block;
-  let curr: Node = last;
-  while (curr.lastChild) {
-    curr = curr.lastChild;
-  }
-  if (curr.nodeType === Node.TEXT_NODE) {
-    range.setEnd(curr, curr.textContent?.length || 0);
-  } else {
-    range.setEndAfter(curr);
-  }
-}
-
 /**
  * Selects the entire content of a markdown block in the browser (highlighting text in blue)
  */
 export function selectMarkdownBlock(blockEl: HTMLElement | null | undefined): void {
   if (!blockEl || typeof window === 'undefined') return;
-  const selection = window.getSelection();
-  if (!selection) return;
-
-  selection.removeAllRanges();
-  const range = document.createRange();
-  setRangeStart(range, blockEl);
-  setRangeEnd(range, blockEl);
-  selection.addRange(range);
+  blockEl.classList.add('is-block-selected');
+  blockEl.querySelector('.scribe-gutter-btn')?.classList.add('is-checked');
+  blockEl.querySelector('.scribe-gutter-handle')?.classList.add('is-checked');
+  window.getSelection()?.removeAllRanges();
 }
 
 /**
@@ -665,8 +639,6 @@ export function clearMarkdownBlockSelection(): void {
  */
 export function syncMultiBlockSelection(scopeContainer?: HTMLElement | null): void {
   if (typeof window === 'undefined') return;
-  const selection = window.getSelection();
-  if (!selection) return;
 
   if (scopeContainer) {
     document
@@ -680,26 +652,8 @@ export function syncMultiBlockSelection(scopeContainer?: HTMLElement | null): vo
       });
   }
 
-  const root = scopeContainer || document;
-  const selectedBlocks = Array.from(
-    root.querySelectorAll<HTMLElement>('.scribe-markdown-block.is-block-selected')
-  );
-
-  if (selectedBlocks.length === 0) {
-    selection.removeAllRanges();
-    return;
-  }
-
-  selection.removeAllRanges();
-  const range = document.createRange();
-
-  const firstBlock = selectedBlocks[0];
-  const lastBlock = selectedBlocks[selectedBlocks.length - 1];
-
-  setRangeStart(range, firstBlock);
-  setRangeEnd(range, lastBlock);
-
-  selection.addRange(range);
+  // Clear native browser text selection range so it doesn't create a competing second blue layer
+  window.getSelection()?.removeAllRanges();
 }
 
 /**
@@ -831,6 +785,9 @@ export function handleGutterRangeClick(
 
   // Synchronize browser text selection across range
   syncMultiBlockSelection(scopeContainer);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('gutter-selection-change'));
+  }
   return true;
 }
 
@@ -845,6 +802,365 @@ export function handleGutterMouseDown(e: React.MouseEvent, _scopeContainer?: HTM
   if (gutterBtn || gutterHandle) {
     e.preventDefault();
   }
+}
+
+/**
+ * Deselects all currently selected gutter blocks and clears browser text selection
+ */
+export function clearAllGutterSelections(): boolean {
+  if (typeof window === 'undefined') return false;
+  const selected = document.querySelectorAll<HTMLElement>(
+    '.scribe-markdown-block.is-block-selected, .scribe-gutter-btn.is-checked, .scribe-gutter-handle.is-checked'
+  );
+  if (selected.length === 0) return false;
+
+  selected.forEach((el) => {
+    el.classList.remove('is-block-selected', 'is-checked');
+  });
+
+  document.querySelectorAll<HTMLElement>('[data-gutter-anchor]').forEach((el) => {
+    el.removeAttribute('data-gutter-anchor');
+  });
+
+  clearMarkdownBlockSelection();
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('gutter-selection-change'));
+  }
+  return true;
+}
+
+/**
+ * Serializes any DOM node or DocumentFragment back into canonical Markdown format,
+ * preserving headings, bold, italic, strikethrough, lists, code blocks, blockquotes,
+ * tables, links, LaTeX math, and reference pills ([@Entity], [@todo: Task], etc.).
+ */
+export function domToMarkdown(node: Node | null | undefined): string {
+  if (!node) return '';
+
+  if (node.nodeType === Node.TEXT_NODE) {
+    return node.textContent || '';
+  }
+
+  if (node.nodeType === Node.DOCUMENT_FRAGMENT_NODE) {
+    return Array.from(node.childNodes)
+      .map(domToMarkdown)
+      .join('');
+  }
+
+  if (node.nodeType !== Node.ELEMENT_NODE) {
+    return '';
+  }
+
+  const el = node as HTMLElement;
+  const tag = el.tagName.toLowerCase();
+
+  // 1. Ignore gutter handles and buttons completely
+  if (
+    el.classList?.contains('scribe-gutter-handle') ||
+    el.classList?.contains('scribe-gutter-btn') ||
+    el.classList?.contains('square-icon') ||
+    el.classList?.contains('check-square-icon')
+  ) {
+    return '';
+  }
+
+  // 2. Page Mention Pills: [@EntityName], [@todo: Task], [@decision: Dec], [@note: Note], [@m1]
+  if (el.classList?.contains('page-mention-pill')) {
+    const type = el.getAttribute('data-type') || 'entity';
+    const full = el.getAttribute('data-full') || el.getAttribute('data-title') || el.getAttribute('data-entity') || '';
+    const shortId = el.getAttribute('data-short-id') || '';
+
+    if (type === 'todo') {
+      return `[@todo: ${full}]`;
+    }
+    if (type === 'decision') {
+      return `[@decision: ${full}]`;
+    }
+    if (type === 'note') {
+      return `[@note: ${full}]`;
+    }
+    if (type === 'message') {
+      return shortId ? `[@${shortId}]` : `[@message: ${full}]`;
+    }
+    if (shortId && !full) {
+      return `[@${shortId}]`;
+    }
+    return `[@${full}]`;
+  }
+
+  // 3. KaTeX Math Blocks & Inline Math
+  if (el.hasAttribute('data-latex')) {
+    const latex = decodeURIComponent(el.getAttribute('data-latex') || '');
+    const mode = el.getAttribute('data-math-mode');
+    if (mode === 'display') {
+      return `\n\n$$${latex}$$\n\n`;
+    }
+    return `$${latex}$`;
+  }
+  if (el.classList?.contains('katex')) {
+    const annotation = el.querySelector('annotation[encoding="application/x-tex"]');
+    const tex = annotation?.textContent?.trim() || '';
+    if (tex) {
+      if (el.closest('.katex-display-container') || el.parentElement?.classList?.contains('katex-display-container')) {
+        return `\n\n$$${tex}$$\n\n`;
+      }
+      return `$${tex}$`;
+    }
+  }
+
+  // 4. Code Blocks (<pre>)
+  if (tag === 'pre') {
+    const codeEl = el.querySelector('code');
+    const codeText = codeEl ? codeEl.textContent : el.textContent;
+    const lang = el.getAttribute('data-lang') || codeEl?.getAttribute('data-lang') || '';
+    return `\n\n\`\`\`${lang}\n${codeText || ''}\n\`\`\`\n\n`;
+  }
+
+  // Recursively process child nodes
+  const childMd = Array.from(el.childNodes)
+    .map(domToMarkdown)
+    .join('');
+
+  // 5. Headings (h1 - h6)
+  if (/^h[1-6]$/.test(tag)) {
+    const level = parseInt(tag[1], 10);
+    const hashes = '#'.repeat(level);
+    return `\n\n${hashes} ${childMd.trim()}\n\n`;
+  }
+
+  // 6. Paragraphs
+  if (tag === 'p') {
+    return `\n\n${childMd.trim()}\n\n`;
+  }
+
+  // 7. Blockquote
+  if (tag === 'blockquote') {
+    const lines = childMd.trim().split('\n');
+    const quoted = lines.map((l) => `> ${l}`).join('\n');
+    return `\n\n${quoted}\n\n`;
+  }
+
+  // 8. Inline Code (<code> outside <pre>)
+  if (tag === 'code') {
+    return `\`${childMd}\``;
+  }
+
+  // 9. Bold
+  if (tag === 'strong' || tag === 'b') {
+    return `**${childMd}**`;
+  }
+
+  // 10. Italic
+  if (tag === 'em' || tag === 'i') {
+    return `*${childMd}*`;
+  }
+
+  // 11. Strikethrough
+  if (tag === 'del' || tag === 's') {
+    return `~~${childMd}~~`;
+  }
+
+  // 12. Lists: ul and ol
+  if (tag === 'ul' || tag === 'ol') {
+    const isOrdered = tag === 'ol';
+    const items = Array.from(el.children).filter((c) => c.tagName.toLowerCase() === 'li');
+    const listMd = items
+      .map((li, idx) => {
+        const checkbox = li.querySelector('input[type="checkbox"]');
+        let checkPrefix = '';
+        if (checkbox) {
+          checkPrefix = (checkbox as HTMLInputElement).checked ? '[x] ' : '[ ] ';
+        }
+        const liContentNodes = Array.from(li.childNodes).filter((n) => {
+          return !(n instanceof HTMLElement && n.tagName.toLowerCase() === 'input' && n.getAttribute('type') === 'checkbox');
+        });
+        const liText = liContentNodes.map(domToMarkdown).join('').trim();
+        const prefix = isOrdered ? `${idx + 1}. ` : '- ';
+        return `${prefix}${checkPrefix}${liText}`;
+      })
+      .join('\n');
+    return `\n\n${listMd}\n\n`;
+  }
+
+  // 13. List Item (when serialized standalone)
+  if (tag === 'li') {
+    const checkbox = el.querySelector('input[type="checkbox"]');
+    let checkPrefix = '';
+    if (checkbox) {
+      checkPrefix = (checkbox as HTMLInputElement).checked ? '[x] ' : '[ ] ';
+    }
+    const liContentNodes = Array.from(el.childNodes).filter((n) => {
+      return !(n instanceof HTMLElement && n.tagName.toLowerCase() === 'input' && n.getAttribute('type') === 'checkbox');
+    });
+    return `- ${checkPrefix}${liContentNodes.map(domToMarkdown).join('').trim()}\n`;
+  }
+
+  // 14. Links
+  if (tag === 'a') {
+    const href = el.getAttribute('href');
+    if (href && href !== '#' && !href.startsWith('javascript:')) {
+      return `[${childMd}](${href})`;
+    }
+    return childMd;
+  }
+
+  // 15. Horizontal Rule
+  if (tag === 'hr') {
+    return '\n\n---\n\n';
+  }
+
+  // 16. Tables
+  if (tag === 'table') {
+    const rows = Array.from(el.querySelectorAll('tr'));
+    if (rows.length > 0) {
+      const tableLines: string[] = [];
+      let isFirstRow = true;
+      rows.forEach((row) => {
+        const cells = Array.from(row.querySelectorAll('th, td'));
+        const rowText = `| ${cells.map((c) => Array.from(c.childNodes).map(domToMarkdown).join('').trim()).join(' | ')} |`;
+        tableLines.push(rowText);
+        if (isFirstRow && row.querySelector('th')) {
+          const separator = `| ${cells.map(() => '---').join(' | ')} |`;
+          tableLines.push(separator);
+        }
+        isFirstRow = false;
+      });
+      return `\n\n${tableLines.join('\n')}\n\n`;
+    }
+  }
+
+  // 17. Line break
+  if (tag === 'br') {
+    return '\n';
+  }
+
+  // 18. Blocks (.scribe-markdown-block)
+  if (el.classList?.contains('scribe-markdown-block')) {
+    return `\n\n${childMd.trim()}\n\n`;
+  }
+
+  return childMd;
+}
+
+export function cleanMarkdownSpacing(text: string): string {
+  return text
+    .replace(/\r\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+export function htmlToMarkdown(html: string): string {
+  if (typeof window === 'undefined' || !html) return '';
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    return cleanMarkdownSpacing(domToMarkdown(doc.body));
+  } catch (e) {
+    return '';
+  }
+}
+
+// Detect and apply the browser's native text selection highlight color
+export function detectBrowserSelectionColor(): string {
+  if (typeof window === 'undefined') return '#b4d5fe';
+  try {
+    const probe = document.createElement('div');
+    probe.style.position = 'fixed';
+    probe.style.pointerEvents = 'none';
+    probe.style.opacity = '0';
+    probe.style.zIndex = '-99999';
+    probe.style.backgroundColor = 'Highlight';
+    document.body.appendChild(probe);
+
+    const computed = window.getComputedStyle(probe);
+    const bg = computed.backgroundColor;
+    document.body.removeChild(probe);
+
+    if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') {
+      return bg;
+    }
+  } catch (e) {
+    // fallback
+  }
+
+  const ua = navigator.userAgent.toLowerCase();
+  const isMac = navigator.platform?.toLowerCase().includes('mac') || ua.includes('macintosh');
+  return isMac ? '#b4d5fe' : '#cce8ff';
+}
+
+if (typeof window !== 'undefined') {
+  try {
+    const nativeSelectionBg = detectBrowserSelectionColor();
+    if (nativeSelectionBg) {
+      document.documentElement.style.setProperty('--browser-selection-bg', nativeSelectionBg);
+    }
+  } catch (e) {
+    // ignore
+  }
+
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      clearAllGutterSelections();
+    }
+  });
+
+  // Global listener: Clicking away once something is selected deselects both the gutters and gets rid of the blue selected text region
+  window.addEventListener('pointerdown', (e) => {
+    const target = e.target as HTMLElement | null;
+    if (target?.closest('.scribe-gutter-handle, .scribe-gutter-btn, [data-floating-toolbar]')) {
+      return;
+    }
+    clearAllGutterSelections();
+  });
+
+  // Global listener: Cmd+C / Ctrl+C copies markdown format of selected gutter blocks or highlighted prose selection
+  window.addEventListener('copy', (e) => {
+    const activeEl = document.activeElement;
+    // If user is inside an input or textarea, let native copy handle the raw text
+    if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) {
+      return;
+    }
+
+    const selectedBlocks = Array.from(
+      document.querySelectorAll<HTMLElement>('.scribe-markdown-block.is-block-selected')
+    );
+
+    // 1. If gutter blocks are selected: serialize them to Markdown
+    if (selectedBlocks.length > 0) {
+      const textToCopy = selectedBlocks
+        .map((b) => domToMarkdown(b))
+        .join('\n\n');
+      const cleanMd = cleanMarkdownSpacing(textToCopy);
+      if (cleanMd) {
+        e.clipboardData?.setData('text/plain', cleanMd);
+        e.clipboardData?.setData('text/markdown', cleanMd);
+        e.preventDefault();
+        return;
+      }
+    }
+
+    // 2. If user highlighted text in rendered prose content (Command+C)
+    const selection = window.getSelection();
+    if (selection && !selection.isCollapsed && selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0);
+      const commonNode = range.commonAncestorContainer;
+      const parentEl =
+        commonNode.nodeType === Node.ELEMENT_NODE
+          ? (commonNode as HTMLElement)
+          : commonNode.parentElement;
+
+      if (parentEl && parentEl.closest('.prose-scribe, .scribe-markdown-block, [data-chat-thread]')) {
+        const cloned = range.cloneContents();
+        const cleanMd = cleanMarkdownSpacing(domToMarkdown(cloned));
+        if (cleanMd) {
+          e.clipboardData?.setData('text/plain', cleanMd);
+          e.clipboardData?.setData('text/markdown', cleanMd);
+          e.preventDefault();
+          return;
+        }
+      }
+    }
+  });
 }
 
 /**
@@ -939,35 +1255,47 @@ export function scrollToMentionOrElement(
 ): HTMLElement | null {
   if (!container) return null;
 
+  // Clean up any previously active mention highlight border boxes
+  document.querySelectorAll('.mention-target-highlight').forEach((el) => {
+    el.classList.remove('mention-target-highlight');
+  });
+
   let targetEl: HTMLElement | null = null;
 
   if (highlightSpan && highlightSpan.trim()) {
     const query = highlightSpan.trim().toLowerCase();
-    const cleanQuery = query
+    const rawClean = query
+      .replace(/^\[/, '')
+      .replace(/\]$/, '')
+      .trim();
+    const cleanQuery = rawClean
       .replace(/^@/, '')
       .replace(/^(todo:|decision:|note:|message:|\s*)+/i, '')
       .trim();
 
+    // EXCLUDE any pills/tags located inside the Mentions / Backlinks section
     const pills = Array.from(
       container.querySelectorAll(
-        '.page-mention-pill, [data-entity], [data-title], [data-full], [data-short-id]'
+        '.page-mention-pill, [data-entity], [data-title], [data-full], [data-short-id], button[data-short-id]'
       )
+    ).filter(
+      (el) => !el.closest('.mentions-card-container, [data-mentions-feed], .mentions-panel-excerpt')
     ) as HTMLElement[];
 
-    // 1. Search for exact matching pill attribute
+    // 1. Search for exact or substring matching pill/tag attribute
     for (const pill of pills) {
       const full = (pill.getAttribute('data-full') || '').toLowerCase();
       const entity = (pill.getAttribute('data-entity') || '').toLowerCase();
       const title = (pill.getAttribute('data-title') || '').toLowerCase();
       const shortId = (pill.getAttribute('data-short-id') || '').toLowerCase();
-      const text = (pill.textContent || '').toLowerCase();
+      const text = (pill.textContent || '').trim().toLowerCase();
 
       if (
-        (full && (full === query || full === cleanQuery)) ||
-        (entity && (entity === query || entity === cleanQuery)) ||
-        (title && (title === query || title === cleanQuery)) ||
-        (shortId && (shortId === query || shortId === cleanQuery)) ||
-        (text && (text === query || text === `@${cleanQuery}` || text.includes(cleanQuery)))
+        (shortId && (shortId === cleanQuery || shortId === rawClean || cleanQuery === `@${shortId}`)) ||
+        (full && (full === cleanQuery || full === rawClean || full.includes(cleanQuery) || cleanQuery.includes(full))) ||
+        (entity && (entity === cleanQuery || entity === rawClean || entity.includes(cleanQuery))) ||
+        (title && (title === cleanQuery || title === rawClean || title.includes(cleanQuery) || cleanQuery.includes(title))) ||
+        (text && (text === cleanQuery || text === rawClean || text === `@${cleanQuery}` || text.includes(cleanQuery)))
       ) {
         targetEl = pill;
         break;
@@ -976,22 +1304,29 @@ export function scrollToMentionOrElement(
 
     // 2. Search for leaf element containing text if pill was not found
     if (!targetEl && cleanQuery) {
-      const elements = Array.from(container.querySelectorAll('*')) as HTMLElement[];
+      const elements = Array.from(container.querySelectorAll('*')).filter(
+        (el) => !el.closest('.mentions-card-container, [data-mentions-feed], .mentions-panel-excerpt')
+      ) as HTMLElement[];
       for (const el of elements) {
         if (el.children.length === 0 && el.textContent) {
           const t = el.textContent.toLowerCase();
-          if (t.includes(cleanQuery) || t.includes(query)) {
-            targetEl = (el.closest('.page-mention-pill') as HTMLElement) || el;
+          if (t.includes(cleanQuery) || t.includes(rawClean)) {
+            targetEl = (el.closest('.page-mention-pill, button[data-short-id]') as HTMLElement) || el;
             break;
           }
         }
       }
     }
-  }
 
-  // 3. Fallback to first mention pill inside container if present
-  if (!targetEl) {
-    targetEl = container.querySelector('.page-mention-pill') as HTMLElement;
+    // 3. Fallback to first mention pill inside container if specific query was provided but no exact match
+    if (!targetEl) {
+      const candidatePills = Array.from(
+        container.querySelectorAll('.page-mention-pill, button[data-short-id]')
+      ).filter(
+        (el) => !el.closest('.mentions-card-container, [data-mentions-feed], .mentions-panel-excerpt')
+      ) as HTMLElement[];
+      targetEl = candidatePills[0] || null;
+    }
   }
 
   const elToScroll = targetEl || container;
@@ -1003,11 +1338,13 @@ export function scrollToMentionOrElement(
     elToScroll.scrollIntoView({ block: 'center' });
   }
 
-  // Apply subtle pulse highlight animation
-  elToScroll.classList.add('ring-2', 'ring-indigo-500', 'bg-indigo-50/70', 'transition-all', 'duration-300');
-  setTimeout(() => {
-    elToScroll.classList.remove('ring-2', 'ring-indigo-500', 'bg-indigo-50/70');
-  }, 2500);
+  // Apply temporary blue border box around the tag (never in mentions area)
+  if (targetEl && !targetEl.closest('.mentions-card-container, [data-mentions-feed], .mentions-panel-excerpt')) {
+    targetEl.classList.add('mention-target-highlight');
+    setTimeout(() => {
+      targetEl?.classList.remove('mention-target-highlight');
+    }, 2500);
+  }
 
   return elToScroll;
 }

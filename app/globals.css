@@ -462,3 +462,68 @@ body.is-selecting-text .page-mention-pill:hover .pill-short {
   opacity: 1 !important;
   pointer-events: auto !important;
 }
+
+/* Persistent Visual Selection on Selected Markdown Blocks matching browser native selection */
+.scribe-markdown-block.is-block-selected {
+  background-color: #b4d5fe;
+  background-color: var(--browser-selection-bg, Highlight) !important;
+  color: #09090b !important;
+  border-radius: 0.25rem;
+  transition: background-color 0.15s ease-in-out;
+}
+
+.scribe-markdown-block.is-block-selected > :not(.scribe-gutter-handle) {
+  color: #09090b !important;
+}
+
+.scribe-markdown-block.is-block-selected blockquote {
+  background-color: transparent !important;
+}
+
+.scribe-markdown-block.is-block-selected code {
+  background-color: rgba(255, 255, 255, 0.55) !important;
+}
+
+/* Temporary Blue Border Box for Mention / Tag Navigation */
+.mention-target-highlight {
+  outline: 2px solid #2563eb !important;
+  outline-offset: 2px !important;
+  border-radius: 8px !important;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.25) !important;
+  animation: mention-pulse-glow 0.35s ease-out !important;
+}
+
+.mention-target-highlight.page-mention-pill,
+.page-mention-pill.mention-target-highlight,
+button[data-short-id].mention-target-highlight,
+button.mention-target-highlight {
+  border-radius: 9999px !important;
+}
+
+/* Never display the target blue highlight box inside mentions feed cards or excerpts */
+.mentions-card-container .mention-target-highlight,
+.mentions-panel-excerpt .mention-target-highlight,
+[data-mentions-feed] .mention-target-highlight {
+  outline: none !important;
+  box-shadow: none !important;
+  animation: none !important;
+  background-color: transparent !important;
+}
+
+@keyframes mention-pulse-glow {
+  0% {
+    transform: scale(0.97);
+    outline-color: #1d4ed8;
+    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.4);
+  }
+  50% {
+    transform: scale(1.04);
+    outline-color: #3b82f6;
+    box-shadow: 0 0 0 6px rgba(37, 99, 235, 0.3);
+  }
+  100% {
+    transform: scale(1);
+    outline-color: #2563eb;
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.25);
+  }
+}

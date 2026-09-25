@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { usePlanet } from '@/lib/context';
 import { Send, Loader2, Tag, CheckSquare, Zap, Plus, FileText } from 'lucide-react';
 import { getRankedSuggestions, SuggestionItem } from '@/lib/ranking';
-import { isCursorInsideReference, parseScribeMarkup, normalizeRawContentToCanonicalBrackets } from '@/lib/scribe-parser';
+import { isCursorInsideReference, parseScribeMarkup, normalizeRawContentToCanonicalBrackets, htmlToMarkdown } from '@/lib/scribe-parser';
 import { SuggestionList } from './suggestion-list';
 
 export const AIChatInput: React.FC = () => {
@@ -81,6 +81,10 @@ export const AIChatInput: React.FC = () => {
     if (!atMatch) return;
 
     const beforeAt = prompt.slice(0, atMatch.index);
+    let afterCursor = prompt.slice(cursorPos);
+    if (afterCursor.startsWith(']')) {
+      afterCursor = afterCursor.slice(1);
+    }
     let inserted = '';
 
     if (item.type === 'primitive') {
@@ -118,14 +122,21 @@ export const AIChatInput: React.FC = () => {
         inserted = `[@decision: ${rawTitle}] `;
       } else if (item.itemType === 'note') {
         inserted = `[@note: ${rawTitle}] `;
+      } else if (item.itemType === 'message') {
+        inserted = item.shortId ? `[@${item.shortId}] ` : `[@message: ${rawTitle}] `;
       } else {
         inserted = `[@${rawTitle}] `;
       }
     }
 
-    const newPrompt = beforeAt + inserted;
+    const newPrompt = beforeAt + inserted + afterCursor;
     setPrompt(newPrompt);
-    inputRef.current?.focus();
+    const newCursor = (beforeAt + inserted).length;
+    setCursorPos(newCursor);
+    setTimeout(() => {
+      inputRef.current?.focus();
+      inputRef.current?.setSelectionRange(newCursor, newCursor);
+    }, 0);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -172,7 +183,16 @@ export const AIChatInput: React.FC = () => {
   };
 
   const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
-    const pastedText = e.clipboardData.getData('text/plain');
+    let pastedText = e.clipboardData.getData('text/plain');
+    const htmlText = e.clipboardData.getData('text/html');
+
+    if (htmlText && (!pastedText || !/(?:^|\n)[#>\-*`\[]/.test(pastedText))) {
+      const converted = htmlToMarkdown(htmlText);
+      if (converted && converted.length > 0) {
+        pastedText = converted;
+      }
+    }
+
     if (!pastedText) return;
 
     // 1. Normalize unbracketed tags in pasted text

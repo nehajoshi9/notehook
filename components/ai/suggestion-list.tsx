@@ -29,7 +29,7 @@ export const SuggestionList: React.FC<SuggestionListProps> = ({
   if (items.length === 0) return null;
 
   return (
-    <div ref={listRef} className="z-50 w-64 max-h-56 overflow-y-auto rounded-md bg-white border border-zinc-200/90 p-1 shadow-lg text-xs font-sans animate-in fade-in duration-75 select-none">
+    <div ref={listRef} className="z-50 w-72 max-h-56 overflow-y-auto rounded-md bg-white border border-zinc-200/90 p-1 shadow-lg text-xs font-sans animate-in fade-in duration-75 select-none">
       <div className="space-y-0.5">
         {items.map((item, idx) => {
           const isSelected = idx === selectedIndex;
@@ -65,15 +65,26 @@ export const SuggestionList: React.FC<SuggestionListProps> = ({
                 e.preventDefault();
                 onSelect(item);
               }}
-              className={`w-full text-left px-2 py-1.5 rounded flex items-center justify-between gap-2 transition-colors ${
+              className={`w-full text-left px-2 py-1.5 rounded flex items-center justify-between gap-2 transition-colors cursor-pointer ${
                 isSelected
                   ? 'bg-zinc-100 text-zinc-950 font-semibold'
                   : 'text-zinc-700 hover:bg-zinc-50'
               }`}
             >
-              <div className="flex items-center gap-2 truncate min-w-0">
+              <div className="flex items-center gap-1.5 truncate min-w-0">
                 {icon}
                 <span className="truncate">{item.title}</span>
+                {item.shortId && (
+                  <span
+                    className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-mono font-medium transition-colors shrink-0 ${
+                      isSelected
+                        ? 'bg-zinc-200 text-zinc-800 border border-zinc-300'
+                        : 'bg-zinc-100 text-zinc-500 border border-zinc-200/80'
+                    }`}
+                  >
+                    [@{item.shortId}]
+                  </span>
+                )}
               </div>
               <span className="text-[10px] font-mono text-zinc-400 shrink-0 opacity-80">
                 {item.scopeLabel}

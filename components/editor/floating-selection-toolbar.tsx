@@ -5,7 +5,7 @@ import { usePlanet } from '@/lib/context';
 import { AlertTriangle } from 'lucide-react';
 import { getRankedSuggestions, SuggestionItem } from '@/lib/ranking';
 import { SuggestionList } from '@/components/ai/suggestion-list';
-import { parseScribeMarkup, formatItemTitle, untagReferences } from '@/lib/scribe-parser';
+import { parseScribeMarkup, formatItemTitle, untagReferences, domToMarkdown, cleanMarkdownSpacing, clearAllGutterSelections } from '@/lib/scribe-parser';
 import { matchesExplicitReference } from '@/lib/mentions';
 import { Page } from '@/lib/types';
 
@@ -155,6 +155,8 @@ export const FloatingSelectionToolbar: React.FC<FloatingSelectionToolbarProps> =
       let foundPageId: string | undefined = undefined;
       let foundCurrentPage: Page | null = null;
       let isChatArea = false;
+      let top = 0;
+      let left = 0;
 
       // Exclude selections inside page titles or entity version titles
       if (activeEl && activeEl.closest('h1, [data-title-input], .page-title, .version-title-input, [data-title]')) {
@@ -165,8 +167,72 @@ export const FloatingSelectionToolbar: React.FC<FloatingSelectionToolbarProps> =
         return;
       }
 
+      // 0. Check if user selected text via gutter handles (.scribe-markdown-block.is-block-selected)
+      const selectedGutterBlocks = Array.from(
+        document.querySelectorAll<HTMLElement>('.scribe-markdown-block.is-block-selected')
+      );
+      const isGutterSelection = selectedGutterBlocks.length > 0;
+
+      if (isGutterSelection) {
+        const textToCopy = selectedGutterBlocks
+          .map((b) => domToMarkdown(b))
+          .join('\n\n');
+        selectedTextStr = cleanMarkdownSpacing(textToCopy);
+
+        if (!selectedTextStr) {
+          setPosition(null);
+          setSelectedText('');
+          setHasReferenceError(false);
+          setAllAvailableEntities([]);
+          return;
+        }
+
+        const firstBlock = selectedGutterBlocks[0];
+        const lastBlock = selectedGutterBlocks[selectedGutterBlocks.length - 1];
+        const firstRect = firstBlock.getBoundingClientRect();
+        const lastRect = lastBlock.getBoundingClientRect();
+
+        rect = {
+          top: Math.min(firstRect.top, lastRect.top),
+          bottom: Math.max(firstRect.bottom, lastRect.bottom),
+          left: Math.min(firstRect.left, lastRect.left),
+          right: Math.max(firstRect.right, lastRect.right),
+          width: Math.max(firstRect.width, lastRect.width),
+          height: Math.max(firstRect.bottom, lastRect.bottom) - Math.min(firstRect.top, lastRect.top),
+        } as DOMRect;
+
+        const isStartInChat = Boolean(firstBlock.closest('[data-chat-thread], [data-message-id]'));
+        if (isStartInChat) {
+          isChatArea = true;
+          const startTurnEl = firstBlock.closest('[data-message-id]');
+          const msgId = startTurnEl?.getAttribute('data-message-id') || startTurnEl?.id.replace(/^page-/, '');
+          foundPageId = msgId || undefined;
+          const msgNote = pages.find((p) => p.id === msgId);
+          if (msgNote) {
+            scopeText = `${msgNote.user_prompt || ''} ${msgNote.content || ''}`;
+          } else {
+            scopeText = startTurnEl?.textContent || '';
+          }
+
+          top = firstRect.top + window.scrollY - 8;
+          left = Math.max(10, Math.min(firstRect.left + window.scrollX + 28, window.innerWidth - 270));
+        } else {
+          const pageCardEl = firstBlock.closest('[data-page-id]');
+          if (pageCardEl) {
+            const pId = pageCardEl.getAttribute('data-page-id');
+            foundPageId = pId || undefined;
+            foundCurrentPage = pages.find((p) => p.id === pId) || null;
+            if (foundCurrentPage) {
+              scopeText = `${foundCurrentPage.title} ${foundCurrentPage.content || ''} ${foundCurrentPage.user_prompt || ''}`;
+            }
+          }
+          top = lastRect.bottom + window.scrollY + 8;
+          left = Math.max(10, Math.min(lastRect.left + window.scrollX + 28, window.innerWidth - 270));
+        }
+      }
+
       // 1. Check if user is selecting text inside an active <textarea> or <input> (Edit Mode)
-      if (activeEl && (activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'INPUT')) {
+      if (!isGutterSelection && activeEl && (activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'INPUT')) {
         const start = activeEl.selectionStart;
         const end = activeEl.selectionEnd;
         if (start !== null && end !== null && start !== end) {
@@ -195,7 +261,7 @@ export const FloatingSelectionToolbar: React.FC<FloatingSelectionToolbarProps> =
       }
 
       // 2. Check standard DOM window selection (Non-Edit Mode or rendered text)
-      if (!isTextareaOrInput) {
+      if (!isGutterSelection && !isTextareaOrInput) {
         const selection = window.getSelection();
         if (!selection || selection.isCollapsed || !selection.toString().trim()) {
           setPosition(null);
@@ -230,6 +296,12 @@ export const FloatingSelectionToolbar: React.FC<FloatingSelectionToolbarProps> =
 
         range = selection.getRangeAt(0);
         rect = range.getBoundingClientRect();
+
+        const clonedFragment = range.cloneContents();
+        const mdText = cleanMarkdownSpacing(domToMarkdown(clonedFragment));
+        if (mdText) {
+          selectedTextStr = mdText;
+        }
 
         const startNode = range.startContainer;
         const endNode = range.endContainer;
@@ -337,6 +409,12 @@ export const FloatingSelectionToolbar: React.FC<FloatingSelectionToolbarProps> =
         containsRef = true;
       }
 
+      if (!containsRef && isGutterSelection) {
+        if (selectedGutterBlocks.some((b) => b.querySelector('.page-mention-pill, [data-type], [data-entity], [data-title]'))) {
+          containsRef = true;
+        }
+      }
+
       if (!containsRef && range) {
         const startEl = (range.startContainer.nodeType === 1 ? range.startContainer : range.startContainer.parentElement) as HTMLElement | null;
         const endEl = (range.endContainer.nodeType === 1 ? range.endContainer : range.endContainer.parentElement) as HTMLElement | null;
@@ -395,74 +473,73 @@ export const FloatingSelectionToolbar: React.FC<FloatingSelectionToolbarProps> =
         nextVer: getNextEntityVersionNum(entity),
       }));
 
-      let top = 0;
-      let left = 0;
-
-      if (isTextareaOrInput && activeEl) {
-        if (isChatArea) {
-          const selStart = Math.min(activeEl.selectionStart || 0, activeEl.selectionEnd || 0);
-          const coords = getTextareaSelectionCoords(activeEl, selStart, true);
-          top = coords.top;
-          left = coords.left;
-        } else {
-          const selEnd = Math.max(activeEl.selectionStart || 0, activeEl.selectionEnd || 0);
-          const coords = getTextareaSelectionCoords(activeEl, selEnd, false);
-          top = coords.top;
-          left = coords.left;
-        }
-      } else if (range) {
-        if (isChatArea) {
-          // Chat View Selection: Position ABOVE topmost line & follow X location of FIRST character
-          try {
-            const startRange = range.cloneRange();
-            startRange.collapse(true);
-            const startRect = startRange.getBoundingClientRect();
-
-            const rects = range.getClientRects();
-            let topY = startRect.top > 0 ? startRect.top : rect.top;
-            if (rects && rects.length > 0) {
-              topY = rects[0].top;
-            }
-
-            top = topY + window.scrollY - 6;
-            const startX = startRect.width > 0 ? startRect.left : (startRect.left > 0 ? startRect.left : rect.left);
-            left = Math.max(10, Math.min(startX + window.scrollX, window.innerWidth - 270));
-          } catch (e) {
-            top = rect.top + window.scrollY - 6;
-            left = Math.max(10, rect.left + window.scrollX);
+      if (!isGutterSelection) {
+        if (isTextareaOrInput && activeEl) {
+          if (isChatArea) {
+            const selStart = Math.min(activeEl.selectionStart || 0, activeEl.selectionEnd || 0);
+            const coords = getTextareaSelectionCoords(activeEl, selStart, true);
+            top = coords.top;
+            left = coords.left;
+          } else {
+            const selEnd = Math.max(activeEl.selectionStart || 0, activeEl.selectionEnd || 0);
+            const coords = getTextareaSelectionCoords(activeEl, selEnd, false);
+            top = coords.top;
+            left = coords.left;
           }
-        } else {
-          // Page View (Non-Chat): Position BELOW bottom-most line & follow X location of LAST character
-          try {
-            const endRange = range.cloneRange();
-            endRange.collapse(false);
-            const endRect = endRange.getBoundingClientRect();
+        } else if (range) {
+          if (isChatArea) {
+            // Chat View Selection: Position ABOVE topmost line & follow X location of FIRST character
+            try {
+              const startRange = range.cloneRange();
+              startRange.collapse(true);
+              const startRect = startRange.getBoundingClientRect();
 
-            const rects = range.getClientRects();
-            let bottomY = rect.bottom;
-            if (rects && rects.length > 0) {
-              let bottomMostLineRect = rects[0];
-              for (let i = 1; i < rects.length; i++) {
-                if (rects[i].bottom > bottomMostLineRect.bottom) {
-                  bottomMostLineRect = rects[i];
-                }
+              const rects = range.getClientRects();
+              let topY = startRect.top > 0 ? startRect.top : rect.top;
+              if (rects && rects.length > 0) {
+                topY = rects[0].top;
               }
-              bottomY = bottomMostLineRect.bottom;
-            } else if (endRect.bottom > 0) {
-              bottomY = endRect.bottom;
-            }
 
-            top = bottomY + window.scrollY + 6;
-            const endX = endRect.width > 0 ? endRect.right : (endRect.left > 0 ? endRect.left : rect.left);
-            left = Math.max(10, Math.min(endX + window.scrollX, window.innerWidth - 270));
-          } catch (e) {
-            top = rect.bottom + window.scrollY + 6;
-            left = Math.max(10, rect.left + window.scrollX);
+              top = topY + window.scrollY - 6;
+              const startX = startRect.width > 0 ? startRect.left : (startRect.left > 0 ? startRect.left : rect.left);
+              left = Math.max(10, Math.min(startX + window.scrollX, window.innerWidth - 270));
+            } catch (e) {
+              top = rect.top + window.scrollY - 6;
+              left = Math.max(10, rect.left + window.scrollX);
+            }
+          } else {
+            // Page View (Non-Chat): Position BELOW bottom-most line & follow X location of LAST character
+            try {
+              const endRange = range.cloneRange();
+              endRange.collapse(false);
+              const endRect = endRange.getBoundingClientRect();
+
+              const rects = range.getClientRects();
+              let bottomY = rect.bottom;
+              if (rects && rects.length > 0) {
+                let bottomMostLineRect = rects[0];
+                for (let i = 1; i < rects.length; i++) {
+                  if (rects[i].bottom > bottomMostLineRect.bottom) {
+                    bottomMostLineRect = rects[i];
+                  }
+                }
+                bottomY = bottomMostLineRect.bottom;
+              } else if (endRect.bottom > 0) {
+                bottomY = endRect.bottom;
+              }
+
+              top = bottomY + window.scrollY + 6;
+              const endX = endRect.width > 0 ? endRect.right : (endRect.left > 0 ? endRect.left : rect.left);
+              left = Math.max(10, Math.min(endX + window.scrollX, window.innerWidth - 270));
+            } catch (e) {
+              top = rect.bottom + window.scrollY + 6;
+              left = Math.max(10, rect.left + window.scrollX);
+            }
           }
+        } else {
+          top = (isChatArea ? rect.top : rect.bottom) + window.scrollY + (isChatArea ? -6 : 6);
+          left = Math.max(10, rect.left + window.scrollX);
         }
-      } else {
-        top = (isChatArea ? rect.top : rect.bottom) + window.scrollY + (isChatArea ? -6 : 6);
-        left = Math.max(10, rect.left + window.scrollX);
       }
 
       setSelectedText(selectedTextStr);
@@ -495,6 +572,7 @@ export const FloatingSelectionToolbar: React.FC<FloatingSelectionToolbarProps> =
     document.addEventListener('select', handleEvent, true);
     document.addEventListener('mouseup', handleEvent, true);
     document.addEventListener('keyup', handleEvent, true);
+    window.addEventListener('gutter-selection-change', handleEvent);
     window.addEventListener('scroll', handleEvent, true);
     window.addEventListener('resize', handleEvent, true);
 
@@ -504,6 +582,7 @@ export const FloatingSelectionToolbar: React.FC<FloatingSelectionToolbarProps> =
       document.removeEventListener('select', handleEvent, true);
       document.removeEventListener('mouseup', handleEvent, true);
       document.removeEventListener('keyup', handleEvent, true);
+      window.removeEventListener('gutter-selection-change', handleEvent);
       window.removeEventListener('scroll', handleEvent, true);
       window.removeEventListener('resize', handleEvent, true);
     };
@@ -519,6 +598,7 @@ export const FloatingSelectionToolbar: React.FC<FloatingSelectionToolbarProps> =
     score: 1000,
     scopeLabel: `v${nextVer}`,
     pageId: entity.id,
+    shortId: entity.short_id,
   }));
 
   const copyToNewNoteItem: SuggestionItem = {
@@ -567,6 +647,7 @@ export const FloatingSelectionToolbar: React.FC<FloatingSelectionToolbarProps> =
       setHasReferenceError(false);
       setAllAvailableEntities([]);
       window.getSelection()?.removeAllRanges();
+      clearAllGutterSelections();
       return;
     }
 
@@ -644,6 +725,7 @@ export const FloatingSelectionToolbar: React.FC<FloatingSelectionToolbarProps> =
     setHasReferenceError(false);
     setAllAvailableEntities([]);
     window.getSelection()?.removeAllRanges();
+    clearAllGutterSelections();
   };
 
   const [isSelectingText, setIsSelectingText] = useState(false);
@@ -763,6 +845,7 @@ export const FloatingSelectionToolbar: React.FC<FloatingSelectionToolbarProps> =
         setHasReferenceError(false);
         setAllAvailableEntities([]);
         window.getSelection()?.removeAllRanges();
+        clearAllGutterSelections();
         return;
       }
     };
@@ -778,6 +861,7 @@ export const FloatingSelectionToolbar: React.FC<FloatingSelectionToolbarProps> =
   return (
     <div
       ref={containerRef}
+      data-floating-toolbar="true"
       style={{ top: `${position.top}px`, left: `${position.left}px` }}
       className={`fixed z-50 animate-in fade-in zoom-in-95 duration-150 select-none ${
         isSelectingText ? 'pointer-events-none' : 'pointer-events-auto'

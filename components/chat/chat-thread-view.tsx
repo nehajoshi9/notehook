@@ -111,7 +111,8 @@ export const ChatThreadView: React.FC<ChatThreadViewProps> = ({ paneIndex = 1 })
     if (matchedPage) {
       e.stopPropagation();
       const displayTitle = matchedPage.type === 'entity' ? `@${matchedPage.title}` : matchedPage.title;
-      openInPane2(matchedPage.type as any, matchedPage.id, displayTitle);
+      const targetSpan = target.getAttribute('data-full') || target.getAttribute('data-title') || target.getAttribute('data-short-id') || target.textContent?.trim();
+      openInPane2(matchedPage.type as any, matchedPage.id, displayTitle, targetSpan);
     }
   };
 
@@ -164,73 +165,52 @@ export const ChatThreadView: React.FC<ChatThreadViewProps> = ({ paneIndex = 1 })
             const isUserTurnOnly = note.role === 'user' || (note.user_prompt === note.content && note.role !== 'assistant');
 
             return (
-              <div key={note.id} id={`page-${note.id}`} data-message-id={note.id} onClick={handleInlinePillClick} onMouseDown={handleMouseDown} className="max-w-3xl mx-auto space-y-3 relative">
-                {/* 1-Pane Full Page Chat View: ID pill top-aligned with prompt bubble, right edge aligned with left side of response bubble */}
-                {!isDualPane && note.short_id && (
-                  <div className="absolute right-[100%] mr-3 top-0 flex items-center justify-end select-none" data-ignore-selection="true">
+              <div key={note.id} id={`page-${note.id}`} data-message-id={note.id} onClick={handleInlinePillClick} onMouseDown={handleMouseDown} className="max-w-3xl mx-auto space-y-2 relative">
+                {/* Turn Header: ID pill on left (aligned with AI response bubble), View as Page & Time on right */}
+                <div className="flex items-center justify-between w-full px-0 text-[10px] text-zinc-400 font-medium select-none" data-ignore-selection="true">
+                  <div>
+                    {note.short_id && (
+                      <button
+                        type="button"
+                        data-short-id={note.short_id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCopyShortId(note.short_id!);
+                        }}
+                        className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-mono font-medium bg-zinc-100/90 text-zinc-600 hover:text-zinc-950 border border-zinc-200/90 hover:border-zinc-300 hover:bg-zinc-200/70 transition-all shadow-2xs cursor-pointer select-none"
+                        title="Copy id"
+                      >
+                        {copiedShortId === note.short_id ? (
+                          <>
+                            <Check className="w-3 h-3 text-emerald-600" />
+                            <span className="text-emerald-700 font-sans font-semibold text-[11px]">Copied!</span>
+                          </>
+                        ) : (
+                          <span>[@{note.short_id}]</span>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleCopyShortId(note.short_id!);
-                      }}
-                      className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-mono font-medium bg-zinc-100/90 text-zinc-600 hover:text-zinc-950 border border-zinc-200/90 hover:border-zinc-300 hover:bg-zinc-200/70 transition-all shadow-2xs cursor-pointer select-none shrink-0"
-                      title="Copy id"
+                      onClick={() => openInPane2('message', note.id, note.title, note.short_id || note.title)}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-white text-zinc-700 hover:text-zinc-950 border border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50/80 transition-colors shadow-2xs cursor-pointer select-none"
+                      title="View Message as Page"
                     >
-                      {copiedShortId === note.short_id ? (
-                        <>
-                          <Check className="w-3 h-3 text-emerald-600" />
-                          <span className="text-emerald-700 font-sans font-semibold text-[11px]">Copied!</span>
-                        </>
-                      ) : (
-                        <span>[@{note.short_id}]</span>
-                      )}
+                      <FileText className="w-3 h-3 text-zinc-500 select-none" />
+                      <span className="select-none">View as Page</span>
                     </button>
+                    <span className="select-none">
+                      {new Date(note.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
                   </div>
-                )}
+                </div>
 
                 {/* 1. User Prompt Message Bubble (Right Aligned, Light Gray) */}
                 {note.user_prompt && (
                   <div className="w-full relative scribe-user-prompt-turn">
-                    <div className="flex flex-col items-end text-right space-y-1 ml-auto max-w-xl w-full">
-                      <div className="flex items-center justify-between w-full px-1 text-[10px] text-zinc-400 font-medium select-none" data-ignore-selection="true">
-                        <div>
-                          {isDualPane && note.short_id && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleCopyShortId(note.short_id!);
-                              }}
-                              className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-mono font-medium bg-zinc-100/90 text-zinc-600 hover:text-zinc-950 border border-zinc-200/90 hover:border-zinc-300 hover:bg-zinc-200/70 transition-all shadow-2xs cursor-pointer select-none"
-                              title="Copy id"
-                            >
-                              {copiedShortId === note.short_id ? (
-                                <>
-                                  <Check className="w-3 h-3 text-emerald-600" />
-                                  <span className="text-emerald-700 font-sans font-semibold text-[11px]">Copied!</span>
-                                </>
-                              ) : (
-                                <span>[@{note.short_id}]</span>
-                              )}
-                            </button>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => openInPane2('message', note.id, note.title)}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-white text-zinc-700 hover:text-zinc-950 border border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50/80 transition-colors shadow-2xs cursor-pointer select-none"
-                            title="View Message as Page"
-                          >
-                            <FileText className="w-3 h-3 text-zinc-500 select-none" />
-                            <span className="select-none">View as Page</span>
-                          </button>
-                          <span className="select-none">
-                            {new Date(note.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                        </div>
-                      </div>
+                    <div className="flex flex-col items-end text-right ml-auto max-w-xl w-full">
                       <div
                         onClick={handleInlinePillClick}
                         onMouseDown={handleMouseDown}
@@ -249,42 +229,6 @@ export const ChatThreadView: React.FC<ChatThreadViewProps> = ({ paneIndex = 1 })
                 {/* 2. AI Assistant Response Bubble (Left Aligned) */}
                 {!isUserTurnOnly && (
                   <div className="flex flex-col items-start space-y-1.5 mr-auto max-w-2xl relative w-full">
-
-                    {!note.user_prompt && (
-                      <div className="flex items-center justify-between w-full px-1 select-none" data-ignore-selection="true">
-                        <div>
-                          {isDualPane && note.short_id && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleCopyShortId(note.short_id!);
-                              }}
-                              className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-mono font-medium bg-zinc-100/90 text-zinc-600 hover:text-zinc-950 border border-zinc-200/90 hover:border-zinc-300 hover:bg-zinc-200/70 transition-all shadow-2xs cursor-pointer select-none"
-                              title="Copy id"
-                            >
-                              {copiedShortId === note.short_id ? (
-                                <>
-                                  <Check className="w-3 h-3 text-emerald-600" />
-                                  <span className="text-emerald-700 font-sans font-semibold text-[11px]">Copied!</span>
-                                </>
-                              ) : (
-                                <span>[@{note.short_id}]</span>
-                              )}
-                            </button>
-                          )}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => openInPane2('message', note.id, note.title)}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-white text-zinc-700 hover:text-zinc-950 border border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50/80 transition-colors shadow-2xs cursor-pointer select-none"
-                          title="View Message as Page"
-                        >
-                          <FileText className="w-3 h-3 text-zinc-500 select-none" />
-                          <span className="select-none">View as Page</span>
-                        </button>
-                      </div>
-                    )}
 
                     {/* Assistant Response Bubble */}
                     <div
