@@ -165,7 +165,7 @@ export const ChatThreadView: React.FC<ChatThreadViewProps> = ({ paneIndex = 1 })
             const isUserTurnOnly = note.role === 'user' || (note.user_prompt === note.content && note.role !== 'assistant');
 
             return (
-              <div key={note.id} id={`page-${note.id}`} data-message-id={note.id} onClick={handleInlinePillClick} onMouseDown={handleMouseDown} className="max-w-3xl mx-auto space-y-2 relative">
+              <div key={note.id} id={`page-${note.id}`} data-page-id={note.id} data-message-id={note.id} data-page-short-id={note.short_id || ''} onClick={handleInlinePillClick} onMouseDown={handleMouseDown} className="max-w-3xl mx-auto space-y-2 relative">
                 {/* Turn Header: ID pill on left (aligned with AI response bubble), View as Page & Time on right */}
                 <div className="flex items-center justify-between w-full px-0 text-[10px] text-zinc-400 font-medium select-none" data-ignore-selection="true">
                   <div>

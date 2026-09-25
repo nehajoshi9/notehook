@@ -1084,7 +1084,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
   };
 
   return (
-    <div data-page-id={targetPage.id} className="relative flex flex-col h-full bg-white text-zinc-900 overflow-hidden font-sans select-text">
+    <div data-page-id={targetPage.id} data-page-short-id={targetPage.short_id || ''} className="relative flex flex-col h-full bg-white text-zinc-900 overflow-hidden font-sans select-text">
       {/* Sticky Floating In-Page Search Bar (Ctrl+F) */}
       {isPageSearchOpen && (
         <div className="absolute top-3 left-4 z-50 flex items-center justify-between w-[320px] h-9 px-2.5 bg-white/95 backdrop-blur-md border border-zinc-200/90 rounded-xl shadow-md text-xs select-none animate-in fade-in slide-in-from-top-1 duration-100 shrink-0">

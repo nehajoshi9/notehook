@@ -201,6 +201,8 @@ export function normalizeRawContentToCanonicalBrackets(text: string, pages?: Pag
         const escapedShort = p.short_id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const shortRegex = new RegExp(`(?<!\\[)@${escapedShort}(?!\\])`, 'gi');
         result = result.replace(shortRegex, `[@${p.short_id}]`);
+        const bracketedShortRegex = new RegExp(`(?<!@)\\[${escapedShort}\\]`, 'gi');
+        result = result.replace(bracketedShortRegex, `[@${p.short_id}]`);
       }
       const cleanTitle = p.title.replace(/^@/, '').trim();
       if (!cleanTitle) continue;
@@ -1113,11 +1115,58 @@ if (typeof window !== 'undefined') {
     clearAllGutterSelections();
   });
 
+  // Helper to extract source page ID tag from DOM selection or element
+  function findSourcePageTag(elements: (Node | HTMLElement | null | undefined)[]): string | null {
+    for (const n of elements) {
+      if (!n) continue;
+      const el = n.nodeType === Node.ELEMENT_NODE ? (n as HTMLElement) : n.parentElement;
+      if (!el) continue;
+      const pageContainer = el.closest<HTMLElement>('[data-page-id], [data-message-id]');
+      if (pageContainer) {
+        const shortId = pageContainer.getAttribute('data-page-short-id') ||
+                        pageContainer.getAttribute('data-short-id');
+        if (shortId) return `[@${shortId}]`;
+        const pId = pageContainer.getAttribute('data-page-id') || pageContainer.getAttribute('data-message-id');
+        if (pId) return `[@${pId}]`;
+      }
+    }
+    return null;
+  }
+
+  function prependSourceTag(text: string, tag: string | null): string {
+    if (!tag || !text.trim()) return text;
+    const prefix = `From ${tag}`;
+    if (text.startsWith(prefix)) return text;
+    if (text.includes('\n') || /^(\s*[-*#>]|\d+\.)/.test(text)) {
+      return `${prefix}\n\n${text}`;
+    }
+    return `${prefix} ${text}`;
+  }
+
   // Global listener: Cmd+C / Ctrl+C copies markdown format of selected gutter blocks or highlighted prose selection
+  // prepended with 'From [ID tag]' when copied from a page
   window.addEventListener('copy', (e) => {
     const activeEl = document.activeElement;
-    // If user is inside an input or textarea, let native copy handle the raw text
+
+    // 1. If user is inside an input or textarea
     if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) {
+      if (activeEl.closest('#global-search, [data-global-search], aside, [data-sidebar]')) {
+        return;
+      }
+      const sourceTag = findSourcePageTag([activeEl as HTMLElement]);
+      if (sourceTag) {
+        const inputEl = activeEl as HTMLInputElement | HTMLTextAreaElement;
+        const start = inputEl.selectionStart || 0;
+        const end = inputEl.selectionEnd || 0;
+        let text = inputEl.value.slice(start, end).trim();
+        if (text) {
+          text = prependSourceTag(text, sourceTag);
+          e.clipboardData?.setData('text/plain', text);
+          e.clipboardData?.setData('text/markdown', text);
+          e.preventDefault();
+          return;
+        }
+      }
       return;
     }
 
@@ -1125,13 +1174,15 @@ if (typeof window !== 'undefined') {
       document.querySelectorAll<HTMLElement>('.scribe-markdown-block.is-block-selected')
     );
 
-    // 1. If gutter blocks are selected: serialize them to Markdown
+    // 2. If gutter blocks are selected: serialize them to Markdown and prepend source tag
     if (selectedBlocks.length > 0) {
       const textToCopy = selectedBlocks
         .map((b) => domToMarkdown(b))
         .join('\n\n');
-      const cleanMd = cleanMarkdownSpacing(textToCopy);
+      let cleanMd = cleanMarkdownSpacing(textToCopy);
       if (cleanMd) {
+        const sourceTag = findSourcePageTag([selectedBlocks[0]]);
+        cleanMd = prependSourceTag(cleanMd, sourceTag);
         e.clipboardData?.setData('text/plain', cleanMd);
         e.clipboardData?.setData('text/markdown', cleanMd);
         e.preventDefault();
@@ -1139,7 +1190,7 @@ if (typeof window !== 'undefined') {
       }
     }
 
-    // 2. If user highlighted text in rendered prose content (Command+C)
+    // 3. If user highlighted text in rendered prose content (Command+C)
     const selection = window.getSelection();
     if (selection && !selection.isCollapsed && selection.rangeCount > 0) {
       const range = selection.getRangeAt(0);
@@ -1149,10 +1200,16 @@ if (typeof window !== 'undefined') {
           ? (commonNode as HTMLElement)
           : commonNode.parentElement;
 
-      if (parentEl && parentEl.closest('.prose-scribe, .scribe-markdown-block, [data-chat-thread]')) {
+      if (parentEl && parentEl.closest('.prose-scribe, .scribe-markdown-block, [data-chat-thread], [data-page-id], [data-message-id]')) {
         const cloned = range.cloneContents();
-        const cleanMd = cleanMarkdownSpacing(domToMarkdown(cloned));
+        let cleanMd = cleanMarkdownSpacing(domToMarkdown(cloned));
         if (cleanMd) {
+          const sourceTag = findSourcePageTag([
+            parentEl,
+            range.startContainer,
+            range.endContainer,
+          ]);
+          cleanMd = prependSourceTag(cleanMd, sourceTag);
           e.clipboardData?.setData('text/plain', cleanMd);
           e.clipboardData?.setData('text/markdown', cleanMd);
           e.preventDefault();

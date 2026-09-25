@@ -121,6 +121,9 @@ export const FloatingSelectionToolbar: React.FC<FloatingSelectionToolbarProps> =
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [allAvailableEntities, setAllAvailableEntities] = useState<{ entity: Page; nextVer: number }[]>([]);
   const [detectedSourcePageId, setDetectedSourcePageId] = useState<string | undefined>(undefined);
+  const detectedSourcePageIdRef = useRef<string | undefined>(undefined);
+  const pagesRef = useRef<Page[]>(pages);
+  pagesRef.current = pages;
   const [isChatAreaSelection, setIsChatAreaSelection] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -544,6 +547,7 @@ export const FloatingSelectionToolbar: React.FC<FloatingSelectionToolbarProps> =
 
       setSelectedText(selectedTextStr);
       setHasReferenceError(containsRef);
+      detectedSourcePageIdRef.current = foundPageId;
       setDetectedSourcePageId(foundPageId);
       setIsChatAreaSelection(isChatArea);
       setAllAvailableEntities(entitiesWithVersions);
@@ -756,46 +760,31 @@ export const FloatingSelectionToolbar: React.FC<FloatingSelectionToolbarProps> =
 
     const handleCopy = (e: ClipboardEvent) => {
       const selection = window.getSelection();
-      if (!selection || selection.isCollapsed) return;
+      const selectedBlocks = Array.from(
+        document.querySelectorAll<HTMLElement>('.scribe-markdown-block.is-block-selected')
+      );
 
-      let text = selection.toString();
-      if (!text || !text.trim()) return;
-
-      const range = selection.getRangeAt(0);
-      const container = (range.commonAncestorContainer.nodeType === 1
-        ? range.commonAncestorContainer
-        : range.commonAncestorContainer.parentElement) as HTMLElement | null;
-
-      if (!container) return;
-
-      const pills = Array.from(container.querySelectorAll('.page-mention-pill')) as HTMLElement[];
-      const parentPill = container.closest('.page-mention-pill') as HTMLElement | null;
-      if (parentPill && !pills.includes(parentPill)) {
-        pills.push(parentPill);
+      let text = '';
+      if (selectedBlocks.length > 0) {
+        text = cleanMarkdownSpacing(selectedBlocks.map((b) => domToMarkdown(b)).join('\n\n'));
+      } else if (selection && !selection.isCollapsed) {
+        const range = selection.getRangeAt(0);
+        text = cleanMarkdownSpacing(domToMarkdown(range.cloneContents())) || selection.toString().trim();
       }
 
-      let modified = false;
-      pills.forEach((pill) => {
-        const fullTitle = pill.getAttribute('data-full') || pill.getAttribute('data-entity');
-        const shortEl = pill.querySelector('.pill-short');
-        const shortText = shortEl?.textContent?.trim();
+      if (!text || !text.trim()) return;
 
-        const dataType = pill.getAttribute('data-type');
-        if (fullTitle && shortText) {
-          if (text.includes(shortText)) {
-            let fullTag = `[@${fullTitle}]`;
-            if (dataType === 'todo' || shortText.startsWith('@todo:')) fullTag = `[@todo: ${fullTitle}]`;
-            else if (dataType === 'decision' || shortText.startsWith('@decision:')) fullTag = `[@decision: ${fullTitle}]`;
-            else if (dataType === 'note' || shortText.startsWith('@note:')) fullTag = `[@note: ${fullTitle}]`;
+      const pId = detectedSourcePageIdRef.current || noteId;
+      const sourcePage = pId ? pagesRef.current.find((p) => p.id === pId) : null;
+      const sourceTag = sourcePage?.short_id ? `[@${sourcePage.short_id}]` : (sourcePage ? `[@${sourcePage.id}]` : '');
 
-            text = text.replace(shortText, fullTag);
-            modified = true;
-          }
-        }
-      });
+      if (sourceTag && !text.startsWith(`From ${sourceTag}`)) {
+        text = text.includes('\n') ? `From ${sourceTag}\n\n${text}` : `From ${sourceTag} ${text}`;
+      }
 
-      if (modified && e.clipboardData) {
+      if (e.clipboardData) {
         e.clipboardData.setData('text/plain', text);
+        e.clipboardData.setData('text/markdown', text);
         e.preventDefault();
       }
     };
