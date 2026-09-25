@@ -500,15 +500,6 @@ button.mention-target-highlight {
   border-radius: 9999px !important;
 }
 
-/* Never display the target blue highlight box inside mentions feed cards or excerpts */
-.mentions-card-container .mention-target-highlight,
-.mentions-panel-excerpt .mention-target-highlight,
-[data-mentions-feed] .mention-target-highlight {
-  outline: none !important;
-  box-shadow: none !important;
-  animation: none !important;
-  background-color: transparent !important;
-}
 
 @keyframes mention-pulse-glow {
   0% {
