@@ -373,4 +373,64 @@ describe('AI Scribe Architecture & Prefix Caching Tests', () => {
     assert.ok(resultOld.injectedContext, 'Old message m1 outside history buffer must be injected on-demand');
     assert.match(resultOld.injectedContext, /Answer body for turn 1/);
   });
+
+  it('10. Deduplicates unchanged todos generated in past turns, but re-injects when marked done or updated', async () => {
+    const turn1Time = '2026-09-24T10:00:00.000Z';
+    const turn1Message: Page = {
+      id: 'turn-1',
+      type: 'message',
+      role: 'assistant',
+      title: 'Database Setup',
+      user_prompt: 'What are the database action items?',
+      content: 'Here are the tasks: [@todo: Set up database connection pool]',
+      created_at: turn1Time,
+    };
+
+    const todoPage: Page = {
+      id: 'todo-db-pool',
+      short_id: 't1',
+      type: 'todo',
+      title: 'Set up database connection pool',
+      content: 'Set up database connection pool',
+      done: false,
+      starred: false,
+      created_at: turn1Time,
+      updated_at: turn1Time,
+    };
+
+    // Case A: User asks about @t1 while it is unedited/pending. It is already in Turn 1's content.
+    const resultUnchanged = await generateScribeResponse(
+      'Can you help me with [@t1]?',
+      [],
+      dummySettings,
+      undefined,
+      [],
+      [todoPage, turn1Message],
+      []
+    );
+    assert.equal(
+      resultUnchanged.injectedContext,
+      undefined,
+      'Unchanged todo already present in history turn must not be re-injected'
+    );
+
+    // Case B: User marks todo as COMPLETED (done: true, updated_at updated after turn 1)
+    const completedTodo: Page = {
+      ...todoPage,
+      done: true,
+      updated_at: '2026-09-24T11:00:00.000Z', // newer than turn1
+    };
+
+    const resultCompleted = await generateScribeResponse(
+      'What is the status of [@t1]?',
+      [],
+      dummySettings,
+      undefined,
+      [],
+      [completedTodo, turn1Message],
+      []
+    );
+    assert.ok(resultCompleted.injectedContext, 'Modified/completed todo must be re-injected with updated status');
+    assert.match(resultCompleted.injectedContext, /\[Status: COMPLETED \/ DONE\]/);
+  });
 });

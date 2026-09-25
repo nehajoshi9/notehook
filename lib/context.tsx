@@ -731,11 +731,19 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const toggleTodoDone = (id: string) => {
-    setPages((prev) => prev.map((p) => (p.id === id ? { ...p, done: !p.done } : p)));
+    setPages((prev) =>
+      prev.map((p) =>
+        p.id === id ? { ...p, done: !p.done, updated_at: new Date().toISOString() } : p
+      )
+    );
   };
 
   const toggleTodoStarred = (id: string) => {
-    setPages((prev) => prev.map((p) => (p.id === id ? { ...p, starred: !p.starred } : p)));
+    setPages((prev) =>
+      prev.map((p) =>
+        p.id === id ? { ...p, starred: !p.starred, updated_at: new Date().toISOString() } : p
+      )
+    );
   };
 
   const togglePinPage = (id: string): boolean => {

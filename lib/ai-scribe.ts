@@ -286,7 +286,10 @@ export function buildDynamicReferencedSection(referencedPages: Page[]): string {
     const cleanTitle = page.title.replace(/^@/, '').trim();
     const shortIdStr = page.short_id ? ` (ID: ${page.short_id})` : '';
     const userPromptMeta = page.user_prompt ? `\nUser Prompt Framing: "${page.user_prompt}"` : '';
-    return `--- REFERENCED PAGE: [@${cleanTitle}]${shortIdStr} [type: ${page.type}] ---${userPromptMeta}\nContent:\n${pageContent}\n--- END REFERENCED PAGE ---`;
+    const statusMeta = page.type === 'todo'
+      ? ` [Status: ${page.done ? 'COMPLETED / DONE' : 'PENDING / OPEN'}]`
+      : '';
+    return `--- REFERENCED PAGE: [@${cleanTitle}]${shortIdStr} [type: ${page.type}]${statusMeta} ---${userPromptMeta}\nContent:\n${pageContent}\n--- END REFERENCED PAGE ---`;
   });
 
   return `=== REFERENCED CONTEXT FOR THIS TURN ===\n${blocks.join('\n\n')}\n=== END REFERENCED CONTEXT ===`;
@@ -368,6 +371,8 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
     alreadyVerbatimUnchangedIds.add(turn.id);
   }
 
+  const index = new MentionIndex(allPages.length > 0 ? allPages : existingEntities);
+
   // Process past turns:
   // If an injected page in a past turn was modified after that turn, remove its stale reference block
   const processedPastTurns = pastTurns.map((turn) => {
@@ -384,6 +389,20 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
           (page) => page.title.replace(/^@/, '').trim().toLowerCase() === title.toLowerCase()
         );
         if (p) referencedIdsInTurn.add(p.id);
+      }
+    }
+
+    // Also detect items (especially todos) mentioned directly or created in this turn
+    const mentionedInTurn = [
+      ...index.searchMentions(turn.content),
+      ...(turn.user_prompt ? index.searchMentions(turn.user_prompt) : []),
+      ...allPages.filter((p) => p.type === 'todo' && (p.created_at === turn.created_at || turn.content.includes(p.title))),
+    ];
+    for (const item of mentionedInTurn) {
+      const itemUpdatedTime = new Date(item.updated_at || item.created_at).getTime();
+      const hasChanged = itemUpdatedTime > turnTime;
+      if (!hasChanged) {
+        alreadyVerbatimUnchangedIds.add(item.id);
       }
     }
 
