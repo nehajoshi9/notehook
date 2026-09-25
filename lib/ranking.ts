@@ -1,5 +1,5 @@
 import { Page } from './types';
-import { formatCanonicalRawTag } from './scribe-parser';
+import { formatCanonicalRawTag } from './notehook-parser';
 
 export interface SuggestionItem {
   id: string;

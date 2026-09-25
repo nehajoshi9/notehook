@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { usePlanet } from '@/lib/context';
+import { useNotehook } from '@/lib/context';
 import { EntityVersion } from '@/lib/types';
 import { Tag, CheckSquare, Square, Zap, ArrowLeft, FileText, MessageSquare, Star, Bookmark, Trash2, Search, ChevronUp, ChevronDown, X, Check, Pin } from 'lucide-react';
-import { convertScribeTextToHtml, findPageForPill, isCursorInsideReference, getCaretOffsetFromPoint, normalizeRawContentToCanonicalBrackets, scrollToMentionOrElement, selectMarkdownBlock, clearMarkdownBlockSelection, syncMultiBlockSelection, handleGutterRangeClick, handleGutterMouseDown, clearAllGutterSelections, htmlToMarkdown, parseScribeMarkup } from '@/lib/scribe-parser';
+import { convertNotehookTextToHtml, findPageForPill, isCursorInsideReference, getCaretOffsetFromPoint, normalizeRawContentToCanonicalBrackets, scrollToMentionOrElement, selectMarkdownBlock, clearMarkdownBlockSelection, syncMultiBlockSelection, handleGutterRangeClick, handleGutterMouseDown, clearAllGutterSelections, htmlToMarkdown, parseNotehookMarkup } from '@/lib/notehook-parser';
 import { getPastelColorForTitle } from '@/lib/color';
 import { getMentionSnippetsForPage, MentionHighlightedText, matchesExplicitReference } from '@/lib/mentions';
 import { getRankedSuggestions, SuggestionItem } from '@/lib/ranking';
@@ -251,7 +251,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
     togglePinPage,
     navigateToMessage,
     scrollToMessageInChat,
-  } = usePlanet();
+  } = useNotehook();
 
   const targetPage = pages.find((p) => p.id === pageId || p.title.toLowerCase() === pageId.toLowerCase());
 
@@ -339,8 +339,8 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
     if (!isPageSearchOpen || !query || !targetPage) {
       return {
         renderedTitleHtml: targetPage?.title || '',
-        renderedPromptHtml: convertScribeTextToHtml(targetPage?.user_prompt || '', 'auto', pages),
-        renderedBodyHtml: convertScribeTextToHtml(bodyText || '', 'auto', pages),
+        renderedPromptHtml: convertNotehookTextToHtml(targetPage?.user_prompt || '', 'auto', pages),
+        renderedBodyHtml: convertNotehookTextToHtml(bodyText || '', 'auto', pages),
         totalMatchCount: 0,
       };
     }
@@ -351,7 +351,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
     runningCount += titleRes.count;
 
     const promptRes = highlightSearchInHtml(
-      convertScribeTextToHtml(targetPage.user_prompt || '', 'auto', pages),
+      convertNotehookTextToHtml(targetPage.user_prompt || '', 'auto', pages),
       query,
       runningCount,
       currentMatchIndex
@@ -359,7 +359,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
     runningCount += promptRes.count;
 
     const bodyRes = highlightSearchInHtml(
-      convertScribeTextToHtml(bodyText || '', 'auto', pages),
+      convertNotehookTextToHtml(bodyText || '', 'auto', pages),
       query,
       runningCount,
       currentMatchIndex
@@ -906,7 +906,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
     if (!pastedText) return;
 
     const normalized = normalizeRawContentToCanonicalBrackets(pastedText, pages);
-    const parsed = parseScribeMarkup(normalized, pages);
+    const parsed = parseNotehookMarkup(normalized, pages);
 
     parsed.forEach((item) => {
       const cleanTitle = (item.nameOrTitle || item.fullText || '').trim();
@@ -1313,9 +1313,9 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
         </div>
 
         {/* H1 Title (ContentEditable - Disabled when prompt is being edited) */}
-        <div className="scribe-markdown-block relative">
+        <div className="notehook-markdown-block relative">
           <div
-            className="scribe-gutter-handle"
+            className="notehook-gutter-handle"
             title="Select markdown block"
             onMouseDown={(e) => e.preventDefault()}
             data-block-index="title"
@@ -1323,7 +1323,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
           >
             <button
               type="button"
-              className="scribe-gutter-btn"
+              className="notehook-gutter-btn"
               title="Select markdown block"
               onMouseDown={(e) => e.preventDefault()}
               data-block-id="block-title"
@@ -1376,9 +1376,9 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
 
         {/* User Prompt Inner Rectangle (Rendered BELOW title in message page view) */}
         {targetPage.user_prompt && (
-          <div className="scribe-markdown-block relative scribe-user-prompt-turn mb-2">
+          <div className="notehook-markdown-block relative notehook-user-prompt-turn mb-2">
             <div
-              className="scribe-gutter-handle"
+              className="notehook-gutter-handle"
               title="Select markdown block"
               onMouseDown={(e) => e.preventDefault()}
               data-block-index="prompt"
@@ -1386,7 +1386,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
             >
               <button
                 type="button"
-                className="scribe-gutter-btn"
+                className="notehook-gutter-btn"
                 title="Select markdown block"
                 onMouseDown={(e) => e.preventDefault()}
                 data-block-id="block-prompt"
@@ -1684,10 +1684,10 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
             onMouseDown={(e) => {
               handleGutterMouseDown(e, e.currentTarget.parentElement || e.currentTarget);
             }}
-            className="mt-3 bg-zinc-100/90 border border-zinc-200/90 rounded-2xl p-4 md:p-5 flex flex-col gap-3 shadow-2xs select-text shrink-0 w-full scribe-markdown-block relative"
+            className="mt-3 bg-zinc-100/90 border border-zinc-200/90 rounded-2xl p-4 md:p-5 flex flex-col gap-3 shadow-2xs select-text shrink-0 w-full notehook-markdown-block relative"
           >
             <div
-              className="scribe-gutter-handle"
+              className="notehook-gutter-handle"
               title="Select markdown block"
               onMouseDown={(e) => e.preventDefault()}
               data-block-index="entity-version"
@@ -1695,7 +1695,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
             >
               <button
                 type="button"
-                className="scribe-gutter-btn"
+                className="notehook-gutter-btn"
                 title="Select markdown block"
                 onMouseDown={(e) => e.preventDefault()}
                 data-block-id="block-entity-version"
@@ -1799,9 +1799,9 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
               {activeVersion ? (
                 <div className="space-y-3">
                   {/* Version Title Header (No horizontal border line) */}
-                  <div className="flex items-center justify-between gap-2 pb-1 scribe-markdown-block relative">
+                  <div className="flex items-center justify-between gap-2 pb-1 notehook-markdown-block relative">
                     <div
-                      className="scribe-gutter-handle"
+                      className="notehook-gutter-handle"
                       title="Select markdown block"
                       onMouseDown={(e) => e.preventDefault()}
                       data-block-index="version-title"
@@ -1809,7 +1809,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
                     >
                       <button
                         type="button"
-                        className="scribe-gutter-btn"
+                        className="notehook-gutter-btn"
                         title="Select markdown block"
                         onMouseDown={(e) => e.preventDefault()}
                         data-block-id="block-version-title"
@@ -1984,7 +1984,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
                           className="text-xs md:text-sm text-zinc-900 leading-relaxed font-normal bg-transparent"
                           dangerouslySetInnerHTML={{
                             __html: activeVersion.content
-                              ? convertScribeTextToHtml(activeVersion.content, 'auto', pages)
+                              ? convertNotehookTextToHtml(activeVersion.content, 'auto', pages)
                               : '<span class="text-zinc-400 italic font-normal">Click anywhere to start typing version notes...</span>',
                           }}
                         />

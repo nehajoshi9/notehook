@@ -1,11 +1,11 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { usePlanet } from '@/lib/context';
+import { useNotehook } from '@/lib/context';
 import { AlertTriangle, ChevronLeft } from 'lucide-react';
 import { getRankedSuggestions, SuggestionItem } from '@/lib/ranking';
 import { SuggestionList } from '@/components/ai/suggestion-list';
-import { parseScribeMarkup, formatItemTitle, untagReferences, domToMarkdown, cleanMarkdownSpacing, clearAllGutterSelections } from '@/lib/scribe-parser';
+import { parseNotehookMarkup, formatItemTitle, untagReferences, domToMarkdown, cleanMarkdownSpacing, clearAllGutterSelections } from '@/lib/notehook-parser';
 import { matchesExplicitReference } from '@/lib/mentions';
 import { Page } from '@/lib/types';
 
@@ -113,7 +113,7 @@ export const FloatingSelectionToolbar: React.FC<FloatingSelectionToolbarProps> =
     updatePageUserPrompt,
     addEntityVersion,
     openInPane2,
-  } = usePlanet();
+  } = useNotehook();
 
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
   const [selectedText, setSelectedText] = useState('');
@@ -173,9 +173,9 @@ export const FloatingSelectionToolbar: React.FC<FloatingSelectionToolbarProps> =
         return;
       }
 
-      // 0. Check if user selected text via gutter handles (.scribe-markdown-block.is-block-selected)
+      // 0. Check if user selected text via gutter handles (.notehook-markdown-block.is-block-selected)
       const selectedGutterBlocks = Array.from(
-        document.querySelectorAll<HTMLElement>('.scribe-markdown-block.is-block-selected')
+        document.querySelectorAll<HTMLElement>('.notehook-markdown-block.is-block-selected')
       );
       const isGutterSelection = selectedGutterBlocks.length > 0;
 
@@ -684,7 +684,7 @@ export const FloatingSelectionToolbar: React.FC<FloatingSelectionToolbarProps> =
       const cleanBodyText = selectedText;
       const untaggedForTitle = untagReferences(cleanBodyText);
       const cleanTitle = formatItemTitle(untaggedForTitle, 45) || 'New Entity';
-      const activeBlocks = document.querySelectorAll<HTMLElement>('.scribe-markdown-block.is-block-selected');
+      const activeBlocks = document.querySelectorAll<HTMLElement>('.notehook-markdown-block.is-block-selected');
       const targetContainer = activeBlocks.length > 0 ? activeBlocks[0].closest<HTMLElement>('[data-page-id], [data-message-id]') : null;
       const pId = targetContainer?.getAttribute('data-page-id') || targetContainer?.getAttribute('data-message-id') || detectedSourcePageId;
       const sourcePage = pId ? pages.find((p) => p.id === pId) : null;
@@ -714,7 +714,7 @@ export const FloatingSelectionToolbar: React.FC<FloatingSelectionToolbarProps> =
       const cleanBodyText = selectedText;
       const untaggedForTitle = untagReferences(cleanBodyText);
       const cleanTitle = formatItemTitle(untaggedForTitle, 45) || 'Untitled Note';
-      const activeBlocks = document.querySelectorAll<HTMLElement>('.scribe-markdown-block.is-block-selected');
+      const activeBlocks = document.querySelectorAll<HTMLElement>('.notehook-markdown-block.is-block-selected');
       const targetContainer = activeBlocks.length > 0 ? activeBlocks[0].closest<HTMLElement>('[data-page-id], [data-message-id]') : null;
       const pId = targetContainer?.getAttribute('data-page-id') || targetContainer?.getAttribute('data-message-id') || detectedSourcePageId;
       const sourcePage = pId ? pages.find((p) => p.id === pId) : null;
@@ -842,7 +842,7 @@ export const FloatingSelectionToolbar: React.FC<FloatingSelectionToolbarProps> =
     const handleCopy = (e: ClipboardEvent) => {
       const selection = window.getSelection();
       const selectedBlocks = Array.from(
-        document.querySelectorAll<HTMLElement>('.scribe-markdown-block.is-block-selected')
+        document.querySelectorAll<HTMLElement>('.notehook-markdown-block.is-block-selected')
       );
 
       let text = '';

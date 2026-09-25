@@ -1,11 +1,11 @@
 'use client';
 
 import React, { useState } from 'react';
-import { usePlanet } from '@/lib/context';
+import { useNotehook } from '@/lib/context';
 import { FileText, Plus, Search, X, Trash2 } from 'lucide-react';
 
 export const NoteIndexView: React.FC = () => {
-  const { notes, createNotePage, openInPane2, deletePage } = usePlanet();
+  const { notes, createNotePage, openInPane2, deletePage } = useNotehook();
   const [searchQuery, setSearchQuery] = useState('');
 
   const sortedNotes = [...notes].sort(

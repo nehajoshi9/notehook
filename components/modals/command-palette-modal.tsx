@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { usePlanet } from '@/lib/context';
+import { useNotehook } from '@/lib/context';
 import { useIsMac } from '@/lib/use-os';
 import { Page } from '@/lib/types';
 import { getPastelColorForTitle } from '@/lib/color';
@@ -24,7 +24,7 @@ export function openCommandPalette() {
 
 export const CommandPaletteModal: React.FC = () => {
   const isMac = useIsMac();
-  const { pages, openInPane2, navigateToMessage, leftHistory, rightHistory, navigationHistory } = usePlanet();
+  const { pages, openInPane2, navigateToMessage, leftHistory, rightHistory, navigationHistory } = useNotehook();
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);

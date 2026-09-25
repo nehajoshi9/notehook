@@ -1,6 +1,7 @@
 import React from 'react';
 import { Page } from './types';
-import { convertScribeTextToHtml } from './scribe-parser';
+import { convertNotehookTextToHtml } from './notehook-parser';
+import { useNotehook } from './context';
 
 export function matchesExplicitReference(text: string, targetTitle: string, targetShortId?: string): boolean {
   if (!text) return false;
@@ -26,14 +27,14 @@ export function matchesExplicitReference(text: string, targetTitle: string, targ
   return false;
 }
 
-interface ScribeToken {
+export interface NotehookToken {
   text: string;
   isPill: boolean;
   weight: number;
 }
 
-export function tokenizeScribeText(text: string): ScribeToken[] {
-  const tokens: ScribeToken[] = [];
+export function tokenizeNotehookText(text: string): NotehookToken[] {
+  const tokens: NotehookToken[] = [];
   const tagRegex = /\[@(todo:|decision:|note:|message:)?\s*([^\]]+)\]/gi;
 
   let lastIndex = 0;
@@ -53,7 +54,6 @@ export function tokenizeScribeText(text: string): ScribeToken[] {
       });
     }
 
-    const tagTypeRaw = (match[1] || '').toLowerCase().replace(':', '');
     const weight = 2; // All pills count as 2 words towards excerpt word budget
 
     tokens.push({
@@ -90,7 +90,7 @@ export function getMentionSnippetsForPage(page: Page, targetTitle: string, targe
   const textToSearch = `${page.user_prompt || ''} ${page.content || ''}`.trim();
   if (!textToSearch) return [];
 
-  const tokens = tokenizeScribeText(textToSearch);
+  const tokens = tokenizeNotehookText(textToSearch);
   if (tokens.length === 0) return [];
 
   const matchIndices: number[] = [];
@@ -148,8 +148,8 @@ export function getMentionSnippetsForPage(page: Page, targetTitle: string, targe
     const overlapsStart = midStart <= 4;
     const overlapsEnd = midEnd >= tokens.length - 5;
 
-    let startTokens: ScribeToken[] = [];
-    let endTokens: ScribeToken[] = [];
+    let startTokens: NotehookToken[] = [];
+    let endTokens: NotehookToken[] = [];
     let hasStartGap = false;
     let hasEndGap = false;
 
@@ -216,13 +216,11 @@ export function getMentionSnippetsForPage(page: Page, targetTitle: string, targe
   });
 }
 
-import { usePlanet } from './context';
-
 export const MentionHighlightedText: React.FC<{ text: string; targetTitle: string }> = ({
   text,
 }) => {
-  const { pages } = usePlanet();
-  const html = convertScribeTextToHtml(text, 'auto', pages);
+  const { pages } = useNotehook();
+  const html = convertNotehookTextToHtml(text, 'auto', pages);
   return (
     <div
       dangerouslySetInnerHTML={{ __html: html }}

@@ -4,15 +4,15 @@ import {
   buildKnowledgeCatalogueSection,
   buildPinnedKnowledgeSection,
   buildDynamicReferencedSection,
-  generateScribeResponse,
+  generateNotehookResponse,
   getReferencedPagesFromPrompt,
   expandKnowledgePage,
   KNOWLEDGE_EXPANSION_TOOL_GEMINI,
   KNOWLEDGE_EXPANSION_TOOL_OPENAI,
-} from '../lib/ai-scribe';
+} from '../lib/ai-notehook';
 import { Page, AISettings } from '../lib/types';
 
-describe('AI Scribe Architecture & Prefix Caching Tests', () => {
+describe('AI Notehook Architecture & Prefix Caching Tests', () => {
   const dummySettings: AISettings = {
     provider: 'simulated',
     apiKey: '',
@@ -110,7 +110,7 @@ describe('AI Scribe Architecture & Prefix Caching Tests', () => {
     const allPagesWithTurn1 = [...samplePages, turn1Message];
 
     // Turn 2 references @Auth Service again, but @Auth Service has NOT changed (updated_at is 2026-09-20 <= turn1)
-    const turn2Result = await generateScribeResponse(
+    const turn2Result = await generateNotehookResponse(
       'Can you remind me about [@Auth Service] token expiry?',
       [],
       dummySettings,
@@ -160,7 +160,7 @@ describe('AI Scribe Architecture & Prefix Caching Tests', () => {
       turn1Message,
     ];
 
-    const turn2Result = await generateScribeResponse(
+    const turn2Result = await generateNotehookResponse(
       'Can you explain the new [@Auth Service] spec?',
       [],
       dummySettings,
@@ -247,7 +247,7 @@ describe('AI Scribe Architecture & Prefix Caching Tests', () => {
 
     const allPagesWithNewVersion = [updatedEntityWithVer2, turn1Message];
 
-    const turn2Result = await generateScribeResponse(
+    const turn2Result = await generateNotehookResponse(
       'What is the status of [@Payment Gateway]?',
       [],
       dummySettings,
@@ -265,7 +265,7 @@ describe('AI Scribe Architecture & Prefix Caching Tests', () => {
 
   it('6. Does not inject pinned pages into dynamic turn reference section (Tier 4)', async () => {
     // If Auth Service is pinned in Tier 3, mentioning it in current turn prompt should NOT put it in Tier 4
-    const result = await generateScribeResponse(
+    const result = await generateNotehookResponse(
       'Can you review [@Auth Service]?',
       [],
       dummySettings,
@@ -346,7 +346,7 @@ describe('AI Scribe Architecture & Prefix Caching Tests', () => {
     }
 
     // 1. Mentioning @m5 (which is inside the 12-turn active verbatim buffer)
-    const resultRecent = await generateScribeResponse(
+    const resultRecent = await generateNotehookResponse(
       'What did you say in [@m5]?',
       [],
       dummySettings,
@@ -363,7 +363,7 @@ describe('AI Scribe Architecture & Prefix Caching Tests', () => {
     );
 
     // 2. Mentioning @m1 (which is turn 1, outside the 15-turn buffer)
-    const resultOld = await generateScribeResponse(
+    const resultOld = await generateNotehookResponse(
       'What did you say in [@m1]?',
       [],
       dummySettings,
@@ -402,7 +402,7 @@ describe('AI Scribe Architecture & Prefix Caching Tests', () => {
     };
 
     // Case A: User asks about @t1 while it is unedited/pending. It is already in Turn 1's content.
-    const resultUnchanged = await generateScribeResponse(
+    const resultUnchanged = await generateNotehookResponse(
       'Can you help me with [@t1]?',
       [],
       dummySettings,
@@ -424,7 +424,7 @@ describe('AI Scribe Architecture & Prefix Caching Tests', () => {
       updated_at: '2026-09-24T11:00:00.000Z', // newer than turn1
     };
 
-    const resultCompleted = await generateScribeResponse(
+    const resultCompleted = await generateNotehookResponse(
       'What is the status of [@t1]?',
       [],
       dummySettings,
@@ -481,7 +481,7 @@ describe('AI Scribe Architecture & Prefix Caching Tests', () => {
     };
 
     // In Turn 2, user asks about both Alpha (modified, re-injected) and Zeta (fresh)
-    const result = await generateScribeResponse(
+    const result = await generateNotehookResponse(
       'Compare [@Alpha Architecture] with [@Zeta Service]',
       [],
       dummySettings,
@@ -549,7 +549,7 @@ describe('AI Scribe Architecture & Prefix Caching Tests', () => {
     assert.equal(referencedA[0].id, 'page-auth-multi');
     assert.equal(referencedA[0].target_version_num, 2);
 
-    const resultA = await generateScribeResponse(
+    const resultA = await generateNotehookResponse(
       'How does [@e1.2] work?',
       [],
       dummySettings,
@@ -567,7 +567,7 @@ describe('AI Scribe Architecture & Prefix Caching Tests', () => {
     assert.equal(referencedB.length, 1);
     assert.equal(referencedB[0].target_version_num, 3);
 
-    const resultB = await generateScribeResponse(
+    const resultB = await generateNotehookResponse(
       'Tell me about [@Auth Service.3]',
       [],
       dummySettings,
@@ -620,7 +620,7 @@ describe('AI Scribe Architecture & Prefix Caching Tests', () => {
     assert.equal(referencedVersion.length, 1);
     assert.equal(referencedVersion[0].target_version_num, 4);
 
-    const resultVersion = await generateScribeResponse(
+    const resultVersion = await generateNotehookResponse(
       'Look at [@Release.3.4]',
       [],
       dummySettings,
@@ -678,7 +678,7 @@ describe('AI Scribe Architecture & Prefix Caching Tests', () => {
     };
 
     // Turn 2: User asks about [@Auth Service.2] again. Since it was already injected in turn 1 and unchanged, deduplicate it.
-    const resultTurn2Same = await generateScribeResponse(
+    const resultTurn2Same = await generateNotehookResponse(
       'Can you clarify [@Auth Service.2]?',
       [],
       dummySettings,
@@ -690,7 +690,7 @@ describe('AI Scribe Architecture & Prefix Caching Tests', () => {
     assert.equal(resultTurn2Same.injectedContext, undefined, 'Unchanged entity version 2 must be deduplicated');
 
     // Turn 2 Case B: User asks about canonical [@Auth Service] or [@Auth Service.1]. Must be injected!
-    const resultTurn2V1 = await generateScribeResponse(
+    const resultTurn2V1 = await generateNotehookResponse(
       'Compare with [@Auth Service.1]',
       [],
       dummySettings,
@@ -759,7 +759,7 @@ describe('AI Scribe Architecture & Prefix Caching Tests', () => {
     assert.match(byShortId.expandedText, /Primary billing microservice handling subscription lifecycle\./, 'Must include base body');
     assert.match(
       byShortId.expandedText,
-      /Active\/Canonical Version \["Event-driven Billing v2"\]: Kafka streaming billing engine with automated webhook reconciliation\./,
+      /Active\/(?:Canonical|Primary) Version \["Event-driven Billing v2"\]: Kafka streaming billing engine with automated webhook reconciliation\./,
       'Must include canonical version'
     );
 
@@ -768,7 +768,7 @@ describe('AI Scribe Architecture & Prefix Caching Tests', () => {
     assert.ok(byTitle.page);
     assert.equal(byTitle.page?.id, 'entity-billing');
     assert.match(byTitle.expandedText, /Primary billing microservice handling subscription lifecycle\./);
-    assert.match(byTitle.expandedText, /Active\/Canonical Version \["Event-driven Billing v2"\]/);
+    assert.match(byTitle.expandedText, /Active\/(?:Canonical|Primary) Version \["Event-driven Billing v2"\]/);
 
     // Expansion via tagged syntax "[@Billing Microservice]"
     const byTag = expandKnowledgePage('[@Billing Microservice]', workspacePages);
@@ -865,7 +865,7 @@ describe('AI Scribe Architecture & Prefix Caching Tests', () => {
     assert.match(expansionResult.expandedText, /was not found in the workspace catalogue/);
 
     // 4. Referencing deleted entity in prompt must not inject it into context
-    const turnResult = await generateScribeResponse(
+    const turnResult = await generateNotehookResponse(
       'Can you explain [@Auth Service]?',
       [],
       dummySettings,
@@ -904,7 +904,7 @@ describe('AI Scribe Architecture & Prefix Caching Tests', () => {
 
     // Before deletion: msg1 is in workspace
     const allBefore = [msg1, msg2, ...cleanKnowledgePages];
-    const turnBefore = await generateScribeResponse(
+    const turnBefore = await generateNotehookResponse(
       'What did we discuss earlier?',
       [],
       dummySettings,
@@ -923,7 +923,7 @@ describe('AI Scribe Architecture & Prefix Caching Tests', () => {
     assert.equal(expandDeletedMsg.page, null);
 
     // Verify requesting turn against updated pages
-    const turnAfter = await generateScribeResponse(
+    const turnAfter = await generateNotehookResponse(
       'Can you read [@m88]?',
       [],
       dummySettings,
@@ -1022,7 +1022,7 @@ describe('AI Scribe Architecture & Prefix Caching Tests', () => {
 
     // In Turn 2, user asks again about both [@m99] and [@t20]
     // Since both were already injected/present in Turn 1 and unchanged, they MUST be deduplicated
-    const turn2Result = await generateScribeResponse(
+    const turn2Result = await generateNotehookResponse(
       'What is the next step for [@m99] and [@t20]?',
       [],
       dummySettings,
@@ -1045,7 +1045,7 @@ describe('AI Scribe Architecture & Prefix Caching Tests', () => {
       updated_at: turnTime2,
     };
 
-    const turn3Result = await generateScribeResponse(
+    const turn3Result = await generateNotehookResponse(
       'Check status of [@t20]',
       [],
       dummySettings,

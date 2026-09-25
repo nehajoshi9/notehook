@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Compass, Search, Plus, Tag, FileText, Zap, CheckSquare, LogIn, LogOut, User as UserIcon } from 'lucide-react';
 import { openCommandPalette } from '@/components/modals/command-palette-modal';
 import { useIsMac } from '@/lib/use-os';
-import { usePlanet } from '@/lib/context';
+import { useNotehook } from '@/lib/context';
 import { useAuth } from '@/lib/auth-context';
 
 export const Header: React.FC = () => {
@@ -26,7 +26,7 @@ export const Header: React.FC = () => {
     createDecisionPage,
     createTodoPage,
     openInPane2,
-  } = usePlanet();
+  } = useNotehook();
 
   // Close dropdowns on click outside
   useEffect(() => {

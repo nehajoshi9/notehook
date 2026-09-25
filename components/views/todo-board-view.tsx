@@ -1,11 +1,11 @@
 'use client';
 
 import React, { useState } from 'react';
-import { usePlanet } from '@/lib/context';
+import { useNotehook } from '@/lib/context';
 import { CheckSquare, Star, ExternalLink, Edit3, Check, Plus } from 'lucide-react';
 
 export const TodoBoardView: React.FC = () => {
-  const { todos, toggleTodoDone, toggleTodoStarred, openInPane2, createTodoPage } = usePlanet();
+  const { todos, toggleTodoDone, toggleTodoStarred, openInPane2, createTodoPage } = useNotehook();
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'completed'>('all');
 
   const filteredTodos = todos

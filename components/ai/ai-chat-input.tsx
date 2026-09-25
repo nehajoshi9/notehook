@@ -1,14 +1,14 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { usePlanet, generateShortId } from '@/lib/context';
+import { useNotehook, generateShortId } from '@/lib/context';
 import { Send, Loader2, Tag, CheckSquare, Zap, Plus, FileText, Pin } from 'lucide-react';
 import { getRankedSuggestions, SuggestionItem } from '@/lib/ranking';
-import { isCursorInsideReference, parseScribeMarkup, normalizeRawContentToCanonicalBrackets, htmlToMarkdown } from '@/lib/scribe-parser';
+import { isCursorInsideReference, parseNotehookMarkup, normalizeRawContentToCanonicalBrackets, htmlToMarkdown } from '@/lib/notehook-parser';
 import { SuggestionList } from './suggestion-list';
 
 export const AIChatInput: React.FC = () => {
-  const { submitUserTurn, isAiGenerating, aiStreamingText, pages, rightPane, createEntityPage, createNotePage, createTodoPage, createDecisionPage, pinnedPageIds, togglePinPage } = usePlanet();
+  const { submitUserTurn, isAiGenerating, aiStreamingText, pages, rightPane, createEntityPage, createNotePage, createTodoPage, createDecisionPage, pinnedPageIds, togglePinPage } = useNotehook();
   const isDualPane = rightPane.type !== 'empty';
 
   const upcomingShortId = generateShortId('message', pages);
@@ -223,7 +223,7 @@ export const AIChatInput: React.FC = () => {
     const normalized = normalizeRawContentToCanonicalBrackets(pastedText, pages);
 
     // 2. Parse all tags in normalized text
-    const parsed = parseScribeMarkup(normalized, pages);
+    const parsed = parseNotehookMarkup(normalized, pages);
 
     // 3. Auto-detect & create pages for newly pasted tags ASAP using clean titles
     parsed.forEach((item) => {

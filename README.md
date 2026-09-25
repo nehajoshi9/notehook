@@ -61,8 +61,8 @@ All raw text representations of reference tags maintain canonical bracket syntax
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/planet-scribe.git
-cd planet-scribe
+git clone https://github.com/your-username/notehook.git
+cd notehook
 
 # Install dependencies
 npm install

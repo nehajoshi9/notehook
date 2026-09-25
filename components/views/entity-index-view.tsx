@@ -1,11 +1,11 @@
 'use client';
 
 import React, { useState } from 'react';
-import { usePlanet } from '@/lib/context';
+import { useNotehook } from '@/lib/context';
 import { Tag, Edit3, Check } from 'lucide-react';
 
 export const EntityIndexView: React.FC = () => {
-  const { entities, openInPane2 } = usePlanet();
+  const { entities, openInPane2 } = useNotehook();
 
   const sortedEntities = [...entities].sort(
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()

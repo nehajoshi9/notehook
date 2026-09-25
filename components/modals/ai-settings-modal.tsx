@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { usePlanet } from '@/lib/context';
+import { useNotehook } from '@/lib/context';
 import { Key, X, Check, Bot, ShieldCheck } from 'lucide-react';
 import { AISettings } from '@/lib/types';
 
@@ -11,7 +11,7 @@ interface AISettingsModalProps {
 }
 
 export const AISettingsModal: React.FC<AISettingsModalProps> = ({ isOpen, onClose }) => {
-  const { aiSettings, setAiSettings } = usePlanet();
+  const { aiSettings, setAiSettings } = useNotehook();
   const [provider, setProvider] = useState<AISettings['provider']>(aiSettings.provider);
   const [apiKey, setApiKey] = useState(aiSettings.apiKey);
   const [model, setModel] = useState(aiSettings.model);

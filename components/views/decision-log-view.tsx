@@ -1,11 +1,11 @@
 'use client';
 
 import React, { useState } from 'react';
-import { usePlanet } from '@/lib/context';
+import { useNotehook } from '@/lib/context';
 import { Zap, Edit3, Check, Plus } from 'lucide-react';
 
 export const DecisionLogView: React.FC = () => {
-  const { decisions, openInPane2, createDecisionPage } = usePlanet();
+  const { decisions, openInPane2, createDecisionPage } = useNotehook();
 
   const sortedDecisions = [...decisions].sort(
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()

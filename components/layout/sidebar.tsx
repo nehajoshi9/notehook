@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { usePlanet } from '@/lib/context';
+import { useNotehook } from '@/lib/context';
 import { useIsMac } from '@/lib/use-os';
 import {
   MessageSquare,
@@ -160,7 +160,7 @@ export const Sidebar: React.FC = () => {
     createNotePage,
     createTodoPage,
     createDecisionPage,
-  } = usePlanet();
+  } = useNotehook();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [messagesExpanded, setMessagesExpanded] = useState(false);

@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { usePlanet } from '@/lib/context';
+import { useNotehook } from '@/lib/context';
 import { ChatThreadView } from '../chat/chat-thread-view';
 import { PageCardView } from '../views/page-card-view';
 import { TodoBoardView } from '../views/todo-board-view';
@@ -21,7 +21,7 @@ export const PaneContainer: React.FC = () => {
     rightPaneCanGoBack,
     goBackPane1,
     goBackPane2,
-  } = usePlanet();
+  } = useNotehook();
 
   const renderPaneContent = (pane: typeof leftPane, paneIndex: 1 | 2) => {
     if ((pane.type === 'message' || pane.type === 'note' || pane.type === 'entity' || pane.type === 'todo' || pane.type === 'decision') && pane.id) {

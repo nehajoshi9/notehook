@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useState } from 'react';
-import { usePlanet } from '@/lib/context';
+import { useNotehook } from '@/lib/context';
 import { X, Link, Sparkles } from 'lucide-react';
-import { stripCodeSpans } from '@/lib/scribe-parser';
+import { stripCodeSpans } from '@/lib/notehook-parser';
 
 interface RetroactiveLinkModalProps {
   targetPageId: string;
@@ -18,7 +18,7 @@ export const RetroactiveLinkModal: React.FC<RetroactiveLinkModalProps> = ({
   isOpen,
   onClose,
 }) => {
-  const { notes, mentions, executeRetroactiveLinking } = usePlanet();
+  const { notes, mentions, executeRetroactiveLinking } = useNotehook();
 
   const existingNoteIdsWithMention = new Set(
     mentions.filter((m) => m.target_page_id === targetPageId).map((m) => m.source_page_id)

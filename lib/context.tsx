@@ -3,10 +3,10 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Page, Mention, PaneState, AISettings, EntityVersion } from './types';
 import { SEED_PAGES, SEED_MENTIONS } from './store';
-import { parseScribeMarkup, formatItemTitle, generateTopicTitle, stripCodeSpans, normalizeRawContentToCanonicalBrackets } from './scribe-parser';
-import { generateScribeResponse } from './ai-scribe';
+import { parseNotehookMarkup, formatItemTitle, generateTopicTitle, stripCodeSpans, normalizeRawContentToCanonicalBrackets } from './notehook-parser';
+import { generateNotehookResponse } from './ai-notehook';
 
-interface PlanetContextType {
+export interface NotehookContextType {
   pages: Page[];
   mentions: Mention[];
 
@@ -78,14 +78,14 @@ interface PlanetContextType {
   clearAllData: () => void;
 }
 
-const PlanetContext = createContext<PlanetContextType | undefined>(undefined);
+const NotehookContext = createContext<NotehookContextType | undefined>(undefined);
 
 const STORAGE_KEYS = {
-  PAGES: 'scribe_pages_v6',
-  MENTIONS: 'scribe_mentions_v6',
-  AI_SETTINGS: 'scribe_ai_settings_v6',
-  WORKSPACE_NAME: 'scribe_workspace_name_v6',
-  PINNED_PAGES: 'scribe_pinned_pages_v6',
+  PAGES: 'notehook_pages_v6',
+  MENTIONS: 'notehook_mentions_v6',
+  AI_SETTINGS: 'notehook_ai_settings_v6',
+  WORKSPACE_NAME: 'notehook_workspace_name_v6',
+  PINNED_PAGES: 'notehook_pinned_pages_v6',
 };
 
 export function generateShortId(type: Page['type'], currentPages: Page[]): string {
@@ -104,7 +104,7 @@ export function generateShortId(type: Page['type'], currentPages: Page[]): strin
   return `${prefix}${maxNum + 1}`;
 }
 
-export const PlanetProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [pages, setPages] = useState<Page[]>([]);
   const [mentions, setMentions] = useState<Mention[]>([]);
   const [pinnedPageIds, setPinnedPageIds] = useState<string[]>([]);
@@ -171,12 +171,15 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       localStorage.removeItem('scribe_pages_v5');
       localStorage.removeItem('scribe_mentions_v5');
       localStorage.removeItem('scribe_ai_settings_v5');
+      localStorage.removeItem('notehook_pages_v5');
+      localStorage.removeItem('notehook_mentions_v5');
+      localStorage.removeItem('notehook_ai_settings_v5');
 
-      const storedPages = localStorage.getItem(STORAGE_KEYS.PAGES);
-      const storedMentions = localStorage.getItem(STORAGE_KEYS.MENTIONS);
-      const storedAi = localStorage.getItem(STORAGE_KEYS.AI_SETTINGS);
-      const storedWorkspace = localStorage.getItem(STORAGE_KEYS.WORKSPACE_NAME);
-      const storedPinned = localStorage.getItem(STORAGE_KEYS.PINNED_PAGES);
+      const storedPages = localStorage.getItem(STORAGE_KEYS.PAGES) || localStorage.getItem('scribe_pages_v6');
+      const storedMentions = localStorage.getItem(STORAGE_KEYS.MENTIONS) || localStorage.getItem('scribe_mentions_v6');
+      const storedAi = localStorage.getItem(STORAGE_KEYS.AI_SETTINGS) || localStorage.getItem('scribe_ai_settings_v6');
+      const storedWorkspace = localStorage.getItem(STORAGE_KEYS.WORKSPACE_NAME) || localStorage.getItem('scribe_workspace_name_v6');
+      const storedPinned = localStorage.getItem(STORAGE_KEYS.PINNED_PAGES) || localStorage.getItem('scribe_pinned_pages_v6');
 
       if (storedPinned) {
         try {
@@ -904,7 +907,7 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const topicTitle = generateTopicTitle(prompt);
 
     try {
-      const { text, parsedItems, injectedContext, referencedPageIds } = await generateScribeResponse(
+      const { text, parsedItems, injectedContext, referencedPageIds } = await generateNotehookResponse(
         prompt,
         entities,
         aiSettings,
@@ -986,7 +989,7 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   return (
-    <PlanetContext.Provider
+    <NotehookContext.Provider
       value={{
         pages,
         mentions,
@@ -1043,14 +1046,15 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }}
     >
       {children}
-    </PlanetContext.Provider>
+    </NotehookContext.Provider>
   );
 };
 
-export const usePlanet = () => {
-  const ctx = useContext(PlanetContext);
+export const useNotehook = () => {
+  const ctx = useContext(NotehookContext);
   if (!ctx) {
-    throw new Error('usePlanet must be used within a PlanetProvider');
+    throw new Error('useNotehook must be used within a NotehookProvider');
   }
   return ctx;
 };
+

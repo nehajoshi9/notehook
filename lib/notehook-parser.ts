@@ -139,6 +139,7 @@ export function formatItemTitle(text: string, maxLen?: number): string {
 
   return normalized;
 }
+
 export function sanitizeEntityTitle(title: string): string {
   let cleaned = title.replace(/^@/, '').trim();
   while (/\.\d+$/.test(cleaned)) {
@@ -306,7 +307,7 @@ export function stripCodeSpans(text: string): { cleanText: string; codeRanges: A
 /**
  * Parse inline markup tags: [@EntityName], [@todo: task text], [@decision: decision text], [@note: note text]
  */
-export function parseScribeMarkup(
+export function parseNotehookMarkup(
   rawContent: string,
   existingEntities: Page[] = []
 ): ParsedItem[] {
@@ -437,9 +438,9 @@ export function parseScribeMarkup(
 }
 
 /**
- * Converts raw markdown string containing Scribe tags into HTML or ProseMirror JSON AST
+ * Converts raw markdown string containing Notehook tags into HTML or ProseMirror JSON AST
  */
-export function convertScribeTextToHtml(
+export function convertNotehookTextToHtml(
   rawText: string,
   source: MentionSource = 'auto',
   pages?: Page[]
@@ -522,7 +523,7 @@ export function convertScribeTextToHtml(
   // 4. Preserve Generated Reference Pills into placeholders to prevent nesting
   const pills: string[] = [];
   const storePill = (pillHtml: string): string => {
-    const placeholder = `%%%SCRIBEPILL${pills.length}%%%`;
+    const placeholder = `%%%NOTEHOOKPILL${pills.length}%%%`;
     pills.push(pillHtml);
     return placeholder;
   };
@@ -540,7 +541,7 @@ export function convertScribeTextToHtml(
     const colorHex = getPastelColorForTitle(fullClean, 'todo');
     const bodyContent = `<span class="pill-short">@${shortTitle}</span><span class="pill-full">@${fullClean}</span>`;
 
-    return storePill(`<span class="page-mention-pill inline-scribe-todo cursor-pointer" style="background-color: ${colorHex}; color: #0f172a;" data-type="todo" data-title="${shortTitle}" data-full="${fullClean}" ${sourceAttr} title="Todo - ${fullClean}">${bodyContent}</span>`);
+    return storePill(`<span class="page-mention-pill inline-notehook-todo cursor-pointer" style="background-color: ${colorHex}; color: #0f172a;" data-type="todo" data-title="${shortTitle}" data-full="${fullClean}" ${sourceAttr} title="Todo - ${fullClean}">${bodyContent}</span>`);
   });
 
   // [@decision: text] -> Truncates to 2 words by default, untruncates on hover
@@ -554,7 +555,7 @@ export function convertScribeTextToHtml(
     const colorHex = getPastelColorForTitle(fullClean, 'decision');
     const bodyContent = `<span class="pill-short">@${shortTitle}</span><span class="pill-full">@${fullClean}</span>`;
 
-    return storePill(`<span class="page-mention-pill inline-scribe-decision cursor-pointer" style="background-color: ${colorHex}; color: #0f172a;" data-type="decision" data-title="${shortTitle}" data-full="${fullClean}" ${sourceAttr} title="Decision - ${fullClean}">${bodyContent}</span>`);
+    return storePill(`<span class="page-mention-pill inline-notehook-decision cursor-pointer" style="background-color: ${colorHex}; color: #0f172a;" data-type="decision" data-title="${shortTitle}" data-full="${fullClean}" ${sourceAttr} title="Decision - ${fullClean}">${bodyContent}</span>`);
   });
 
   // [@note: text] -> Truncates to 2 words by default, untruncates on hover
@@ -568,7 +569,7 @@ export function convertScribeTextToHtml(
     const colorHex = getPastelColorForTitle(fullClean, 'note');
     const bodyContent = `<span class="pill-short">@${shortTitle}</span><span class="pill-full">@${fullClean}</span>`;
 
-    return storePill(`<span class="page-mention-pill inline-scribe-note cursor-pointer" style="background-color: ${colorHex}; color: #0f172a;" data-type="note" data-title="${shortTitle}" data-full="${fullClean}" ${sourceAttr} title="Note - ${fullClean}">${bodyContent}</span>`);
+    return storePill(`<span class="page-mention-pill inline-notehook-note cursor-pointer" style="background-color: ${colorHex}; color: #0f172a;" data-type="note" data-title="${shortTitle}" data-full="${fullClean}" ${sourceAttr} title="Note - ${fullClean}">${bodyContent}</span>`);
   });
 
   // [@message: text] -> Truncates to 2 words by default, untruncates on hover
@@ -582,7 +583,7 @@ export function convertScribeTextToHtml(
     const colorHex = getPastelColorForTitle(fullClean, 'message');
     const bodyContent = `<span class="pill-short">@${shortTitle}</span><span class="pill-full">@${fullClean}</span>`;
 
-    return storePill(`<span class="page-mention-pill inline-scribe-message cursor-pointer" style="background-color: ${colorHex}; color: #0f172a;" data-type="message" data-title="${shortTitle}" data-full="${fullClean}" ${sourceAttr} title="Message - ${fullClean}">${bodyContent}</span>`);
+    return storePill(`<span class="page-mention-pill inline-notehook-message cursor-pointer" style="background-color: ${colorHex}; color: #0f172a;" data-type="message" data-title="${shortTitle}" data-full="${fullClean}" ${sourceAttr} title="Message - ${fullClean}">${bodyContent}</span>`);
   });
 
   // Pre-pass: auto-wrap unbracketed mentions of multi-word entity titles from pages
@@ -635,7 +636,7 @@ export function convertScribeTextToHtml(
     const shortIdAttr = existingEntity?.short_id ? `data-short-id="${existingEntity.short_id}"` : '';
     const versionAttr = targetVersionNum !== undefined ? `data-version-num="${targetVersionNum}"` : '';
 
-    return storePill(`<span class="page-mention-pill inline-scribe-${targetType} cursor-pointer" style="background-color: ${colorHex}; color: #0f172a;" data-type="${targetType}" ${shortIdAttr} ${versionAttr} data-entity="${fullEntityName}" data-full="${fullEntityName}${versionSuffix}" ${sourceAttr} title="${targetType} - ${fullEntityName}${versionSuffix}">${bodyContent}</span>`);
+    return storePill(`<span class="page-mention-pill inline-notehook-${targetType} cursor-pointer" style="background-color: ${colorHex}; color: #0f172a;" data-type="${targetType}" ${shortIdAttr} ${versionAttr} data-entity="${fullEntityName}" data-full="${fullEntityName}${versionSuffix}" ${sourceAttr} title="${targetType} - ${fullEntityName}${versionSuffix}">${bodyContent}</span>`);
   });
 
   // 5. Open-Source Markdown Parsing via `marked`
@@ -646,7 +647,7 @@ export function convertScribeTextToHtml(
     parsedHtml = parsedHtml.replaceAll(`%%%KATEXMATH${i}%%%`, mathHtml);
   });
   pills.forEach((pillHtml, i) => {
-    parsedHtml = parsedHtml.replaceAll(`%%%SCRIBEPILL${i}%%%`, pillHtml);
+    parsedHtml = parsedHtml.replaceAll(`%%%NOTEHOOKPILL${i}%%%`, pillHtml);
   });
   inlineCodes.forEach((codeHtml, i) => {
     parsedHtml = parsedHtml.replaceAll(`%%%INLINECODE${i}%%%`, codeHtml);
@@ -661,11 +662,11 @@ export function convertScribeTextToHtml(
 
   parsedHtml = parsedHtml.replace(blockTagsRegex, (blockContent) => {
     const currentIdx = blockIndex++;
-    const checkboxHtml = `<div class="scribe-gutter-handle" title="Select markdown block" onmousedown="event.preventDefault()" data-block-index="${currentIdx}"><button type="button" class="scribe-gutter-btn" title="Select markdown block" onmousedown="event.preventDefault()" data-block-id="block-${currentIdx}"><svg class="w-4.5 h-4.5 square-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/></svg><svg class="w-4.5 h-4.5 check-square-icon hidden fill-indigo-50 text-indigo-600" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m9 12 2 2 4-4"/></svg></button></div>`;
-    return `<div class="scribe-markdown-block" data-block-index="${currentIdx}">${checkboxHtml}${blockContent}</div>`;
+    const checkboxHtml = `<div class="notehook-gutter-handle" title="Select markdown block" onmousedown="event.preventDefault()" data-block-index="${currentIdx}"><button type="button" class="notehook-gutter-btn" title="Select markdown block" onmousedown="event.preventDefault()" data-block-id="block-${currentIdx}"><svg class="w-4.5 h-4.5 square-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/></svg><svg class="w-4.5 h-4.5 check-square-icon hidden fill-indigo-50 text-indigo-600" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m9 12 2 2 4-4"/></svg></button></div>`;
+    return `<div class="notehook-markdown-block" data-block-index="${currentIdx}">${checkboxHtml}${blockContent}</div>`;
   });
 
-  return `<div class="prose-scribe">${parsedHtml}</div>`;
+  return `<div class="prose-notehook">${parsedHtml}</div>`;
 }
 
 /**
@@ -674,8 +675,8 @@ export function convertScribeTextToHtml(
 export function selectMarkdownBlock(blockEl: HTMLElement | null | undefined): void {
   if (!blockEl || typeof window === 'undefined') return;
   blockEl.classList.add('is-block-selected');
-  blockEl.querySelector('.scribe-gutter-btn')?.classList.add('is-checked');
-  blockEl.querySelector('.scribe-gutter-handle')?.classList.add('is-checked');
+  blockEl.querySelector('.notehook-gutter-btn')?.classList.add('is-checked');
+  blockEl.querySelector('.notehook-gutter-handle')?.classList.add('is-checked');
   window.getSelection()?.removeAllRanges();
 }
 
@@ -696,7 +697,7 @@ export function syncMultiBlockSelection(scopeContainer?: HTMLElement | null): vo
   if (scopeContainer) {
     document
       .querySelectorAll<HTMLElement>(
-        '.scribe-markdown-block.is-block-selected, .scribe-gutter-btn.is-checked, .scribe-gutter-handle.is-checked'
+        '.notehook-markdown-block.is-block-selected, .notehook-gutter-btn.is-checked, .notehook-gutter-handle.is-checked'
       )
       .forEach((el) => {
         if (!scopeContainer.contains(el)) {
@@ -721,21 +722,21 @@ export function handleGutterRangeClick(
   scopeContainer: HTMLElement,
   shiftKey: boolean = false
 ): boolean {
-  const gutterHandle = targetEl.closest('.scribe-gutter-handle') as HTMLElement;
-  const gutterBtn = (targetEl.closest('.scribe-gutter-btn') || gutterHandle?.querySelector('.scribe-gutter-btn')) as HTMLElement;
+  const gutterHandle = targetEl.closest('.notehook-gutter-handle') as HTMLElement;
+  const gutterBtn = (targetEl.closest('.notehook-gutter-btn') || gutterHandle?.querySelector('.notehook-gutter-btn')) as HTMLElement;
 
   if (!gutterBtn && !gutterHandle) {
     return false;
   }
 
-  const activeBtn = gutterBtn || (gutterHandle?.querySelector('.scribe-gutter-btn') as HTMLElement);
-  const activeHandle = gutterHandle || (activeBtn?.closest('.scribe-gutter-handle') as HTMLElement);
-  const clickedBlock = (activeBtn?.closest('.scribe-markdown-block') || activeHandle?.closest('.scribe-markdown-block')) as HTMLElement;
+  const activeBtn = gutterBtn || (gutterHandle?.querySelector('.notehook-gutter-btn') as HTMLElement);
+  const activeHandle = gutterHandle || (activeBtn?.closest('.notehook-gutter-handle') as HTMLElement);
+  const clickedBlock = (activeBtn?.closest('.notehook-markdown-block') || activeHandle?.closest('.notehook-markdown-block')) as HTMLElement;
 
   if (!clickedBlock) return false;
 
   // Find all markdown blocks within this container
-  const allBlocks = Array.from(scopeContainer.querySelectorAll<HTMLElement>('.scribe-markdown-block'));
+  const allBlocks = Array.from(scopeContainer.querySelectorAll<HTMLElement>('.notehook-markdown-block'));
   if (allBlocks.length === 0) return false;
 
   const clickedIdx = allBlocks.indexOf(clickedBlock);
@@ -744,7 +745,7 @@ export function handleGutterRangeClick(
   // Clear selections in other containers
   document
     .querySelectorAll<HTMLElement>(
-      '.scribe-markdown-block.is-block-selected, .scribe-gutter-btn.is-checked, .scribe-gutter-handle.is-checked'
+      '.notehook-markdown-block.is-block-selected, .notehook-gutter-btn.is-checked, .notehook-gutter-handle.is-checked'
     )
     .forEach((el) => {
       if (!scopeContainer.contains(el)) {
@@ -784,8 +785,8 @@ export function handleGutterRangeClick(
       // Clicking the only selected block deselects it
       allBlocks.forEach((b) => {
         b.classList.remove('is-block-selected');
-        b.querySelector('.scribe-gutter-btn')?.classList.remove('is-checked');
-        b.querySelector('.scribe-gutter-handle')?.classList.remove('is-checked');
+        b.querySelector('.notehook-gutter-btn')?.classList.remove('is-checked');
+        b.querySelector('.notehook-gutter-handle')?.classList.remove('is-checked');
       });
       scopeContainer.removeAttribute('data-gutter-anchor');
       clearMarkdownBlockSelection();
@@ -827,12 +828,12 @@ export function handleGutterRangeClick(
     const isSelected = i >= startIdx && i <= endIdx;
     if (isSelected) {
       b.classList.add('is-block-selected');
-      b.querySelector('.scribe-gutter-btn')?.classList.add('is-checked');
-      b.querySelector('.scribe-gutter-handle')?.classList.add('is-checked');
+      b.querySelector('.notehook-gutter-btn')?.classList.add('is-checked');
+      b.querySelector('.notehook-gutter-handle')?.classList.add('is-checked');
     } else {
       b.classList.remove('is-block-selected');
-      b.querySelector('.scribe-gutter-btn')?.classList.remove('is-checked');
-      b.querySelector('.scribe-gutter-handle')?.classList.remove('is-checked');
+      b.querySelector('.notehook-gutter-btn')?.classList.remove('is-checked');
+      b.querySelector('.notehook-gutter-handle')?.classList.remove('is-checked');
     }
   });
 
@@ -849,8 +850,8 @@ export function handleGutterRangeClick(
  */
 export function handleGutterMouseDown(e: React.MouseEvent, _scopeContainer?: HTMLElement): void {
   const targetEl = e.target as HTMLElement;
-  const gutterHandle = targetEl.closest('.scribe-gutter-handle') as HTMLElement;
-  const gutterBtn = (targetEl.closest('.scribe-gutter-btn') || gutterHandle?.querySelector('.scribe-gutter-btn')) as HTMLElement;
+  const gutterHandle = targetEl.closest('.notehook-gutter-handle') as HTMLElement;
+  const gutterBtn = (targetEl.closest('.notehook-gutter-btn') || gutterHandle?.querySelector('.notehook-gutter-btn')) as HTMLElement;
 
   if (gutterBtn || gutterHandle) {
     e.preventDefault();
@@ -863,7 +864,7 @@ export function handleGutterMouseDown(e: React.MouseEvent, _scopeContainer?: HTM
 export function clearAllGutterSelections(): boolean {
   if (typeof window === 'undefined') return false;
   const selected = document.querySelectorAll<HTMLElement>(
-    '.scribe-markdown-block.is-block-selected, .scribe-gutter-btn.is-checked, .scribe-gutter-handle.is-checked'
+    '.notehook-markdown-block.is-block-selected, .notehook-gutter-btn.is-checked, .notehook-gutter-handle.is-checked'
   );
   if (selected.length === 0) return false;
 
@@ -909,8 +910,8 @@ export function domToMarkdown(node: Node | null | undefined): string {
 
   // 1. Ignore gutter handles and buttons completely
   if (
-    el.classList?.contains('scribe-gutter-handle') ||
-    el.classList?.contains('scribe-gutter-btn') ||
+    el.classList?.contains('notehook-gutter-handle') ||
+    el.classList?.contains('notehook-gutter-btn') ||
     el.classList?.contains('square-icon') ||
     el.classList?.contains('check-square-icon')
   ) {
@@ -1087,8 +1088,8 @@ export function domToMarkdown(node: Node | null | undefined): string {
     return '\n';
   }
 
-  // 18. Blocks (.scribe-markdown-block)
-  if (el.classList?.contains('scribe-markdown-block')) {
+  // 18. Blocks (.notehook-markdown-block)
+  if (el.classList?.contains('notehook-markdown-block')) {
     return `\n\n${childMd.trim()}\n\n`;
   }
 
@@ -1160,7 +1161,7 @@ if (typeof window !== 'undefined') {
   // Global listener: Clicking away once something is selected deselects both the gutters and gets rid of the blue selected text region
   window.addEventListener('pointerdown', (e) => {
     const target = e.target as HTMLElement | null;
-    if (target?.closest('.scribe-gutter-handle, .scribe-gutter-btn, [data-floating-toolbar]')) {
+    if (target?.closest('.notehook-gutter-handle, .notehook-gutter-btn, [data-floating-toolbar]')) {
       return;
     }
     clearAllGutterSelections();
@@ -1219,7 +1220,7 @@ if (typeof window !== 'undefined') {
     }
 
     const selectedBlocks = Array.from(
-      document.querySelectorAll<HTMLElement>('.scribe-markdown-block.is-block-selected')
+      document.querySelectorAll<HTMLElement>('.notehook-markdown-block.is-block-selected')
     );
 
     // 2. If gutter blocks are selected: serialize them to Markdown and prepend source tag
@@ -1248,7 +1249,7 @@ if (typeof window !== 'undefined') {
           ? (commonNode as HTMLElement)
           : commonNode.parentElement;
 
-      if (parentEl && parentEl.closest('.prose-scribe, .scribe-markdown-block, [data-chat-thread], [data-page-id], [data-message-id]')) {
+      if (parentEl && parentEl.closest('.prose-notehook, .notehook-markdown-block, [data-chat-thread], [data-page-id], [data-message-id]')) {
         const cloned = range.cloneContents();
         let cleanMd = cleanMarkdownSpacing(domToMarkdown(cloned));
         if (cleanMd) {
@@ -1284,13 +1285,13 @@ export function findPageForPill(target: HTMLElement, pages: Page[]): Page | unde
   }
 
   let pillType: 'entity' | 'todo' | 'decision' | 'note' | undefined;
-  if (dataType === 'entity' || target.classList.contains('inline-scribe-entity') || entityAttr) {
+  if (dataType === 'entity' || target.classList.contains('inline-notehook-entity') || entityAttr) {
     pillType = 'entity';
-  } else if (dataType === 'todo' || target.classList.contains('inline-scribe-todo')) {
+  } else if (dataType === 'todo' || target.classList.contains('inline-notehook-todo')) {
     pillType = 'todo';
-  } else if (dataType === 'decision' || target.classList.contains('inline-scribe-decision')) {
+  } else if (dataType === 'decision' || target.classList.contains('inline-notehook-decision')) {
     pillType = 'decision';
-  } else if (dataType === 'note' || target.classList.contains('inline-scribe-note')) {
+  } else if (dataType === 'note' || target.classList.contains('inline-notehook-note')) {
     pillType = 'note';
   }
 

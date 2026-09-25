@@ -1,5 +1,5 @@
 import { Page, AISettings, Mention } from './types';
-import { parseScribeMarkup } from './scribe-parser';
+import { parseNotehookMarkup } from './notehook-parser';
 
 export function getTopRecentEntityTitles(entities: Page[], mentions: Mention[] = []): string[] {
   const getRecency = (e: Page): number => {
@@ -210,8 +210,8 @@ export function getReferencedPagesFromPrompt(prompt: string, allPages: Page[] = 
     referencedMap.set(key, match.page);
   }
 
-  // 2. Parse scribe markup tags and resolve in O(1) via inverted index, ignoring tags subsumed by longer Trie spans
-  const parsedItems = parseScribeMarkup(prompt, allPages);
+  // 2. Parse markup tags and resolve in O(1) via inverted index, ignoring tags subsumed by longer Trie spans
+  const parsedItems = parseNotehookMarkup(prompt, allPages);
   for (const item of parsedItems) {
     if (item.spanStart !== undefined && item.spanEnd !== undefined) {
       const isSubsumed = foundSpans.some(
@@ -516,7 +516,7 @@ export function buildDynamicReferencedSection(
   return `=== REFERENCED CONTEXT FOR THIS TURN ===\n${blocks.join('\n\n')}\n=== END REFERENCED CONTEXT ===`;
 }
 
-export async function generateScribeResponse(
+export async function generateNotehookResponse(
   userPrompt: string,
   existingEntities: Page[],
   aiSettings: AISettings,
@@ -524,7 +524,7 @@ export async function generateScribeResponse(
   mentions: Mention[] = [],
   allPages: Page[] = [],
   pinnedPageIds: string[] = []
-): Promise<{ text: string; parsedItems: ReturnType<typeof parseScribeMarkup>; injectedContext?: string; referencedPageIds?: string[] }> {
+): Promise<{ text: string; parsedItems: ReturnType<typeof parseNotehookMarkup>; injectedContext?: string; referencedPageIds?: string[] }> {
   // TIER 1: Invariant System Contract (100% frozen)
   const baseSystemPrompt = `Role: Engineering intelligence engine for Notehook, a Git-backed architectural workspace. Human reviews and commits all state.
 
@@ -960,7 +960,7 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
           }
 
           if (fullText) {
-            const parsedItems = parseScribeMarkup(fullText, existingEntities);
+            const parsedItems = parseNotehookMarkup(fullText, existingEntities);
             return {
               text: fullText,
               parsedItems,
@@ -994,7 +994,7 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
           const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
           if (text) {
             if (onChunk) onChunk(text);
-            const parsedItems = parseScribeMarkup(text, existingEntities);
+            const parsedItems = parseNotehookMarkup(text, existingEntities);
             return {
               text,
               parsedItems,
@@ -1020,7 +1020,7 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
       ? `⚠️ Gemini is currently experiencing high demand or free-tier rate limits. Please wait a few seconds and try again.\n\n*Last status: ${lastErrorDetails}*`
       : `⚠️ All Gemini model calls failed. Last error: ${lastErrorDetails}\n\n*Models tried: ${candidateModels.join(', ')}*`;
     if (onChunk) onChunk(errorMsg);
-    const parsedItems = parseScribeMarkup(errorMsg, existingEntities);
+    const parsedItems = parseNotehookMarkup(errorMsg, existingEntities);
     return {
       text: errorMsg,
       parsedItems,
@@ -1076,7 +1076,7 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
         }
       }
 
-      const parsedItems = parseScribeMarkup(fullText, existingEntities);
+      const parsedItems = parseNotehookMarkup(fullText, existingEntities);
       return {
         text: fullText,
         parsedItems,
@@ -1100,7 +1100,7 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
     userPrompt,
     existingEntities,
     onChunk,
-    dynamicRefSectionBase || undefined,
+    dynamicRefSection || undefined,
     currentReferencedPageIds.length > 0 ? currentReferencedPageIds : undefined
   );
 }
@@ -1113,7 +1113,7 @@ async function generateSimulatedResponse(
   referencedPageIds?: string[]
 ): Promise<{
   text: string;
-  parsedItems: ReturnType<typeof parseScribeMarkup>;
+  parsedItems: ReturnType<typeof parseNotehookMarkup>;
   injectedContext?: string;
   referencedPageIds?: string[];
 }> {
@@ -1176,7 +1176,7 @@ Next steps:
     await new Promise((resolve) => setTimeout(resolve, 25));
   }
 
-  const parsedItems = parseScribeMarkup(currentText, existingEntities);
+  const parsedItems = parseNotehookMarkup(currentText, existingEntities);
   return {
     text: currentText,
     parsedItems,
@@ -1184,4 +1184,3 @@ Next steps:
     referencedPageIds,
   };
 }
-

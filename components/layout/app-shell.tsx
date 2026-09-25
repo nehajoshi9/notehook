@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { AuthProvider } from '@/lib/auth-context';
-import { PlanetProvider } from '@/lib/context';
+import { NotehookProvider } from '@/lib/context';
 import { Sidebar } from './sidebar';
 import { Header } from './header';
 import { PaneContainer } from './pane-container';
@@ -89,7 +89,7 @@ export const AppShell: React.FC = () => {
 
   return (
     <AuthProvider>
-      <PlanetProvider>
+      <NotehookProvider>
         <div className="flex flex-col h-screen w-screen overflow-hidden bg-white text-zinc-900 font-sans antialiased">
           <Header />
           <div className="flex-1 flex min-w-0 h-full overflow-hidden">
@@ -102,7 +102,7 @@ export const AppShell: React.FC = () => {
           <FloatingSelectionToolbar />
           <CommandPaletteModal />
         </div>
-      </PlanetProvider>
+      </NotehookProvider>
     </AuthProvider>
   );
 };

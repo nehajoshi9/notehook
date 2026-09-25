@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { usePlanet } from '@/lib/context';
+import { useNotehook } from '@/lib/context';
 import { Sparkles, Tag, CheckSquare, Square, Zap, FileText, BookmarkPlus, Check, Plus, ChevronDown, Copy, ChevronRight, ChevronLeft, Trash2 } from 'lucide-react';
-import { convertScribeTextToHtml, findPageForPill, scrollToMentionOrElement, selectMarkdownBlock, clearMarkdownBlockSelection, syncMultiBlockSelection, handleGutterRangeClick, handleGutterMouseDown, untagReferences, formatItemTitle } from '@/lib/scribe-parser';
+import { convertNotehookTextToHtml, findPageForPill, scrollToMentionOrElement, selectMarkdownBlock, clearMarkdownBlockSelection, syncMultiBlockSelection, handleGutterRangeClick, handleGutterMouseDown, untagReferences, formatItemTitle } from '@/lib/notehook-parser';
 import { SuggestionList } from '../ai/suggestion-list';
 import { SuggestionItem } from '@/lib/ranking';
 import { AIChatInput } from '../ai/ai-chat-input';
@@ -42,7 +42,7 @@ interface ChatThreadViewProps {
 }
 
 export const ChatThreadView: React.FC<ChatThreadViewProps> = ({ paneIndex = 1 }) => {
-  const { messages, pages, mentions, openInPane2, openInPane1, navigateToMessage, isAiGenerating, aiStreamingText, aiStreamingPrompt, leftPane, rightPane, addEntityVersion, createEntityPage, createNotePage, deletePage } = usePlanet();
+  const { messages, pages, mentions, openInPane2, openInPane1, navigateToMessage, isAiGenerating, aiStreamingText, aiStreamingPrompt, leftPane, rightPane, addEntityVersion, createEntityPage, createNotePage, deletePage } = useNotehook();
   const isDualPane = paneIndex === 2 || rightPane.type !== 'empty';
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -445,7 +445,7 @@ export const ChatThreadView: React.FC<ChatThreadViewProps> = ({ paneIndex = 1 })
 
                 {/* 1. User Prompt Message Bubble (Right Aligned, Light Gray) */}
                 {note.user_prompt && (
-                  <div className="w-full relative scribe-user-prompt-turn">
+                  <div className="w-full relative notehook-user-prompt-turn">
                     <div className="flex flex-col items-end text-right ml-auto max-w-xl w-full">
                       <div
                         onClick={handleInlinePillClick}
@@ -454,7 +454,7 @@ export const ChatThreadView: React.FC<ChatThreadViewProps> = ({ paneIndex = 1 })
                       >
                         <div
                           dangerouslySetInnerHTML={{
-                            __html: convertScribeTextToHtml(note.user_prompt, 'auto', pages),
+                            __html: convertNotehookTextToHtml(note.user_prompt, 'auto', pages),
                           }}
                         />
                       </div>
@@ -474,7 +474,7 @@ export const ChatThreadView: React.FC<ChatThreadViewProps> = ({ paneIndex = 1 })
                     >
                       <div
                         dangerouslySetInnerHTML={{
-                          __html: convertScribeTextToHtml(note.content || note.title, 'auto', pages),
+                          __html: convertNotehookTextToHtml(note.content || note.title, 'auto', pages),
                         }}
                       />
 
@@ -565,7 +565,7 @@ export const ChatThreadView: React.FC<ChatThreadViewProps> = ({ paneIndex = 1 })
                 >
                   <div
                     dangerouslySetInnerHTML={{
-                      __html: convertScribeTextToHtml(aiStreamingPrompt, 'auto', pages),
+                      __html: convertNotehookTextToHtml(aiStreamingPrompt, 'auto', pages),
                     }}
                   />
                 </div>
@@ -585,7 +585,7 @@ export const ChatThreadView: React.FC<ChatThreadViewProps> = ({ paneIndex = 1 })
                 {aiStreamingText ? (
                   <div
                     dangerouslySetInnerHTML={{
-                      __html: convertScribeTextToHtml(aiStreamingText, 'auto', pages),
+                      __html: convertNotehookTextToHtml(aiStreamingText, 'auto', pages),
                     }}
                   />
                 ) : (
