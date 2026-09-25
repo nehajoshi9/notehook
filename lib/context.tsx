@@ -81,6 +81,22 @@ const STORAGE_KEYS = {
   WORKSPACE_NAME: 'scribe_workspace_name_v6',
 };
 
+export function generateShortId(type: Page['type'], currentPages: Page[]): string {
+  const prefix = type === 'entity' ? 'e' : type === 'message' ? 'm' : type === 'note' ? 'n' : type === 'decision' ? 'd' : 't';
+  const sameType = currentPages.filter((p) => p.type === type);
+  let maxNum = 0;
+  for (const p of sameType) {
+    if (p.short_id) {
+      const match = p.short_id.match(new RegExp(`^${prefix}(\\d+)$`, 'i'));
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (num > maxNum) maxNum = num;
+      }
+    }
+  }
+  return `${prefix}${maxNum + 1}`;
+}
+
 export const PlanetProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [pages, setPages] = useState<Page[]>([]);
   const [mentions, setMentions] = useState<Mention[]>([]);
@@ -318,22 +334,6 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const tempHistory = leftHistory;
     setLeftHistory(rightHistory);
     setRightHistory(tempHistory);
-  };
-
-  const generateShortId = (type: Page['type'], currentPages: Page[]): string => {
-    const prefix = type === 'entity' ? 'e' : type === 'message' ? 'm' : type === 'note' ? 'n' : type === 'decision' ? 'd' : 't';
-    const sameType = currentPages.filter((p) => p.type === type);
-    let maxNum = 0;
-    for (const p of sameType) {
-      if (p.short_id) {
-        const match = p.short_id.match(new RegExp(`^${prefix}(\\d+)$`, 'i'));
-        if (match) {
-          const num = parseInt(match[1], 10);
-          if (num > maxNum) maxNum = num;
-        }
-      }
-    }
-    return `${prefix}${maxNum + 1}`;
   };
 
   // Helper for generating non-colliding unique title: "Name", "Name 2", "Name 3"

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { usePlanet } from '@/lib/context';
+import { usePlanet, generateShortId } from '@/lib/context';
 import { Send, Loader2, Tag, CheckSquare, Zap, Plus, FileText } from 'lucide-react';
 import { getRankedSuggestions, SuggestionItem } from '@/lib/ranking';
 import { isCursorInsideReference, parseScribeMarkup, normalizeRawContentToCanonicalBrackets, htmlToMarkdown } from '@/lib/scribe-parser';
@@ -10,6 +10,8 @@ import { SuggestionList } from './suggestion-list';
 export const AIChatInput: React.FC = () => {
   const { submitUserTurn, isAiGenerating, aiStreamingText, pages, rightPane, createEntityPage, createNotePage, createTodoPage, createDecisionPage } = usePlanet();
   const isDualPane = rightPane.type !== 'empty';
+
+  const upcomingShortId = generateShortId('message', pages);
 
   const [prompt, setPrompt] = useState('');
   const [cursorPos, setCursorPos] = useState(0);
@@ -54,7 +56,8 @@ export const AIChatInput: React.FC = () => {
       span.textContent = '.';
       mirror.appendChild(span);
 
-      return Math.min(span.offsetLeft + 28, 400);
+      const inputOffset = input.offsetLeft || 24;
+      return Math.min(inputOffset + span.offsetLeft, 450);
     } catch (e) {
       return 36;
     }
@@ -286,7 +289,14 @@ export const AIChatInput: React.FC = () => {
             </div>
           )}
 
-          <div className="flex items-end w-full relative min-h-[28px]">
+          <div className="flex items-end w-full relative min-h-[28px] gap-2">
+            {/* Display-only upcoming message ID chip */}
+            <div className="shrink-0 self-start mt-1 select-none pointer-events-none" title="Upcoming message ID">
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-mono font-medium bg-zinc-100/90 text-zinc-500 border border-zinc-200/90 shadow-2xs select-none">
+                [@{upcomingShortId}]
+              </span>
+            </div>
+
             <textarea
               ref={inputRef}
               rows={1}
