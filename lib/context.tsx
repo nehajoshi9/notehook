@@ -403,6 +403,8 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   }, []);
 
+  const isHydratingRef = useRef(false);
+
   // Supabase User Auth Sync: When signed in, load user's cloud workspaces and pages
   useEffect(() => {
     if (authLoading) return;
@@ -410,56 +412,87 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (prevUserIdRef.current === currentUserId) return;
     prevUserIdRef.current = currentUserId;
 
-    const loadUserData = async () => {
-      if (currentUserId) {
-        try {
-          const remoteData = await fetchUserWorkspacesAndPages(currentUserId);
-          if (remoteData.workspaces && remoteData.workspaces.length > 0) {
-            // User has existing data in Supabase! Load it cleanly
-            const activeWs =
-              remoteData.workspaces.find((w) => w.id === remoteData.activeWorkspaceId) ||
-              remoteData.workspaces[0];
-            setWorkspaces(remoteData.workspaces);
-            setCurrentWorkspaceId(activeWs.id);
-            setWorkspaceNameState(activeWs.name || 'My Workspace');
-            setPages(activeWs.pages || []);
-            setMentions(activeWs.mentions || []);
-            setPinnedPageIds(activeWs.pinnedPageIds || []);
+    if (!currentUserId) {
+      // User is in guest mode (signed out)
+      return;
+    }
 
-            const activePages = activeWs.pages || [];
-            const welcomePage =
-              activePages.find((p) => p.type === 'note' && (p.title.toLowerCase() === 'welcome' || p.short_id === 'n1')) ||
-              activePages.find((p) => p.type === 'note') ||
-              activePages[0];
-            if (welcomePage) {
-              setRightPane({
+    const loadUserData = async () => {
+      try {
+        const remoteData = await fetchUserWorkspacesAndPages(currentUserId);
+        if (remoteData.workspaces && remoteData.workspaces.length > 0) {
+          // User has existing data in Supabase! Load it cleanly
+          const activeWs =
+            remoteData.workspaces.find((w) => w.id === remoteData.activeWorkspaceId) ||
+            remoteData.workspaces[0];
+
+          const wsPages = activeWs.pages || [];
+          const wsMentions = activeWs.mentions || [];
+          const wsPinned = activeWs.pinnedPageIds || wsPages.filter((p) => p.pinned).map((p) => p.id);
+
+          isHydratingRef.current = true;
+
+          setWorkspaces(remoteData.workspaces);
+          setCurrentWorkspaceId(activeWs.id);
+          setWorkspaceNameState(activeWs.name || 'My Workspace');
+          setPages(wsPages);
+          setMentions(wsMentions);
+          setPinnedPageIds(wsPinned);
+
+          const welcomePage =
+            wsPages.find((p) => p.type === 'note' && (p.title.toLowerCase().includes('welcome') || p.short_id === 'n1')) ||
+            wsPages.find((p) => p.type === 'note') ||
+            wsPages.find((p) => p.type === 'entity') ||
+            wsPages[0];
+
+          if (welcomePage) {
+            setRightPane({
+              type: welcomePage.type as PaneState['type'],
+              id: welcomePage.id,
+              title: welcomePage.title,
+            });
+            setRightHistory([
+              {
                 type: welcomePage.type as PaneState['type'],
                 id: welcomePage.id,
                 title: welcomePage.title,
-              });
-              setRightHistory([
-                {
-                  type: welcomePage.type as PaneState['type'],
-                  id: welcomePage.id,
-                  title: welcomePage.title,
-                },
-              ]);
-            }
-          } else {
-            // First time this user logged in: sync initial/local workspaces to Supabase so their data is saved to cloud
-            const defaultWsList: Workspace[] = workspaces.length > 0 ? workspaces : [{
-              id: `ws-${currentUserId.slice(0, 8)}`,
-              name: 'Main Workspace',
-              created_at: new Date().toISOString(),
-              pages: pages.length > 0 ? pages : [createDefaultWelcomePage()],
-              mentions: mentions,
-              pinnedPageIds: pinnedPageIds,
-            }];
-            await syncAllWorkspacesToSupabase(currentUserId, defaultWsList);
+              },
+            ]);
           }
-        } catch (err) {
-          console.error('Failed to load user data from Supabase:', err);
+
+          // Cache to local storage immediately
+          try {
+            localStorage.setItem(STORAGE_KEYS.WORKSPACES, JSON.stringify(remoteData.workspaces));
+            localStorage.setItem(STORAGE_KEYS.CURRENT_WORKSPACE_ID, activeWs.id);
+            localStorage.setItem(STORAGE_KEYS.PAGES, JSON.stringify(wsPages));
+            localStorage.setItem(STORAGE_KEYS.MENTIONS, JSON.stringify(wsMentions));
+            localStorage.setItem(STORAGE_KEYS.WORKSPACE_NAME, activeWs.name || 'My Workspace');
+            localStorage.setItem(STORAGE_KEYS.PINNED_PAGES, JSON.stringify(wsPinned));
+          } catch (e) {
+            console.error('Failed to cache remote data locally', e);
+          }
+
+          setTimeout(() => {
+            isHydratingRef.current = false;
+          }, 150);
+        } else {
+          // First time this user logged in with no cloud records:
+          // Sync current initial workspace & pages to Supabase so their data is saved to cloud
+          const fallbackPages = pages.length > 0 ? pages : [createDefaultWelcomePage()];
+          const initialWs: Workspace = {
+            id: `ws-${currentUserId.slice(0, 8)}`,
+            name: workspaceName || 'Main Workspace',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            last_opened_at: new Date().toISOString(),
+            pages: fallbackPages,
+            mentions: mentions,
+            pinnedPageIds: pinnedPageIds,
+          };
+          await syncAllWorkspacesToSupabase(currentUserId, [initialWs]);
         }
+      } catch (err) {
+        console.error('Failed to load user data from Supabase:', err);
       }
     };
 
@@ -467,7 +500,7 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, [user, authLoading]);
 
   useEffect(() => {
-    if (!isLoaded || !currentWorkspaceId) return;
+    if (!isLoaded || !currentWorkspaceId || isHydratingRef.current) return;
 
     // Update workspaces list with current workspace state
     setWorkspaces((prevWorkspaces) => {

@@ -10,18 +10,7 @@ export async function fetchUserWorkspacesAndPages(userId: string): Promise<{
   }
 
   try {
-    // 1. Fetch all Workspaces for this user
-    const { data: wsRows, error: wsError } = await supabase
-      .from('workspaces')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: true });
-
-    if (wsError) {
-      console.warn('Supabase fetch workspaces warning:', wsError.message);
-    }
-
-    // 2. Fetch all Pages for this user
+    // 1. Fetch all Pages for this user
     const { data: pageRows, error: pagesError } = await supabase
       .from('pages')
       .select('*')
@@ -32,7 +21,7 @@ export async function fetchUserWorkspacesAndPages(userId: string): Promise<{
       console.warn('Supabase fetch pages warning:', pagesError.message);
     }
 
-    // 3. Fetch all Mentions for this user
+    // 2. Fetch all Mentions for this user
     const { data: mentionRows, error: mentionsError } = await supabase
       .from('mentions')
       .select('*')
@@ -43,72 +32,126 @@ export async function fetchUserWorkspacesAndPages(userId: string): Promise<{
       console.warn('Supabase fetch mentions warning:', mentionsError.message);
     }
 
+    // 3. Fetch all Workspaces for this user
+    const { data: wsRows, error: wsError } = await supabase
+      .from('workspaces')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: true });
+
+    if (wsError) {
+      console.warn('Supabase fetch workspaces warning:', wsError.message);
+    }
+
+    const hasPages = Array.isArray(pageRows) && pageRows.length > 0;
+    const hasWorkspaces = Array.isArray(wsRows) && wsRows.length > 0;
+
     // If no workspaces and no pages exist in Supabase for this user, return null so we can initialize/migrate
-    if ((!wsRows || wsRows.length === 0) && (!pageRows || pageRows.length === 0)) {
+    if (!hasPages && !hasWorkspaces) {
       return { workspaces: null, activeWorkspaceId: null };
     }
 
-    const allPages: Page[] = (pageRows || []).map((row) => ({
-      id: row.id,
-      short_id: row.short_id,
-      type: row.type,
-      title: row.title,
-      content: row.content || '',
-      created_at: row.created_at,
-      updated_at: row.updated_at,
-      role: row.role,
-      done: row.done,
-      starred: row.starred,
-      pinned: row.pinned,
-      user_prompt: row.user_prompt,
-      injected_context: row.injected_context,
-      referenced_page_ids: Array.isArray(row.referenced_page_ids) ? row.referenced_page_ids : [],
-      canonical_version_id: row.canonical_version_id,
-      current_version_num: row.current_version_num || 1,
-      versions: Array.isArray(row.versions) ? row.versions : [],
-    }));
+    const allPages: Page[] = (pageRows || []).map((row) => {
+      let referencedPageIds: string[] = [];
+      if (Array.isArray(row.referenced_page_ids)) {
+        referencedPageIds = row.referenced_page_ids;
+      } else if (typeof row.referenced_page_ids === 'string') {
+        try {
+          referencedPageIds = JSON.parse(row.referenced_page_ids);
+        } catch {
+          referencedPageIds = [];
+        }
+      }
+
+      let versions: any[] = [];
+      if (Array.isArray(row.versions)) {
+        versions = row.versions;
+      } else if (typeof row.versions === 'string') {
+        try {
+          versions = JSON.parse(row.versions);
+        } catch {
+          versions = [];
+        }
+      }
+
+      return {
+        id: row.id,
+        short_id: row.short_id,
+        type: row.type,
+        title: row.title || 'Untitled',
+        content: row.content || '',
+        created_at: row.created_at || new Date().toISOString(),
+        updated_at: row.updated_at,
+        role: row.role,
+        done: Boolean(row.done),
+        starred: Boolean(row.starred),
+        pinned: Boolean(row.pinned),
+        user_prompt: row.user_prompt,
+        injected_context: row.injected_context,
+        referenced_page_ids: referencedPageIds,
+        canonical_version_id: row.canonical_version_id,
+        current_version_num: row.current_version_num || 1,
+        versions: versions,
+      };
+    });
 
     const allMentions: Mention[] = (mentionRows || []).map((row) => ({
       id: row.id,
       target_page_id: row.target_page_id,
       source_page_id: row.source_page_id,
-      span_start: row.span_start,
-      span_end: row.span_end,
-      snippet: row.snippet,
-      source: row.source,
-      orphaned: row.orphaned,
-      created_at: row.created_at,
+      span_start: typeof row.span_start === 'number' ? row.span_start : undefined,
+      span_end: typeof row.span_end === 'number' ? row.span_end : undefined,
+      snippet: row.snippet || '',
+      source: row.source || 'auto',
+      orphaned: Boolean(row.orphaned),
+      created_at: row.created_at || new Date().toISOString(),
     }));
 
     // If workspaces exist, partition pages and mentions by workspace_id
-    if (wsRows && wsRows.length > 0) {
-      const workspaces: Workspace[] = wsRows.map((wRow) => {
+    if (hasWorkspaces && wsRows) {
+      const workspaces: Workspace[] = wsRows.map((wRow, idx) => {
+        // Collect pages matching workspace_id or unassigned pages attached to the first workspace
         const wsPages = (pageRows || [])
-          .filter((pRow) => pRow.workspace_id === wRow.id || (!pRow.workspace_id && wRow.id === wsRows[0].id))
+          .filter((pRow) => pRow.workspace_id === wRow.id || (!pRow.workspace_id && idx === 0))
           .map((pRow) => allPages.find((p) => p.id === pRow.id)!)
           .filter(Boolean);
 
         const wsMentions = (mentionRows || [])
-          .filter((mRow) => mRow.workspace_id === wRow.id || (!mRow.workspace_id && wRow.id === wsRows[0].id))
+          .filter((mRow) => mRow.workspace_id === wRow.id || (!mRow.workspace_id && idx === 0))
           .map((mRow) => allMentions.find((m) => m.id === mRow.id)!)
           .filter(Boolean);
 
         let pinned: string[] = [];
         if (Array.isArray(wRow.pinned_page_ids)) {
           pinned = wRow.pinned_page_ids;
+        } else if (typeof wRow.pinned_page_ids === 'string') {
+          try {
+            pinned = JSON.parse(wRow.pinned_page_ids);
+          } catch {
+            pinned = [];
+          }
+        }
+        if (pinned.length === 0) {
+          pinned = wsPages.filter((p) => p.pinned).map((p) => p.id);
         }
 
         return {
           id: wRow.id,
           name: wRow.name || 'My Workspace',
-          created_at: wRow.created_at,
-          updated_at: wRow.updated_at,
-          last_opened_at: wRow.updated_at || wRow.created_at,
+          created_at: wRow.created_at || new Date().toISOString(),
+          updated_at: wRow.updated_at || new Date().toISOString(),
+          last_opened_at: wRow.updated_at || wRow.created_at || new Date().toISOString(),
           pages: wsPages,
           mentions: wsMentions,
           pinnedPageIds: pinned,
         };
       });
+
+      // If all workspaces somehow ended up empty but allPages has data, put allPages in workspace 0
+      if (allPages.length > 0 && workspaces.every((w) => w.pages.length === 0)) {
+        workspaces[0].pages = allPages;
+        workspaces[0].mentions = allMentions;
+      }
 
       return {
         workspaces,
@@ -116,7 +159,7 @@ export async function fetchUserWorkspacesAndPages(userId: string): Promise<{
       };
     }
 
-    // If pages exist but no workspace row, wrap them in a default workspace
+    // If pages exist but no workspace row in DB, wrap them in a default workspace
     const defaultWs: Workspace = {
       id: `ws-${userId.slice(0, 8)}`,
       name: 'My Workspace',
@@ -125,7 +168,7 @@ export async function fetchUserWorkspacesAndPages(userId: string): Promise<{
       last_opened_at: new Date().toISOString(),
       pages: allPages,
       mentions: allMentions,
-      pinnedPageIds: [],
+      pinnedPageIds: allPages.filter((p) => p.pinned).map((p) => p.id),
     };
 
     return {
@@ -141,16 +184,23 @@ export async function fetchUserWorkspacesAndPages(userId: string): Promise<{
 export async function upsertWorkspaceToSupabase(userId: string, workspace: Workspace): Promise<void> {
   if (!supabase || !userId) return;
   try {
-    await supabase.from('workspaces').upsert(
-      {
-        id: workspace.id,
-        user_id: userId,
-        name: workspace.name,
-        pinned_page_ids: workspace.pinnedPageIds || [],
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'id' }
-    );
+    const payload: any = {
+      id: workspace.id,
+      user_id: userId,
+      name: workspace.name || 'My Workspace',
+      pinned_page_ids: workspace.pinnedPageIds || [],
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error } = await supabase.from('workspaces').upsert(payload, { onConflict: 'id' });
+    if (error) {
+      if (error.message?.includes('pinned_page_ids')) {
+        delete payload.pinned_page_ids;
+        await supabase.from('workspaces').upsert(payload, { onConflict: 'id' });
+      } else {
+        console.warn('Supabase upsert workspace warning:', error.message);
+      }
+    }
   } catch (err) {
     console.error('Failed to upsert workspace to Supabase:', err);
   }
@@ -168,29 +218,43 @@ export async function deleteWorkspaceFromSupabase(userId: string, workspaceId: s
 export async function upsertPageToSupabase(userId: string, page: Page, workspaceId?: string): Promise<void> {
   if (!supabase || !userId) return;
   try {
-    await supabase.from('pages').upsert(
-      {
-        id: page.id,
-        user_id: userId,
-        workspace_id: workspaceId || null,
-        short_id: page.short_id,
-        type: page.type,
-        title: page.title,
-        content: page.content,
-        role: page.role,
-        done: page.done,
-        starred: page.starred,
-        pinned: page.pinned,
-        user_prompt: page.user_prompt,
-        injected_context: page.injected_context,
-        referenced_page_ids: page.referenced_page_ids || [],
-        canonical_version_id: page.canonical_version_id,
-        current_version_num: page.current_version_num || 1,
-        versions: page.versions || [],
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'id' }
-    );
+    const payload: any = {
+      id: page.id,
+      user_id: userId,
+      short_id: page.short_id,
+      type: page.type,
+      title: page.title || 'Untitled',
+      content: page.content || '',
+      role: page.role || null,
+      done: Boolean(page.done),
+      starred: Boolean(page.starred),
+      pinned: Boolean(page.pinned),
+      user_prompt: page.user_prompt || null,
+      injected_context: page.injected_context || null,
+      referenced_page_ids: page.referenced_page_ids || [],
+      canonical_version_id: page.canonical_version_id || null,
+      current_version_num: page.current_version_num || 1,
+      versions: page.versions || [],
+      updated_at: new Date().toISOString(),
+    };
+
+    if (workspaceId) {
+      payload.workspace_id = workspaceId;
+    }
+
+    const { error } = await supabase.from('pages').upsert(payload, { onConflict: 'id' });
+    if (error) {
+      // If error is caused by workspace_id column missing or FK constraint, retry without workspace_id
+      if (error.message?.includes('workspace_id') || error.message?.includes('foreign key')) {
+        delete payload.workspace_id;
+        const { error: retryErr } = await supabase.from('pages').upsert(payload, { onConflict: 'id' });
+        if (retryErr) {
+          console.warn('Supabase upsert page retry warning:', retryErr.message);
+        }
+      } else {
+        console.warn('Supabase upsert page warning:', error.message);
+      }
+    }
   } catch (err) {
     console.error('Failed to upsert page to Supabase:', err);
   }
@@ -217,21 +281,34 @@ export async function deletePagesFromSupabase(userId: string, pageIds: string[])
 export async function upsertMentionToSupabase(userId: string, mention: Mention, workspaceId?: string): Promise<void> {
   if (!supabase || !userId) return;
   try {
-    await supabase.from('mentions').upsert(
-      {
-        id: mention.id,
-        user_id: userId,
-        workspace_id: workspaceId || null,
-        target_page_id: mention.target_page_id,
-        source_page_id: mention.source_page_id,
-        span_start: mention.span_start,
-        span_end: mention.span_end,
-        snippet: mention.snippet,
-        source: mention.source,
-        orphaned: mention.orphaned,
-      },
-      { onConflict: 'id' }
-    );
+    const payload: any = {
+      id: mention.id,
+      user_id: userId,
+      target_page_id: mention.target_page_id,
+      source_page_id: mention.source_page_id,
+      span_start: typeof mention.span_start === 'number' ? mention.span_start : null,
+      span_end: typeof mention.span_end === 'number' ? mention.span_end : null,
+      snippet: mention.snippet || '',
+      source: mention.source || 'auto',
+      orphaned: Boolean(mention.orphaned),
+    };
+
+    if (workspaceId) {
+      payload.workspace_id = workspaceId;
+    }
+
+    const { error } = await supabase.from('mentions').upsert(payload, { onConflict: 'id' });
+    if (error) {
+      if (error.message?.includes('workspace_id') || error.message?.includes('foreign key')) {
+        delete payload.workspace_id;
+        const { error: retryErr } = await supabase.from('mentions').upsert(payload, { onConflict: 'id' });
+        if (retryErr) {
+          console.warn('Supabase upsert mention retry warning:', retryErr.message);
+        }
+      } else {
+        console.warn('Supabase upsert mention warning:', error.message);
+      }
+    }
   } catch (err) {
     console.error('Failed to upsert mention to Supabase:', err);
   }
@@ -262,3 +339,4 @@ export async function syncAllWorkspacesToSupabase(userId: string, workspaces: Wo
     console.error('Failed to sync all workspaces to Supabase:', err);
   }
 }
+
