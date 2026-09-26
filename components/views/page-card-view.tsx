@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { useNotehook } from '@/lib/context';
 import { EntityVersion } from '@/lib/types';
 import { Tag, CheckSquare, Square, Zap, ArrowLeft, FileText, MessageSquare, Star, Bookmark, Trash2, Search, ChevronUp, ChevronDown, X, Check, Pin } from 'lucide-react';
@@ -395,6 +395,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
   };
 
   const pageViewContainerRef = useRef<HTMLDivElement>(null);
+  const savedScrollTopRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (targetPage) {
@@ -412,7 +413,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
         }
         setTimeout(() => {
           if (titleRef.current) {
-            titleRef.current.focus();
+            titleRef.current.focus({ preventScroll: true });
             try {
               const range = document.createRange();
               range.selectNodeContents(titleRef.current);
@@ -428,16 +429,22 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
     }
   }, [targetPage?.id, targetPage?.content, targetPage?.user_prompt, isEditing, isEditingPrompt]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (isEditing && contentRef.current) {
       const minH = targetPage?.type === 'entity' ? 32 : 180;
       autoResizeTextarea(contentRef.current, minH);
+      if (savedScrollTopRef.current !== null && pageViewContainerRef.current) {
+        pageViewContainerRef.current.scrollTop = savedScrollTopRef.current;
+      }
     }
   }, [isEditing, bodyText, targetPage?.type]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (isEditingPrompt && promptRef.current) {
       autoResizeTextarea(promptRef.current, 36);
+      if (savedScrollTopRef.current !== null && pageViewContainerRef.current) {
+        pageViewContainerRef.current.scrollTop = savedScrollTopRef.current;
+      }
     }
   }, [isEditingPrompt, promptText]);
 
@@ -538,7 +545,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
 
     setTimeout(() => {
       if (contentRef.current) {
-        contentRef.current.focus();
+        contentRef.current.focus({ preventScroll: true });
         contentRef.current.setSelectionRange(newCursorPos, newCursorPos);
       }
     }, 0);
@@ -599,7 +606,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
 
     setTimeout(() => {
       if (promptRef.current) {
-        promptRef.current.focus();
+        promptRef.current.focus({ preventScroll: true });
         promptRef.current.setSelectionRange(newCursorPos, newCursorPos);
       }
     }, 0);
@@ -759,9 +766,12 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
   // Entity Version Body @ suggestions calculation (evaluates live selection & excludes inside existing references)
   const activeVersionText = activeVersion?.content || '';
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (isEditingVersionBody && versionContentRef.current) {
       autoResizeTextarea(versionContentRef.current, 140);
+      if (savedScrollTopRef.current !== null && pageViewContainerRef.current) {
+        pageViewContainerRef.current.scrollTop = savedScrollTopRef.current;
+      }
     }
   }, [isEditingVersionBody, activeVersion?.content]);
   const activeVersionCursor = versionContentRef.current ? (versionContentRef.current.selectionStart ?? versionCursorPos) : versionCursorPos;
@@ -885,7 +895,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
 
     setTimeout(() => {
       if (versionContentRef.current) {
-        versionContentRef.current.focus();
+        versionContentRef.current.focus({ preventScroll: true });
         versionContentRef.current.setSelectionRange(newCursorPos, newCursorPos);
       }
     }, 0);
@@ -1048,6 +1058,9 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
 
     // Calculate exact clicked character offset or fallback to end of text
     const targetOffset = getCaretOffsetFromPoint(e.currentTarget, e.clientX, e.clientY, bodyText);
+    const scrollContainer = pageViewContainerRef.current;
+    const currentScroll = scrollContainer?.scrollTop ?? 0;
+    savedScrollTopRef.current = currentScroll;
 
     setIsEditing(true);
     if (targetPage.type === 'entity') {
@@ -1056,9 +1069,14 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
 
     setTimeout(() => {
       if (contentRef.current) {
-        contentRef.current.focus();
+        const minH = targetPage?.type === 'entity' ? 32 : 180;
+        autoResizeTextarea(contentRef.current, minH);
+        contentRef.current.focus({ preventScroll: true });
         contentRef.current.setSelectionRange(targetOffset, targetOffset);
         setContentCursorPos(targetOffset);
+      }
+      if (scrollContainer) {
+        scrollContainer.scrollTop = currentScroll;
       }
     }, 0);
   };
@@ -1361,7 +1379,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
                 }
                 setTimeout(() => {
                   if (contentRef.current) {
-                    contentRef.current.focus();
+                    contentRef.current.focus({ preventScroll: true });
                   }
                 }, 50);
               } else if (e.key === 'Escape') {
@@ -1525,12 +1543,19 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
                   e.stopPropagation();
                   const targetOffset = getCaretOffsetFromPoint(e.currentTarget, e.clientX, e.clientY, promptText);
                   setPromptText(targetPage.user_prompt || '');
+                  const scrollContainer = pageViewContainerRef.current;
+                  const currentScroll = scrollContainer?.scrollTop ?? 0;
+                  savedScrollTopRef.current = currentScroll;
                   setIsEditingPrompt(true);
                   setTimeout(() => {
                     if (promptRef.current) {
-                      promptRef.current.focus();
+                      autoResizeTextarea(promptRef.current, 36);
+                      promptRef.current.focus({ preventScroll: true });
                       promptRef.current.setSelectionRange(targetOffset, targetOffset);
                       setPromptCursorPos(targetOffset);
+                    }
+                    if (scrollContainer) {
+                      scrollContainer.scrollTop = currentScroll;
                     }
                   }, 0);
                 }}
@@ -1968,13 +1993,20 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
                           }
 
                           const targetOffset = getCaretOffsetFromPoint(e.currentTarget, e.clientX, e.clientY, activeVersionText);
+                          const scrollContainer = pageViewContainerRef.current;
+                          const currentScroll = scrollContainer?.scrollTop ?? 0;
+                          savedScrollTopRef.current = currentScroll;
                           setIsEditingVersionBody(true);
                           setIsEditing(true);
                           setTimeout(() => {
                             if (versionContentRef.current) {
-                              versionContentRef.current.focus();
+                              autoResizeTextarea(versionContentRef.current, 140);
+                              versionContentRef.current.focus({ preventScroll: true });
                               versionContentRef.current.setSelectionRange(targetOffset, targetOffset);
                               setVersionCursorPos(targetOffset);
+                            }
+                            if (scrollContainer) {
+                              scrollContainer.scrollTop = currentScroll;
                             }
                           }, 0);
                         }}
