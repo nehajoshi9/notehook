@@ -153,7 +153,7 @@ export const CommandPaletteModal: React.FC = () => {
   const getPrimitiveIcon = (type: Page['type'], done?: boolean) => {
     switch (type) {
       case 'entity':
-        return <Tag className="h-4 w-4 text-indigo-500 shrink-0" />;
+        return <Tag className="h-4 w-4 text-purple-600 shrink-0" />;
       case 'decision':
         return <Zap className="h-4 w-4 text-orange-500 shrink-0" />;
       case 'todo':
@@ -163,7 +163,7 @@ export const CommandPaletteModal: React.FC = () => {
           <Square className="h-4 w-4 text-emerald-600 shrink-0" />
         );
       case 'note':
-        return <FileText className="h-4 w-4 text-amber-500 shrink-0" />;
+        return <FileText className="h-4 w-4 text-red-500 shrink-0" />;
       case 'message':
         return <MessageSquare className="h-4 w-4 text-sky-600 shrink-0" />;
       default:
@@ -181,7 +181,7 @@ export const CommandPaletteModal: React.FC = () => {
           className="page-mention-pill text-xs font-bold text-zinc-900"
           style={{ backgroundColor: pagePillColor }}
         >
-          <Tag className="w-3 h-3 text-indigo-600 inline mr-0.5" /> entity
+          <Tag className="w-3 h-3 text-purple-600 inline mr-0.5" /> entity
         </span>
       );
     }
@@ -216,7 +216,7 @@ export const CommandPaletteModal: React.FC = () => {
           className="page-mention-pill text-xs font-bold text-zinc-900"
           style={{ backgroundColor: pagePillColor }}
         >
-          <FileText className="w-3.5 h-3.5 text-amber-600 inline mr-0.5" /> note
+          <FileText className="w-3.5 h-3.5 text-red-600 inline mr-0.5" /> note
         </span>
       );
     }

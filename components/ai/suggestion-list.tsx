@@ -36,27 +36,27 @@ export const SuggestionList: React.FC<SuggestionListProps> = ({
         {items.map((item, idx) => {
           const isSelected = idx === selectedIndex;
 
-          let icon = <Tag className="h-3.5 w-3.5 text-indigo-500 shrink-0" />;
+          let icon = <Tag className="h-3.5 w-3.5 text-purple-600 shrink-0" />;
           if (item.id.startsWith('create-')) {
             if (item.itemType === 'todo') {
               icon = <Plus className="h-3.5 w-3.5 text-emerald-600 shrink-0" />;
             } else if (item.itemType === 'decision') {
               icon = <Plus className="h-3.5 w-3.5 text-orange-500 shrink-0" />;
             } else if (item.itemType === 'note') {
-              icon = <Plus className="h-3.5 w-3.5 text-amber-600 shrink-0" />;
+              icon = <Plus className="h-3.5 w-3.5 text-red-600 shrink-0" />;
             } else {
-              icon = <Plus className="h-3.5 w-3.5 text-indigo-500 shrink-0" />;
+              icon = <Plus className="h-3.5 w-3.5 text-purple-600 shrink-0" />;
             }
           } else if (item.primitiveType === 'todo' || item.itemType === 'todo') {
             icon = <CheckSquare className="h-3.5 w-3.5 text-emerald-600 shrink-0" />;
           } else if (item.primitiveType === 'decision' || item.itemType === 'decision') {
             icon = <Zap className="h-3.5 w-3.5 text-orange-500 shrink-0" />;
           } else if (item.primitiveType === 'note' || item.itemType === 'note') {
-            icon = <FileText className="h-3.5 w-3.5 text-amber-600 shrink-0" />;
+            icon = <FileText className="h-3.5 w-3.5 text-red-600 shrink-0" />;
           } else if (item.itemType === 'message') {
             icon = <MessageSquare className="h-3.5 w-3.5 text-sky-600 shrink-0" />;
           } else if (item.itemType === 'entity') {
-            icon = <Tag className="h-3.5 w-3.5 text-indigo-500 shrink-0" />;
+            icon = <Tag className="h-3.5 w-3.5 text-purple-600 shrink-0" />;
           }
 
           const isBoldItem = item.isBold || item.id === 'save-to-entity';

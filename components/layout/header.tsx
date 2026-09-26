@@ -136,9 +136,9 @@ export const Header: React.FC = () => {
     <header className="h-14 px-5 bg-white border-b border-zinc-200 flex items-center justify-between z-30 text-zinc-900 shrink-0 select-none relative">
       {/* Brand Logo & Dashboard Button */}
       <div className="flex items-center gap-2.5">
-        <Link href="/dashboard" className="flex items-center gap-2 group cursor-pointer hover:opacity-85 transition-opacity" title="Go to Workspaces Dashboard">
-          <NotehookLogo className="w-7.5 h-7.5 text-purple-600 group-hover:text-purple-700 transition-colors" />
-          <span className="text-sm font-bold tracking-tight text-zinc-950 font-heading">
+        <Link href="/dashboard" className="flex items-center gap-2 group cursor-pointer" title="Go to Workspaces Dashboard">
+          <NotehookLogo className="w-7.5 h-7.5" />
+          <span className="text-sm font-bold tracking-tight text-zinc-950 font-heading group-hover:text-zinc-800 transition-colors">
             Notehook
           </span>
         </Link>
@@ -227,7 +227,7 @@ export const Header: React.FC = () => {
                 className="w-full text-left px-2 py-1.5 rounded flex items-center justify-between gap-2 text-zinc-700 hover:text-zinc-950 hover:bg-zinc-100 transition-colors group cursor-pointer"
               >
                 <div className="flex items-center gap-2 truncate min-w-0">
-                  <Tag className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+                  <Tag className="h-3.5 w-3.5 text-purple-600 shrink-0" />
                   <span className="font-medium text-zinc-800 group-hover:text-zinc-950 truncate">
                     Entity
                   </span>
@@ -244,7 +244,7 @@ export const Header: React.FC = () => {
                 className="w-full text-left px-2 py-1.5 rounded flex items-center justify-between gap-2 text-zinc-700 hover:text-zinc-950 hover:bg-zinc-100 transition-colors group cursor-pointer"
               >
                 <div className="flex items-center gap-2 truncate min-w-0">
-                  <FileText className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                  <FileText className="h-3.5 w-3.5 text-red-500 shrink-0" />
                   <span className="font-medium text-zinc-800 group-hover:text-zinc-950 truncate">
                     Note
                   </span>

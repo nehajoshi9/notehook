@@ -31,8 +31,8 @@ All raw text representations maintain canonical bracket syntax:
 - `message` (conversation page turn): rendered with `#e0f2fe` (Pastel Blue) pill color, icon `📄`.
 - `entity` (tracked entity page): rendered with `#e4d3fd` (Pastel Purple) pill color, icon `🏷️`.
 - `todo` (action item page): rendered with `#dcfce7` (Pastel Green) pill color, icon `✓`.
-- `decision` (agreed decision page): rendered with `#fee2e2` (Pastel Red) pill color, icon `⚡`.
-- `note` (sacred human note page): rendered with `#fef3c7` (Pastel Amber) pill color, icon `📝`.
+- `decision` (agreed decision page): rendered with `#fef08a` (Pastel Yellow) pill color, icon `⚡`.
+- `note` (sacred human note page): rendered with `#fee2e2` (Pastel Red) pill color, icon `📝` / Red `📄`.
 
 ---
 

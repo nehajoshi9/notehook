@@ -9,9 +9,9 @@ export default function TermsPage() {
       {/* Header */}
       <header className="h-14 px-5 bg-white border-b border-zinc-200 flex items-center justify-between sticky top-0 z-30 shadow-2xs">
         <div className="flex items-center gap-2.5">
-          <Link href="/dashboard" className="flex items-center gap-2 group cursor-pointer hover:opacity-85 transition-opacity">
-            <NotehookLogo className="w-7.5 h-7.5 text-purple-600 group-hover:text-purple-700 transition-colors" />
-            <span className="text-sm font-bold tracking-tight text-zinc-950 font-heading">Notehook</span>
+          <Link href="/dashboard" className="flex items-center gap-2 group cursor-pointer">
+            <NotehookLogo className="w-7.5 h-7.5" />
+            <span className="text-sm font-bold tracking-tight text-zinc-950 font-heading group-hover:text-zinc-800 transition-colors">Notehook</span>
           </Link>
         </div>
         <Link

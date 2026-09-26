@@ -397,7 +397,7 @@ export const Sidebar: React.FC = () => {
               className="flex items-center gap-1 hover:text-zinc-950"
             >
               {notesExpanded ? <ChevronDown className="h-3.5 w-3.5 text-zinc-500" /> : <ChevronRight className="h-3.5 w-3.5 text-zinc-500" />}
-              <FileText className="h-3.5 w-3.5 text-amber-500 mr-1" />
+              <FileText className="h-3.5 w-3.5 text-red-500 mr-1" />
               <span>Notes ({filteredNotes.length})</span>
             </button>
             <div className="flex items-center gap-1">
@@ -448,7 +448,7 @@ export const Sidebar: React.FC = () => {
                       }`}
                     >
                       <div className="flex items-center gap-2 truncate min-w-0 w-full">
-                        <FileText className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                        <FileText className="h-3.5 w-3.5 text-red-500 shrink-0" />
                         <span className="truncate">{renderHighlightedText(note.title, searchQuery)}</span>
                       </div>
                       {excerpt && (
@@ -662,7 +662,7 @@ export const Sidebar: React.FC = () => {
                 className="flex items-center gap-1 text-xs font-bold text-zinc-700 hover:text-zinc-950"
               >
                 {entitiesExpanded ? <ChevronDown className="h-3.5 w-3.5 text-zinc-500" /> : <ChevronRight className="h-3.5 w-3.5 text-zinc-500" />}
-                <Tag className="h-3.5 w-3.5 text-indigo-500 mr-1" />
+                <Tag className="h-3.5 w-3.5 text-purple-600 mr-1" />
                 <span>Entities ({filteredEntities.length})</span>
               </button>
               <div className="flex items-center gap-1">
@@ -713,7 +713,7 @@ export const Sidebar: React.FC = () => {
                         }`}
                       >
                         <div className="flex items-center gap-2 truncate w-full min-w-0">
-                          <Tag className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+                          <Tag className="h-3.5 w-3.5 text-purple-600 shrink-0" />
                           <span className="truncate">{renderHighlightedText(ent.title, searchQuery)}</span>
                         </div>
                         {excerpt && (

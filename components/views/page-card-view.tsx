@@ -1071,7 +1071,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
           className="page-mention-pill text-xs font-bold text-zinc-900"
           style={{ backgroundColor: pagePillColor }}
         >
-          <Tag className="w-3 h-3 text-indigo-600 inline mr-0.5" /> entity
+          <Tag className="w-3 h-3 text-purple-600 inline mr-0.5" /> entity
         </span>
       );
     }
@@ -1106,7 +1106,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
           className="page-mention-pill text-xs font-bold text-zinc-900"
           style={{ backgroundColor: pagePillColor }}
         >
-          <FileText className="w-3.5 h-3.5 text-amber-600 inline mr-0.5" /> note
+          <FileText className="w-3.5 h-3.5 text-red-600 inline mr-0.5" /> note
         </span>
       );
     }
@@ -1720,7 +1720,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
             </div>
             <div className="flex items-center justify-between gap-3 pb-3 border-b border-zinc-200/80 select-none shrink-0">
               <div className="flex items-center gap-2">
-                <Tag className="w-4 h-4 text-indigo-600" />
+                <Tag className="w-4 h-4 text-purple-600" />
                 <span className="text-xs font-bold text-zinc-900 tracking-tight">Entity Version History</span>
               </div>
 
@@ -2031,7 +2031,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
                 const snippets = getMentionSnippetsForPage(bp, targetPage.title, targetPage.short_id);
 
                 const getSourcePageIcon = () => {
-                  if (bp.type === 'note') return <FileText className="h-3.5 w-3.5 text-amber-600 shrink-0" />;
+                  if (bp.type === 'note') return <FileText className="h-3.5 w-3.5 text-red-600 shrink-0" />;
                   if (bp.type === 'todo') {
                     return bp.done ? (
                       <CheckSquare className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
@@ -2040,7 +2040,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
                     );
                   }
                   if (bp.type === 'decision') return <Zap className="h-3.5 w-3.5 text-orange-500 shrink-0" />;
-                  if (bp.type === 'entity') return <Tag className="h-3.5 w-3.5 text-indigo-500 shrink-0" />;
+                  if (bp.type === 'entity') return <Tag className="h-3.5 w-3.5 text-purple-600 shrink-0" />;
                   return <MessageSquare className="h-3.5 w-3.5 text-sky-600 shrink-0" />;
                 };
 

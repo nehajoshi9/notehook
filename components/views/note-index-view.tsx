@@ -31,7 +31,7 @@ export const NoteIndexView: React.FC = () => {
       {/* Header Bar */}
       <div className="flex items-center justify-between px-6 py-3.5 border-b border-zinc-200 bg-zinc-50/50 shrink-0">
         <div className="flex items-center gap-2.5">
-          <div className="p-1.5 bg-amber-100 text-amber-700 rounded-md">
+          <div className="p-1.5 bg-red-100 text-red-700 rounded-md">
             <FileText className="w-4 h-4" />
           </div>
           <div>
@@ -97,7 +97,7 @@ export const NoteIndexView: React.FC = () => {
               >
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <FileText className="w-4 h-4 text-amber-600 shrink-0" />
+                    <FileText className="w-4 h-4 text-red-600 shrink-0" />
                     <h3 className="text-xs font-bold text-zinc-900 leading-snug group-hover:text-zinc-950 truncate">
                       {note.title}
                     </h3>

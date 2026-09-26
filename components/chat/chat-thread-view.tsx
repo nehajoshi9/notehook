@@ -368,7 +368,7 @@ export const ChatThreadView: React.FC<ChatThreadViewProps> = ({ paneIndex = 1 })
       <div ref={scrollContainerRef} className={`flex-1 overflow-y-auto overflow-x-hidden space-y-6 bg-white py-4 pr-4 md:py-6 md:pr-6 ${isDualPane ? 'pl-10 md:pl-12' : 'pl-10 md:pl-12'}`}>
         {sortedNotes.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full min-h-[360px] text-center max-w-xl mx-auto py-8 px-4 select-none">
-            <NotehookLogo className="w-12 h-12 text-purple-600 mb-3" />
+            <NotehookLogo className="w-12 h-12 mb-3" />
             <h3 className="text-base font-bold text-zinc-950 mb-1 font-heading">
               Start a Conversation
             </h3>
@@ -389,7 +389,7 @@ export const ChatThreadView: React.FC<ChatThreadViewProps> = ({ paneIndex = 1 })
 
               <div className="p-3 rounded-xl bg-zinc-50/90 border border-zinc-200/80 hover:border-zinc-300 transition-colors">
                 <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-900 mb-1">
-                  <Zap className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                  <Zap className="w-3.5 h-3.5 text-orange-500 shrink-0" />
                   <span>Decisions</span>
                 </div>
                 <p className="text-[11px] text-zinc-500 leading-snug">
@@ -409,7 +409,7 @@ export const ChatThreadView: React.FC<ChatThreadViewProps> = ({ paneIndex = 1 })
 
               <div className="p-3 rounded-xl bg-zinc-50/90 border border-zinc-200/80 hover:border-zinc-300 transition-colors">
                 <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-900 mb-1">
-                  <FileText className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                  <FileText className="w-3.5 h-3.5 text-red-600 shrink-0" />
                   <span>Notes</span>
                 </div>
                 <p className="text-[11px] text-zinc-500 leading-snug">

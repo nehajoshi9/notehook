@@ -20,7 +20,7 @@ export const EntityIndexView: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-3.5 border-b border-zinc-200 bg-zinc-50/50">
         <div className="flex items-center gap-2.5">
-          <div className="p-1.5 bg-indigo-100 text-indigo-700 rounded-md">
+          <div className="p-1.5 bg-purple-100 text-purple-700 rounded-md">
             <Tag className="w-4 h-4" />
           </div>
           <div>
@@ -49,7 +49,7 @@ export const EntityIndexView: React.FC = () => {
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <Tag className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                    <Tag className="w-3.5 h-3.5 text-purple-600 shrink-0" />
 
                     <h3 className="text-xs font-bold text-zinc-900 leading-snug group-hover:text-zinc-950 flex-1 min-w-0 line-clamp-2">
                       {ent.title}

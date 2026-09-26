@@ -50,8 +50,8 @@ export const PaneContainer: React.FC = () => {
 
   const getPaneIcon = (pane: typeof leftPane) => {
     const { type, id } = pane;
-    if (type === 'entity' || type === 'entity_index') return <Tag className="h-3.5 w-3.5 text-indigo-500 shrink-0" />;
-    if (type === 'note' || type === 'note_index') return <FileText className="h-3.5 w-3.5 text-amber-600 shrink-0" />;
+    if (type === 'entity' || type === 'entity_index') return <Tag className="h-3.5 w-3.5 text-purple-600 shrink-0" />;
+    if (type === 'note' || type === 'note_index') return <FileText className="h-3.5 w-3.5 text-red-600 shrink-0" />;
     if (type === 'todo') {
       const todoPage = pages.find((p) => p.id === id);
       if (todoPage?.done) {

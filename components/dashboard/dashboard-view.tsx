@@ -127,11 +127,11 @@ export const DashboardView: React.FC = () => {
         <div className="flex items-center gap-2.5">
           <Link
             href="/"
-            className="flex items-center gap-2 group cursor-pointer hover:opacity-85 transition-opacity"
+            className="flex items-center gap-2 group cursor-pointer"
             title="Go to Notehook App"
           >
-            <NotehookLogo className="w-7.5 h-7.5 text-purple-600 group-hover:text-purple-700 transition-colors" />
-            <span className="text-sm font-bold tracking-tight text-zinc-950 font-heading">
+            <NotehookLogo className="w-7.5 h-7.5" />
+            <span className="text-sm font-bold tracking-tight text-zinc-950 font-heading group-hover:text-zinc-800 transition-colors">
               Notehook
             </span>
           </Link>
@@ -507,7 +507,7 @@ export const DashboardView: React.FC = () => {
                     )}
                     {noteCount > 0 && (
                       <span className="flex items-center gap-1 text-[11px] font-medium text-zinc-700 bg-zinc-100 px-2 py-0.5 rounded border border-zinc-200/80">
-                        <FileText className="w-3 h-3 text-amber-500" />
+                        <FileText className="w-3 h-3 text-red-500" />
                         {noteCount}
                       </span>
                     )}

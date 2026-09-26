@@ -1,15 +1,16 @@
 import React from 'react';
 import { File, FishingHook } from 'lucide-react';
+import { BRAND_COLORS } from '@/lib/color';
 
 interface NotehookLogoProps {
   className?: string;
 }
 
 export const NotehookLogo: React.FC<NotehookLogoProps> = ({
-  className = 'w-8 h-8',
+  className = '',
 }) => {
   return (
-    <div className={`relative flex items-center justify-center ${className} shrink-0`}>
+    <div className={`relative flex items-center justify-center ${BRAND_COLORS.logo} ${BRAND_COLORS.logoHover} transition-colors duration-150 ${className} shrink-0 select-none`}>
       {/* File Page shifted lower */}
       <File className="w-[80%] h-[80%] absolute top-[11%] right-[6%]" strokeWidth={2} />
       {/* Fishing Hook */}
