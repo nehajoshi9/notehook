@@ -106,7 +106,7 @@ export const SEED_PAGES: Page[] = [
     id: 'seed-welcome-note',
     short_id: 'n1',
     type: 'note',
-    title: 'Welcome',
+    title: 'Welcome to Notehook! 👋',
     content: WELCOME_NOTE_CONTENT,
     created_at: new Date().toISOString(),
   },

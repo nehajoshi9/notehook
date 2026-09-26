@@ -421,24 +421,24 @@ body.is-selecting-text .page-mention-pill:hover .pill-short {
 
 [data-page-canvas] .notehook-gutter-handle,
 [data-page-canvas] .notehook-user-prompt-turn .notehook-gutter-handle {
-  left: -1rem;           /* half of pl-8 (2rem) = margin midpoint */
+  left: -1.35rem;           /* centered inside pl-10 (2.5rem) left margin */
   top: 0.15rem;
   transform: translateX(-50%);
 }
 
 [data-page-canvas] [data-entity-version-container] .notehook-markdown-block .notehook-gutter-handle {
-  left: calc(-1rem - 1rem) !important;
+  left: calc(-1.35rem - 1rem) !important;
   transform: translateX(-50%);
 }
 
 @media (min-width: 768px) {
   [data-page-canvas] .notehook-gutter-handle,
   [data-page-canvas] .notehook-user-prompt-turn .notehook-gutter-handle {
-    left: -1.25rem;      /* half of pl-10 (2.5rem) = margin midpoint */
+    left: -1.6rem;      /* centered inside md:pl-12 (3rem) left margin */
   }
 
   [data-page-canvas] [data-entity-version-container] .notehook-markdown-block .notehook-gutter-handle {
-    left: calc(-1.25rem - 1.25rem) !important;
+    left: calc(-1.6rem - 1.25rem) !important;
   }
 }
 

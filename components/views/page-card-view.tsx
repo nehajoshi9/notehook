@@ -1209,7 +1209,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
       )}
 
       {/* Obsidian-Style Seamless Document Canvas */}
-      <div ref={pageViewContainerRef} data-page-canvas="true" className="flex-1 overflow-y-auto bg-white flex flex-col p-6 space-y-4">
+      <div ref={pageViewContainerRef} data-page-canvas="true" className="flex-1 overflow-y-auto bg-white flex flex-col pl-10 pr-6 py-6 md:pl-12 md:pr-8 space-y-4">
         {/* Top Row: Page ID Pill (Left-aligned with page text) & Action Buttons (Right-aligned) */}
         <div className="flex items-center justify-between gap-2 select-none">
           <div>
