@@ -12,7 +12,7 @@ body {
   background: #ffffff;
   color: #09090b;
   font-family: var(--font-sans);
-  overflow: hidden;
+  overflow-y: auto;
   -webkit-font-smoothing: antialiased;
 }
 

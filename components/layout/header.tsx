@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import {
-  Compass,
   Search,
   Plus,
   Tag,
@@ -12,7 +11,9 @@ import {
   CheckSquare,
   LogOut,
   LayoutDashboard,
+  Folder,
 } from 'lucide-react';
+import { NotehookLogo } from '@/components/icons/notehook-logo';
 import { openCommandPalette } from '@/components/modals/command-palette-modal';
 import { useIsMac } from '@/lib/use-os';
 import { useNotehook } from '@/lib/context';
@@ -135,10 +136,8 @@ export const Header: React.FC = () => {
     <header className="h-14 px-5 bg-white border-b border-zinc-200 flex items-center justify-between z-30 text-zinc-900 shrink-0 select-none relative">
       {/* Brand Logo & Dashboard Button */}
       <div className="flex items-center gap-2.5">
-        <Link href="/dashboard" className="flex items-center gap-2 group cursor-pointer" title="Go to Workspaces Dashboard">
-          <div className="p-1 rounded-md bg-zinc-900 text-white shadow-2xs group-hover:bg-zinc-800 transition-colors">
-            <Compass className="h-4 w-4" />
-          </div>
+        <Link href="/dashboard" className="flex items-center gap-2 group cursor-pointer hover:opacity-85 transition-opacity" title="Go to Workspaces Dashboard">
+          <NotehookLogo className="w-7.5 h-7.5 text-purple-600 group-hover:text-purple-700 transition-colors" />
           <span className="text-sm font-bold tracking-tight text-zinc-950 font-heading">
             Notehook
           </span>
@@ -158,6 +157,7 @@ export const Header: React.FC = () => {
       <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2.5">
         {/* Editable Workspace Name Text Field */}
         <div className="relative flex items-center">
+          <Folder className="w-3.5 h-3.5 text-fuchsia-600 absolute left-2.5 pointer-events-none shrink-0" />
           <input
             type="text"
             value={workspaceName}
@@ -174,7 +174,7 @@ export const Header: React.FC = () => {
               }
             }}
             placeholder="Workspace Name"
-            className="h-8 px-2.5 py-1 text-xs font-semibold text-zinc-800 bg-zinc-100/70 hover:bg-zinc-100 focus:bg-white focus:ring-2 focus:ring-zinc-950/15 border border-zinc-200/80 focus:border-zinc-300 rounded-lg outline-none transition-all placeholder:text-zinc-400 font-sans cursor-text w-36 focus:w-48 text-ellipsis"
+            className="h-8 pl-8 pr-2.5 py-1 text-xs font-semibold text-zinc-800 bg-zinc-100/70 hover:bg-zinc-100 focus:bg-white focus:ring-2 focus:ring-zinc-950/15 border border-zinc-200/80 focus:border-zinc-300 rounded-lg outline-none transition-all placeholder:text-zinc-400 font-sans cursor-text w-56 focus:w-72 text-ellipsis"
             title="Workspace Name (reference tags strictly forbidden)"
           />
         </div>
@@ -354,24 +354,24 @@ export const Header: React.FC = () => {
               <button
                 type="button"
                 onClick={signInWithGoogle}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-zinc-900 hover:bg-zinc-800 text-white transition-all shadow-2xs cursor-pointer"
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-50/80 hover:bg-indigo-100/80 border border-indigo-200/90 hover:border-indigo-300 text-indigo-950 transition-all shadow-2xs cursor-pointer"
                 title="Sign in with Google"
               >
-                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
+                <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24">
                   <path
-                    fill="currentColor"
+                    fill="#4285F4"
                     d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
                   />
                   <path
-                    fill="currentColor"
+                    fill="#34A853"
                     d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
                   />
                   <path
-                    fill="currentColor"
+                    fill="#FBBC05"
                     d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
                   />
                   <path
-                    fill="currentColor"
+                    fill="#EA4335"
                     d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
                   />
                 </svg>

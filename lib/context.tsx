@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Page, Mention, PaneState, AISettings, EntityVersion, Workspace } from './types';
-import { SEED_PAGES, SEED_MENTIONS } from './store';
+import { SEED_PAGES, SEED_MENTIONS, createDefaultWelcomePage } from './store';
 import { parseNotehookMarkup, formatItemTitle, generateTopicTitle, stripCodeSpans, normalizeRawContentToCanonicalBrackets } from './notehook-parser';
 import { generateNotehookResponse } from './ai-notehook';
 
@@ -164,8 +164,9 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   });
 
   const [rightPane, setRightPane] = useState<PaneState>({
-    type: 'empty',
-    id: null,
+    type: 'note',
+    id: 'seed-welcome-note',
+    title: 'Welcome',
   });
 
   const [leftHistory, setLeftHistory] = useState<PaneState[]>([
@@ -175,8 +176,20 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       title: 'Chat Thread',
     },
   ]);
-  const [rightHistory, setRightHistory] = useState<PaneState[]>([]);
-  const [navigationHistory, setNavigationHistory] = useState<PaneState[]>([]);
+  const [rightHistory, setRightHistory] = useState<PaneState[]>([
+    {
+      type: 'note',
+      id: 'seed-welcome-note',
+      title: 'Welcome',
+    },
+  ]);
+  const [navigationHistory, setNavigationHistory] = useState<PaneState[]>([
+    {
+      type: 'note',
+      id: 'seed-welcome-note',
+      title: 'Welcome',
+    },
+  ]);
 
   useEffect(() => {
     try {
@@ -265,41 +278,99 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             setPages(activeWs.pages || []);
             setMentions(activeWs.mentions || []);
             setPinnedPageIds(activeWs.pinnedPageIds || []);
+            const activePages = activeWs.pages || [];
+            const welcomePage =
+              activePages.find((p) => p.type === 'note' && (p.title.toLowerCase() === 'welcome' || p.short_id === 'n1')) ||
+              activePages.find((p) => p.type === 'note') ||
+              activePages[0];
+            if (welcomePage) {
+              setRightPane({
+                type: welcomePage.type as PaneState['type'],
+                id: welcomePage.id,
+                title: welcomePage.title,
+              });
+              setRightHistory([
+                {
+                  type: welcomePage.type as PaneState['type'],
+                  id: welcomePage.id,
+                  title: welcomePage.title,
+                },
+              ]);
+            }
           } else {
             throw new Error('Empty workspaces array');
           }
         } catch (e) {
-          console.error('Failed to parse workspaces, creating default', e);
+          const fallbackPages = assignedPages.length > 0 ? assignedPages : [createDefaultWelcomePage()];
           const initialWs: Workspace = {
             id: 'ws-default',
             name: storedWorkspace ? sanitizeWorkspaceName(storedWorkspace) : 'My Workspace',
             created_at: new Date().toISOString(),
-            pages: assignedPages,
+            pages: fallbackPages,
             mentions: storedMentions ? JSON.parse(storedMentions) : SEED_MENTIONS,
             pinnedPageIds: parsedPinned,
           };
           setWorkspaces([initialWs]);
           setCurrentWorkspaceId(initialWs.id);
           setWorkspaceNameState(initialWs.name);
-          setPages(assignedPages);
+          setPages(fallbackPages);
           setMentions(initialWs.mentions);
           setPinnedPageIds(initialWs.pinnedPageIds || []);
+
+          const welcomePage =
+            fallbackPages.find((p) => p.type === 'note' && (p.title.toLowerCase() === 'welcome' || p.short_id === 'n1')) ||
+            fallbackPages.find((p) => p.type === 'note') ||
+            fallbackPages[0];
+          if (welcomePage) {
+            setRightPane({
+              type: welcomePage.type as PaneState['type'],
+              id: welcomePage.id,
+              title: welcomePage.title,
+            });
+            setRightHistory([
+              {
+                type: welcomePage.type as PaneState['type'],
+                id: welcomePage.id,
+                title: welcomePage.title,
+              },
+            ]);
+          }
         }
       } else {
+        const fallbackPages = assignedPages.length > 0 ? assignedPages : [createDefaultWelcomePage()];
         const initialWs: Workspace = {
           id: 'ws-default',
           name: storedWorkspace ? sanitizeWorkspaceName(storedWorkspace) : 'My Workspace',
           created_at: new Date().toISOString(),
-          pages: assignedPages,
+          pages: fallbackPages,
           mentions: storedMentions ? JSON.parse(storedMentions) : SEED_MENTIONS,
           pinnedPageIds: parsedPinned,
         };
         setWorkspaces([initialWs]);
         setCurrentWorkspaceId(initialWs.id);
         setWorkspaceNameState(initialWs.name);
-        setPages(assignedPages);
+        setPages(fallbackPages);
         setMentions(initialWs.mentions);
         setPinnedPageIds(initialWs.pinnedPageIds || []);
+
+        const welcomePage =
+          fallbackPages.find((p) => p.type === 'note' && (p.title.toLowerCase() === 'welcome' || p.short_id === 'n1')) ||
+          fallbackPages.find((p) => p.type === 'note') ||
+          fallbackPages[0];
+        if (welcomePage) {
+          setRightPane({
+            type: welcomePage.type as PaneState['type'],
+            id: welcomePage.id,
+            title: welcomePage.title,
+          });
+          setRightHistory([
+            {
+              type: welcomePage.type as PaneState['type'],
+              id: welcomePage.id,
+              title: welcomePage.title,
+            },
+          ]);
+        }
       }
 
       if (storedAi) {
@@ -1065,11 +1136,14 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const createWorkspace = (name?: string): Workspace => {
     const cleanName = sanitizeWorkspaceName(name || 'New Workspace');
+    const welcomeNote = createDefaultWelcomePage();
+    const nowIso = new Date().toISOString();
     const newWs: Workspace = {
       id: `ws-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       name: cleanName || 'New Workspace',
-      created_at: new Date().toISOString(),
-      pages: [],
+      created_at: nowIso,
+      last_opened_at: nowIso,
+      pages: [welcomeNote],
       mentions: [],
       pinnedPageIds: [],
     };
@@ -1086,7 +1160,7 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     setCurrentWorkspaceId(newWs.id);
     setWorkspaceNameState(newWs.name);
-    setPages([]);
+    setPages([welcomeNote]);
     setMentions([]);
     setPinnedPageIds([]);
 
@@ -1102,8 +1176,18 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         title: 'Chat Thread',
       },
     ]);
-    setRightPane({ type: 'empty', id: null });
-    setRightHistory([]);
+    setRightPane({
+      type: 'note',
+      id: welcomeNote.id,
+      title: welcomeNote.title,
+    });
+    setRightHistory([
+      {
+        type: 'note',
+        id: welcomeNote.id,
+        title: welcomeNote.title,
+      },
+    ]);
 
     localStorage.setItem(STORAGE_KEYS.CURRENT_WORKSPACE_ID, newWs.id);
     return newWs;
@@ -1114,9 +1198,21 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const targetWs = workspaces.find((w) => w.id === workspaceId);
     if (!targetWs) return;
 
+    const nowIso = new Date().toISOString();
+    setWorkspaces((prev) => {
+      const updated = prev.map((w) => (w.id === workspaceId ? { ...w, last_opened_at: nowIso } : w));
+      try {
+        localStorage.setItem(STORAGE_KEYS.WORKSPACES, JSON.stringify(updated));
+      } catch (e) {
+        console.error('Failed to save workspaces', e);
+      }
+      return updated;
+    });
+
     setCurrentWorkspaceId(targetWs.id);
     setWorkspaceNameState(targetWs.name);
-    setPages(targetWs.pages || []);
+    const targetPages = targetWs.pages || [];
+    setPages(targetPages);
     setMentions(targetWs.mentions || []);
     setPinnedPageIds(targetWs.pinnedPageIds || []);
 
@@ -1132,8 +1228,29 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         title: 'Chat Thread',
       },
     ]);
-    setRightPane({ type: 'empty', id: null });
-    setRightHistory([]);
+
+    const welcomePage =
+      targetPages.find((p) => p.type === 'note' && (p.title.toLowerCase() === 'welcome' || p.short_id === 'n1')) ||
+      targetPages.find((p) => p.type === 'note') ||
+      targetPages[0];
+
+    if (welcomePage) {
+      setRightPane({
+        type: welcomePage.type as PaneState['type'],
+        id: welcomePage.id,
+        title: welcomePage.title,
+      });
+      setRightHistory([
+        {
+          type: welcomePage.type as PaneState['type'],
+          id: welcomePage.id,
+          title: welcomePage.title,
+        },
+      ]);
+    } else {
+      setRightPane({ type: 'empty', id: null });
+      setRightHistory([]);
+    }
 
     localStorage.setItem(STORAGE_KEYS.CURRENT_WORKSPACE_ID, targetWs.id);
   };
@@ -1194,9 +1311,21 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const clearAllData = () => {
     localStorage.clear();
-    setWorkspaces([]);
-    setPages([]);
+    const welcomeNote = createDefaultWelcomePage();
+    const freshWs: Workspace = {
+      id: 'ws-default',
+      name: 'My Workspace',
+      created_at: new Date().toISOString(),
+      pages: [welcomeNote],
+      mentions: [],
+      pinnedPageIds: [],
+    };
+    setWorkspaces([freshWs]);
+    setCurrentWorkspaceId(freshWs.id);
+    setWorkspaceNameState(freshWs.name);
+    setPages([welcomeNote]);
     setMentions([]);
+    setPinnedPageIds([]);
     setLeftPane({
       type: 'chat',
       id: null,
@@ -1209,8 +1338,18 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         title: 'Chat Thread',
       },
     ]);
-    setRightPane({ type: 'empty', id: null });
-    setRightHistory([]);
+    setRightPane({
+      type: 'note',
+      id: welcomeNote.id,
+      title: welcomeNote.title,
+    });
+    setRightHistory([
+      {
+        type: 'note',
+        id: welcomeNote.id,
+        title: welcomeNote.title,
+      },
+    ]);
   };
 
   return (

@@ -2,7 +2,8 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNotehook } from '@/lib/context';
-import { Sparkles, Tag, CheckSquare, Square, Zap, FileText, BookmarkPlus, Check, Plus, ChevronDown, Copy, ChevronRight, ChevronLeft, Trash2 } from 'lucide-react';
+import { Sparkles, Tag, CheckSquare, Square, Zap, FileText, BookmarkPlus, Check, Plus, ChevronDown, Copy, ChevronRight, ChevronLeft, Trash2, ShieldAlert } from 'lucide-react';
+import { NotehookLogo } from '@/components/icons/notehook-logo';
 import { convertNotehookTextToHtml, findPageForPill, scrollToMentionOrElement, selectMarkdownBlock, clearMarkdownBlockSelection, syncMultiBlockSelection, handleGutterRangeClick, handleGutterMouseDown, untagReferences, formatItemTitle } from '@/lib/notehook-parser';
 import { SuggestionList } from '../ai/suggestion-list';
 import { SuggestionItem } from '@/lib/ranking';
@@ -366,24 +367,67 @@ export const ChatThreadView: React.FC<ChatThreadViewProps> = ({ paneIndex = 1 })
       {/* Scrollable Chat Conversation Feed */}
       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto overflow-x-hidden space-y-6 bg-white p-4 md:p-6">
         {sortedNotes.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full min-h-[280px] text-center space-y-3">
-            <div className="p-3 bg-zinc-900 text-white rounded-2xl shadow-sm">
-              <Sparkles className="w-6 h-6" />
-            </div>
-            <h3 className="text-base font-bold text-zinc-950">Notehook Chatbot</h3>
-            <p className="text-xs text-zinc-500 max-w-sm leading-relaxed">
-              Welcome to Notehook. Here is how your workspace is organized:
-
-              Entities — Version-controlled technical specs and schemas compiled directly for coding agents.
-
-              Decisions — Architectural trade-offs and rules auto-extracted via @decision: to prevent agent drift.
-
-              Todos — Actionable engineering tasks auto-collected via @todo: into a dedicated backlog.
-
-              Notes — Sacred, user-only scratchpads for messy thoughts and logs that AI will never edit.
-
-              Chat below to start extracting concepts, or highlight any text
+          <div className="flex flex-col items-center justify-center h-full min-h-[360px] text-center max-w-xl mx-auto py-8 px-4 select-none">
+            <NotehookLogo className="w-12 h-12 text-purple-600 mb-3" />
+            <h3 className="text-base font-bold text-zinc-950 mb-1 font-heading">
+              Start a Conversation
+            </h3>
+            <p className="text-xs text-zinc-500 mb-5 leading-relaxed">
+              Ask questions or explore ideas. As you chat, Notehook structures your work into 4 connected page types:
             </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full text-left mb-5">
+              <div className="p-3 rounded-xl bg-zinc-50/90 border border-zinc-200/80 hover:border-zinc-300 transition-colors">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-900 mb-1">
+                  <Tag className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                  <span>Entities</span>
+                </div>
+                <p className="text-[11px] text-zinc-500 leading-snug">
+                  Living specs, APIs, and key concepts created by you with snapshot version history. Tag via <span className="font-mono text-[10px] text-zinc-700 bg-zinc-200/70 px-1 py-0.5 rounded">[@Entity Name]</span>.
+                </p>
+              </div>
+
+              <div className="p-3 rounded-xl bg-zinc-50/90 border border-zinc-200/80 hover:border-zinc-300 transition-colors">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-900 mb-1">
+                  <Zap className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                  <span>Decisions</span>
+                </div>
+                <p className="text-[11px] text-zinc-500 leading-snug">
+                  Architectural choices and rules auto-extracted via <span className="font-mono text-[10px] text-zinc-700 bg-zinc-200/70 px-1 py-0.5 rounded">[@decision:]</span> or added manually.
+                </p>
+              </div>
+
+              <div className="p-3 rounded-xl bg-zinc-50/90 border border-zinc-200/80 hover:border-zinc-300 transition-colors">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-900 mb-1">
+                  <CheckSquare className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>Todos</span>
+                </div>
+                <p className="text-[11px] text-zinc-500 leading-snug">
+                  Actionable tasks and next steps auto-collected via <span className="font-mono text-[10px] text-zinc-700 bg-zinc-200/70 px-1 py-0.5 rounded">[@todo:]</span> into an interactive backlog.
+                </p>
+              </div>
+
+              <div className="p-3 rounded-xl bg-zinc-50/90 border border-zinc-200/80 hover:border-zinc-300 transition-colors">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-900 mb-1">
+                  <FileText className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                  <span>Notes</span>
+                </div>
+                <p className="text-[11px] text-zinc-500 leading-snug">
+                  Personal human scratchpads <span className="font-mono text-[10px] text-zinc-700 bg-zinc-200/70 px-1 py-0.5 rounded">[@note:]</span> and memos that the AI will never edit or overwrite.
+                </p>
+              </div>
+            </div>
+
+            <div className="text-[11px] text-zinc-500 bg-zinc-50 border border-zinc-200/80 rounded-lg px-3.5 py-2 w-full flex items-center justify-center gap-1.5 flex-wrap">
+              <span>💡</span>
+              <span>Type <span className="font-mono text-zinc-800 font-semibold bg-zinc-200/60 px-1 py-0.5 rounded">@</span> or Short IDs (<span className="font-mono text-zinc-800 font-semibold bg-zinc-200/60 px-1 py-0.5 rounded">@e1</span>, <span className="font-mono text-zinc-800 font-semibold bg-zinc-200/60 px-1 py-0.5 rounded">@d4</span>) to link pages & versions, or highlight text to create a page.</span>
+            </div>
+
+            <div className="text-[10px] text-amber-900 bg-amber-50/80 border border-amber-200/80 rounded-lg px-4 py-2 w-full flex items-center justify-center gap-1.5 flex-wrap mt-2">
+              <span>
+                <strong className="font-semibold">Privacy Notice:</strong> Powered by Gemini API free tier. Please do not submit confidential or sensitive personal info.
+              </span>
+            </div>
           </div>
         ) : (
           sortedNotes.map((note) => {

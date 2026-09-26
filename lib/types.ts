@@ -80,6 +80,7 @@ export interface Workspace {
   name: string;
   created_at: string;
   updated_at?: string;
+  last_opened_at?: string;
   pages: Page[];
   mentions: Mention[];
   pinnedPageIds?: string[];

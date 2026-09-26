@@ -23,8 +23,8 @@ const GutterCheckbox: React.FC<GutterCheckboxProps> = ({ blockId }) => {
         setChecked((prev) => !prev);
       }}
       className={`p-0.5 rounded transition-all duration-150 cursor-pointer select-none ${checked
-          ? 'opacity-100 text-indigo-600'
-          : 'opacity-25 hover:opacity-100 text-zinc-400 hover:text-zinc-700'
+        ? 'opacity-100 text-indigo-600'
+        : 'opacity-25 hover:opacity-100 text-zinc-400 hover:text-zinc-700'
         }`}
       title={checked ? 'Deselect block' : 'Select block'}
     >
@@ -417,7 +417,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
                 sel.removeAllRanges();
                 sel.addRange(range);
               }
-            } catch (err) {}
+            } catch (err) { }
           }
         }, 60);
       }
@@ -1248,8 +1248,8 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
                   }
                 }}
                 className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border transition-all shadow-2xs cursor-pointer select-none ${pinnedPageIds.includes(targetPage.id)
-                    ? 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100'
-                    : 'bg-white text-zinc-600 border-zinc-200 hover:border-zinc-300 hover:text-zinc-950 hover:bg-zinc-50'
+                  ? 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100'
+                  : 'bg-white text-zinc-600 border-zinc-200 hover:border-zinc-300 hover:text-zinc-950 hover:bg-zinc-50'
                   }`}
                 title={pinnedPageIds.includes(targetPage.id) ? 'Pinned to AI context (click to unpin)' : 'Pin to AI context (max 3)'}
               >
@@ -1328,8 +1328,8 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
               onMouseDown={(e) => e.preventDefault()}
               data-block-id="block-title"
             >
-              <svg className="w-4.5 h-4.5 square-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/></svg>
-              <svg className="w-4.5 h-4.5 check-square-icon hidden fill-indigo-50 text-indigo-600" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m9 12 2 2 4-4"/></svg>
+              <svg className="w-4.5 h-4.5 square-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" /></svg>
+              <svg className="w-4.5 h-4.5 check-square-icon hidden fill-indigo-50 text-indigo-600" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" /><path d="m9 12 2 2 4-4" /></svg>
             </button>
           </div>
           <h1
@@ -1391,8 +1391,8 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
                 onMouseDown={(e) => e.preventDefault()}
                 data-block-id="block-prompt"
               >
-                <svg className="w-4.5 h-4.5 square-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/></svg>
-                <svg className="w-4.5 h-4.5 check-square-icon hidden fill-indigo-50 text-indigo-600" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m9 12 2 2 4-4"/></svg>
+                <svg className="w-4.5 h-4.5 square-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" /></svg>
+                <svg className="w-4.5 h-4.5 check-square-icon hidden fill-indigo-50 text-indigo-600" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" /><path d="m9 12 2 2 4-4" /></svg>
               </button>
             </div>
             {isEditingPrompt ? (
@@ -1663,7 +1663,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
                 dangerouslySetInnerHTML={{
                   __html: targetPage.content
                     ? renderedBodyHtml
-                    : '<span class="text-zinc-400 italic font-normal">Click anywhere to start typing...</span>',
+                    : '<span class="text-zinc-400 font-normal">Type page content (markdown and @tags supported)...</span>',
                 }}
               />
             </div>
@@ -1700,8 +1700,8 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
                 onMouseDown={(e) => e.preventDefault()}
                 data-block-id="block-entity-version"
               >
-                <svg className="w-4.5 h-4.5 square-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/></svg>
-                <svg className="w-4.5 h-4.5 check-square-icon hidden fill-indigo-50 text-indigo-600" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m9 12 2 2 4-4"/></svg>
+                <svg className="w-4.5 h-4.5 square-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" /></svg>
+                <svg className="w-4.5 h-4.5 check-square-icon hidden fill-indigo-50 text-indigo-600" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" /><path d="m9 12 2 2 4-4" /></svg>
               </button>
             </div>
             <div className="flex items-center justify-between gap-3 pb-3 border-b border-zinc-200/80 select-none shrink-0">
@@ -1814,8 +1814,8 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
                         onMouseDown={(e) => e.preventDefault()}
                         data-block-id="block-version-title"
                       >
-                        <svg className="w-4.5 h-4.5 square-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/></svg>
-                        <svg className="w-4.5 h-4.5 check-square-icon hidden fill-indigo-50 text-indigo-600" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m9 12 2 2 4-4"/></svg>
+                        <svg className="w-4.5 h-4.5 square-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" /></svg>
+                        <svg className="w-4.5 h-4.5 check-square-icon hidden fill-indigo-50 text-indigo-600" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" /><path d="m9 12 2 2 4-4" /></svg>
                       </button>
                     </div>
                     <input
@@ -1985,7 +1985,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
                           dangerouslySetInnerHTML={{
                             __html: activeVersion.content
                               ? convertNotehookTextToHtml(activeVersion.content, 'auto', pages)
-                              : '<span class="text-zinc-400 italic font-normal">Click anywhere to start typing version notes...</span>',
+                              : '<span class="text-zinc-400 font-normal">Type page content (markdown and @tags supported)...</span>',
                           }}
                         />
                       </div>

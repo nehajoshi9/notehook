@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useNotehook, generateShortId } from '@/lib/context';
-import { Send, Loader2, Tag, CheckSquare, Zap, Plus, FileText, Pin } from 'lucide-react';
+import { Send, Loader2, Tag, CheckSquare, Zap, Plus, FileText, Pin, ShieldAlert } from 'lucide-react';
 import { getRankedSuggestions, SuggestionItem } from '@/lib/ranking';
 import { isCursorInsideReference, parseNotehookMarkup, normalizeRawContentToCanonicalBrackets, htmlToMarkdown } from '@/lib/notehook-parser';
 import { SuggestionList } from './suggestion-list';
@@ -309,52 +309,52 @@ export const AIChatInput: React.FC = () => {
 
           {/* Clean Standard Chat Input Bar */}
           <form id="chat-input-form" data-chat-input="true" onSubmit={handleSubmit} className="flex-1 relative flex items-end bg-white border border-zinc-300 focus-within:border-zinc-900 rounded-2xl px-4 py-2 shadow-2xs transition-all">
-          {/* @ Trigger Autocomplete Suggestion Popover */}
-          {isTypingAt && suggestions.length > 0 && (
-            <div
-              className="absolute bottom-full z-50 translate-y-[10px] transition-all duration-75 ease-out"
-              style={{ left: `${getChatCursorLeft()}px` }}
-            >
-              <SuggestionList
-                items={suggestions}
-                selectedIndex={selectedIndex}
-                onSelect={insertSuggestion}
+            {/* @ Trigger Autocomplete Suggestion Popover */}
+            {isTypingAt && suggestions.length > 0 && (
+              <div
+                className="absolute bottom-full z-50 translate-y-[10px] transition-all duration-75 ease-out"
+                style={{ left: `${getChatCursorLeft()}px` }}
+              >
+                <SuggestionList
+                  items={suggestions}
+                  selectedIndex={selectedIndex}
+                  onSelect={insertSuggestion}
+                />
+              </div>
+            )}
+
+            <div className="flex items-end w-full relative min-h-[28px]">
+              <textarea
+                ref={inputRef}
+                rows={1}
+                value={prompt}
+                onChange={(e) => {
+                  setPrompt(e.target.value);
+                  setCursorPos(e.target.selectionStart || e.target.value.length);
+                }}
+                onPaste={handlePaste}
+                onKeyUp={(e) => setCursorPos((e.target as HTMLTextAreaElement).selectionStart || prompt.length)}
+                onClick={(e) => setCursorPos((e.target as HTMLTextAreaElement).selectionStart || prompt.length)}
+                onSelect={(e) => setCursorPos((e.target as HTMLTextAreaElement).selectionStart || prompt.length)}
+                onKeyDown={handleKeyDown}
+                disabled={isAiGenerating}
+                placeholder="Ask anything, or type @ to link entities, notes, decisions & todos..."
+                className="flex-1 text-xs md:text-sm text-zinc-900 placeholder-zinc-400 bg-transparent focus:outline-none font-sans resize-none py-1 leading-relaxed overflow-y-auto"
+                autoFocus
               />
+
+              <button
+                type="submit"
+                disabled={!prompt.trim() || isAiGenerating}
+                className="flex items-center justify-center p-2 bg-zinc-900 hover:bg-zinc-800 disabled:opacity-30 text-white font-bold rounded-xl transition-colors ml-2 shrink-0 cursor-pointer self-end mb-0.5"
+                title="Send message (Enter to send, Shift+Enter for new line)"
+              >
+                <Send className="w-4 h-4" />
+              </button>
             </div>
-          )}
-
-          <div className="flex items-end w-full relative min-h-[28px]">
-            <textarea
-              ref={inputRef}
-              rows={1}
-              value={prompt}
-              onChange={(e) => {
-                setPrompt(e.target.value);
-                setCursorPos(e.target.selectionStart || e.target.value.length);
-              }}
-              onPaste={handlePaste}
-              onKeyUp={(e) => setCursorPos((e.target as HTMLTextAreaElement).selectionStart || prompt.length)}
-              onClick={(e) => setCursorPos((e.target as HTMLTextAreaElement).selectionStart || prompt.length)}
-              onSelect={(e) => setCursorPos((e.target as HTMLTextAreaElement).selectionStart || prompt.length)}
-              onKeyDown={handleKeyDown}
-              disabled={isAiGenerating}
-              placeholder="Type or paste a message... (auto-detects [@todo: ...], [@decision: ...], [@note: ...], [@Entity])"
-              className="flex-1 text-xs md:text-sm text-zinc-900 placeholder-zinc-400 bg-transparent focus:outline-none font-sans resize-none py-1 leading-relaxed overflow-y-auto"
-              autoFocus
-            />
-
-            <button
-              type="submit"
-              disabled={!prompt.trim() || isAiGenerating}
-              className="flex items-center justify-center p-2 bg-zinc-900 hover:bg-zinc-800 disabled:opacity-30 text-white font-bold rounded-xl transition-colors ml-2 shrink-0 cursor-pointer self-end mb-0.5"
-              title="Send message (Enter to send, Shift+Enter for new line)"
-            >
-              <Send className="w-4 h-4" />
-            </button>
-          </div>
-        </form>
+          </form>
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
 };
