@@ -1650,7 +1650,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
                   }
                 }}
                 placeholder="Type page content (markdown and @tags supported)..."
-                className="w-full text-xs md:text-sm text-zinc-900 leading-relaxed font-sans bg-transparent border-0 outline-none focus:outline-none focus:ring-0 ring-0 shadow-none resize-none p-0 m-0 overflow-hidden"
+                className="w-full text-xs md:text-sm text-zinc-900 leading-relaxed font-sans bg-transparent border-0 outline-none focus:outline-none focus:ring-0 ring-0 shadow-none resize-none p-0 m-0"
               />
             </>
           ) : (
