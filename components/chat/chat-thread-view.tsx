@@ -507,7 +507,7 @@ export const ChatThreadView: React.FC<ChatThreadViewProps> = ({ paneIndex = 1 })
 
                 {/* 2. AI Assistant Response Bubble (Left Aligned) */}
                 {!isUserTurnOnly && (
-                  <div className="flex flex-col items-start space-y-1.5 mr-auto relative w-full">
+                  <div className="flex flex-col items-start space-y-1.5 mr-auto relative w-full notehook-ai-response-turn">
 
                     {/* Assistant Response Bubble */}
                     <div

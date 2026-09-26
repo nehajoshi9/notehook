@@ -391,7 +391,7 @@ body.is-selecting-text .page-mention-pill:hover .pill-short {
   }
 }
 
-/* Standardized User Prompt Gutter Handle Alignment (chat view) */
+/* Standardized User Prompt & AI Response Gutter Handle Alignment (chat view) */
 .notehook-user-prompt-turn .notehook-markdown-block {
   position: static;
 }
@@ -402,9 +402,20 @@ body.is-selecting-text .page-mention-pill:hover .pill-short {
   transform: translateX(-50%);
 }
 
+.notehook-ai-response-turn .notehook-gutter-handle {
+  left: calc(-1.35rem - 1rem);
+  top: 0.15rem;
+  transform: translateX(-50%);
+}
+
 @media (min-width: 768px) {
   .notehook-user-prompt-turn .notehook-gutter-handle {
     left: -1.6rem;
+    transform: translateX(-50%);
+  }
+
+  .notehook-ai-response-turn .notehook-gutter-handle {
+    left: calc(-1.6rem - 1rem);
     transform: translateX(-50%);
   }
 }
