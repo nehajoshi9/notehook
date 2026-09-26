@@ -6,11 +6,5 @@ import { NotehookProvider } from '@/lib/context';
 import { DashboardView } from '@/components/dashboard/dashboard-view';
 
 export default function DashboardPage() {
-  return (
-    <AuthProvider>
-      <NotehookProvider>
-        <DashboardView />
-      </NotehookProvider>
-    </AuthProvider>
-  );
+  return <DashboardView />;
 }

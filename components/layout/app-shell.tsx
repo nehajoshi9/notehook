@@ -88,21 +88,17 @@ export const AppShell: React.FC = () => {
   }, []);
 
   return (
-    <AuthProvider>
-      <NotehookProvider>
-        <div className="flex flex-col h-screen w-screen overflow-hidden bg-white text-zinc-900 font-sans antialiased">
-          <Header />
-          <div className="flex-1 flex min-w-0 h-full overflow-hidden">
-            <Sidebar />
-            <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden">
-              <PaneContainer />
-              <AIChatInput />
-            </div>
-          </div>
-          <FloatingSelectionToolbar />
-          <CommandPaletteModal />
+    <div className="flex flex-col h-screen w-screen overflow-hidden bg-white text-zinc-900 font-sans antialiased">
+      <Header />
+      <div className="flex-1 flex min-w-0 h-full overflow-hidden">
+        <Sidebar />
+        <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden">
+          <PaneContainer />
+          <AIChatInput />
         </div>
-      </NotehookProvider>
-    </AuthProvider>
+      </div>
+      <FloatingSelectionToolbar />
+      <CommandPaletteModal />
+    </div>
   );
 };

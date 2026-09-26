@@ -119,7 +119,8 @@ function deduplicateWorkspacePages(rawPages: Page[]): Page[] {
       (p.title.toLowerCase().includes('welcome') ||
         p.short_id === 'n1' ||
         p.id.startsWith('welcome-note') ||
-        p.id === 'seed-welcome-note');
+        p.id === 'seed-welcome-note' ||
+        (p.content && p.content.includes('Welcome to Notehook')));
 
     if (isWelcome) {
       if (!hasWelcome) {
@@ -341,7 +342,7 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             throw new Error('Empty workspaces array');
           }
         } catch (e) {
-          const fallbackPages = assignedPages.length > 0 ? assignedPages : [createDefaultWelcomePage()];
+          const fallbackPages = assignedPages;
           const initialWs: Workspace = {
             id: 'ws-default',
             name: storedWorkspace ? sanitizeWorkspaceName(storedWorkspace) : 'My Workspace',
@@ -377,7 +378,7 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           }
         }
       } else {
-        const fallbackPages = assignedPages.length > 0 ? assignedPages : [createDefaultWelcomePage()];
+        const fallbackPages = assignedPages;
         const initialWs: Workspace = {
           id: 'ws-default',
           name: storedWorkspace ? sanitizeWorkspaceName(storedWorkspace) : 'My Workspace',
@@ -522,7 +523,7 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         } else {
           // First time this user logged in with no cloud records:
           // Sync current initial workspace & pages to Supabase so their data is saved to cloud
-          const fallbackPages = pages.length > 0 ? pages : [createDefaultWelcomePage()];
+          const fallbackPages = pages;
           const initialWs: Workspace = {
             id: `ws-${currentUserId.slice(0, 8)}`,
             name: workspaceName || 'Main Workspace',

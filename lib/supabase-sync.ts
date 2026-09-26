@@ -161,7 +161,8 @@ export async function fetchUserWorkspacesAndPages(userId: string): Promise<{
             (p.title.toLowerCase().includes('welcome') ||
               p.short_id === 'n1' ||
               p.id.startsWith('welcome-note') ||
-              p.id === 'seed-welcome-note');
+              p.id === 'seed-welcome-note' ||
+              (p.content && p.content.includes('Welcome to Notehook')));
 
           if (isWelcome) {
             if (!hasWelcomeNote) {
