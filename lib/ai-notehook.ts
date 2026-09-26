@@ -844,6 +844,9 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
           system_instruction: { parts: [{ text: cachedSystemPrompt }] },
           contents: geminiContents,
           tools: [KNOWLEDGE_EXPANSION_TOOL_GEMINI],
+          generationConfig: {
+            maxOutputTokens: 4096,
+          },
         };
 
         const res = await fetch(
@@ -926,6 +929,9 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
                 body: JSON.stringify({
                   system_instruction: { parts: [{ text: cachedSystemPrompt }] },
                   contents: updatedContents,
+                  generationConfig: {
+                    maxOutputTokens: 4096,
+                  },
                 }),
               }
             );
