@@ -398,10 +398,14 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
 
   useEffect(() => {
     if (targetPage) {
-      const normalized = normalizeRawContentToCanonicalBrackets(targetPage.content || '', pages);
-      setBodyText(normalized);
-      setPromptText(targetPage.user_prompt || '');
-      if (!targetPage.content) {
+      if (!isEditing) {
+        const normalized = normalizeRawContentToCanonicalBrackets(targetPage.content || '', pages);
+        setBodyText(normalized);
+      }
+      if (!isEditingPrompt) {
+        setPromptText(targetPage.user_prompt || '');
+      }
+      if (!targetPage.content && !isEditing) {
         setIsEditing(true);
         if (targetPage.type === 'entity') {
           setIsEditingVersionBody(true);
@@ -422,7 +426,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
         }, 60);
       }
     }
-  }, [targetPage?.id]);
+  }, [targetPage?.id, targetPage?.content, targetPage?.user_prompt, isEditing, isEditingPrompt]);
 
   useEffect(() => {
     if (isEditing && contentRef.current) {
