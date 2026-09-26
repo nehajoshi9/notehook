@@ -418,9 +418,8 @@ export const ChatThreadView: React.FC<ChatThreadViewProps> = ({ paneIndex = 1 })
               </div>
             </div>
 
-            <div className="text-[11px] text-zinc-500 bg-zinc-50 border border-zinc-200/80 rounded-lg px-3.5 py-2 w-full flex items-center justify-center gap-1.5 flex-wrap">
-              <span>💡</span>
-              <span>Type <span className="font-mono text-zinc-800 font-semibold bg-zinc-200/60 px-1 py-0.5 rounded">@</span> or Short IDs (<span className="font-mono text-zinc-800 font-semibold bg-zinc-200/60 px-1 py-0.5 rounded">@e1</span>, <span className="font-mono text-zinc-800 font-semibold bg-zinc-200/60 px-1 py-0.5 rounded">@d4</span>) to link pages & versions, or highlight text to create a page.</span>
+            <div className="text-[11px] text-zinc-500 w-full flex items-center justify-center gap-1.5 px-2 py-0.5 leading-normal">
+              <span>Type <code className="font-mono text-zinc-800 font-semibold bg-zinc-100 px-1 py-0 rounded border border-zinc-200 text-[10px]">@</code> or Short IDs (<code className="font-mono text-zinc-800 font-semibold bg-zinc-100 px-1 py-0 rounded border border-zinc-200 text-[10px]">@e1</code>, <code className="font-mono text-zinc-800 font-semibold bg-zinc-100 px-1 py-0 rounded border border-zinc-200 text-[10px]">@d4</code>) to link pages & versions, or highlight text to create a page.</span>
             </div>
 
             <div className="text-[10px] text-amber-900 bg-amber-50/80 border border-amber-200/80 rounded-lg px-4 py-2 w-full flex items-center justify-center gap-1.5 flex-wrap mt-2">
