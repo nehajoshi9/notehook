@@ -281,6 +281,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
 
   const [selectedVersionId, setSelectedVersionId] = useState<string>('');
   const [copiedShortId, setCopiedShortId] = useState<string | null>(null);
+  const [isMentionsCollapsed, setIsMentionsCollapsed] = useState<boolean>(false);
 
   const handleCopyShortId = (shortId: string) => {
     const textToCopy = `[@${shortId}]`;
@@ -2023,17 +2024,39 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
             </div>
           </div>
         )}
+      </div>
 
-        {/* Backlinks & Mentions Feed Section */}
-        {backlinkedPages.length > 0 && (
-          <div data-mentions-feed="true" className="border-t border-zinc-200 bg-zinc-50/40 pt-4 pb-4 shrink-0 -mx-6 -mb-6 mt-auto px-6 space-y-3">
-            <div className="flex items-center justify-between text-xs font-bold text-zinc-800 tracking-tight">
-              <div className="flex items-center gap-1.5">
-                <span>Mentions ({backlinkedPages.length})</span>
-              </div>
+      {/* Sticky Bottom Full-Width Collapsible Mentions Panel (Max 30% Pane Height) */}
+      {backlinkedPages.length > 0 && (
+        <div
+          data-mentions-feed="true"
+          className="border-t border-zinc-200 bg-zinc-50/95 backdrop-blur-xs shrink-0 w-full rounded-none flex flex-col z-20 shadow-xs max-h-[30%] transition-all"
+        >
+          {/* Collapsible Header Bar */}
+          <button
+            type="button"
+            onClick={() => setIsMentionsCollapsed((prev) => !prev)}
+            className="flex items-center justify-between w-full px-4 md:px-6 py-2 hover:bg-zinc-100/80 transition-colors select-none cursor-pointer border-b border-zinc-200/50 shrink-0"
+            title={isMentionsCollapsed ? 'Expand mentions' : 'Collapse mentions'}
+          >
+            <div className="flex items-center gap-2 text-xs font-bold text-zinc-800 tracking-tight">
+              <span>Mentions ({backlinkedPages.length})</span>
             </div>
+            <div className="flex items-center gap-1 text-zinc-400 hover:text-zinc-700">
+              <span className="text-[10px] font-medium text-zinc-500">
+                {isMentionsCollapsed ? 'Show' : 'Hide'}
+              </span>
+              {isMentionsCollapsed ? (
+                <ChevronUp className="w-3.5 h-3.5 text-zinc-500" />
+              ) : (
+                <ChevronDown className="w-3.5 h-3.5 text-zinc-500" />
+              )}
+            </div>
+          </button>
 
-            <div className="space-y-2 max-h-64 overflow-y-auto pr-0.5">
+          {/* Scrollable Mentions List */}
+          {!isMentionsCollapsed && (
+            <div className="flex-1 min-h-0 overflow-y-auto px-4 md:px-6 py-2.5 space-y-2">
               {backlinkedPages.map((bp) => {
                 const snippets = getMentionSnippetsForPage(bp, targetPage.title, targetPage.short_id);
 
@@ -2055,7 +2078,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
                   <div
                     key={bp.id}
                     onClick={() => handleMentionClick(bp)}
-                    className="mentions-card-container group border border-zinc-200/90 bg-white hover:border-zinc-300 rounded-xl p-3.5 shadow-2xs hover:shadow-xs transition-all cursor-pointer space-y-1.5"
+                    className="mentions-card-container group border border-zinc-200/90 bg-white hover:border-zinc-300 rounded-xl p-3 shadow-2xs hover:shadow-xs transition-all cursor-pointer space-y-1"
                     title={bp.type === 'message' ? 'Scroll to chat message' : 'Navigate to source page'}
                   >
                     {/* Source Page Title Header */}
@@ -2105,9 +2128,9 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
                 );
               })}
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };

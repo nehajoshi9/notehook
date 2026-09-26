@@ -193,6 +193,28 @@ body.is-selecting-text .page-mention-pill:hover .pill-short {
   white-space: nowrap !important;
 }
 
+/* Hide block gutter handles and reset paragraph margins inside Mentions excerpts */
+.mentions-card-container .notehook-gutter-handle,
+.mentions-panel-excerpt .notehook-gutter-handle {
+  display: none !important;
+}
+
+.mentions-card-container .prose-notehook,
+.mentions-panel-excerpt .prose-notehook,
+.mentions-card-container .notehook-markdown-block,
+.mentions-panel-excerpt .notehook-markdown-block {
+  margin: 0 !important;
+  padding: 0 !important;
+  display: inline;
+}
+
+.mentions-card-container .prose-notehook p,
+.mentions-panel-excerpt .prose-notehook p {
+  margin: 0 !important;
+  padding: 0 !important;
+  display: inline;
+}
+
 /* When in edit mode, all pills are untruncated */
 .is-editing .page-mention-pill,
 [data-editing="true"] .page-mention-pill {
