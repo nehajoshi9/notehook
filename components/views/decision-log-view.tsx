@@ -13,7 +13,7 @@ export const DecisionLogView: React.FC = () => {
 
   const handleCreateDecision = () => {
     const newDec = createDecisionPage('New Decision', '');
-    openInPane2('decision', newDec.id, newDec.title);
+    openInPane2('decision', newDec.id, newDec.title, undefined, undefined, undefined, true);
   };
 
   const handleOpenDecisionPage = (id: string, title: string) => {

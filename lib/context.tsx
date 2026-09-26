@@ -46,8 +46,8 @@ export interface NotehookContextType {
   // 2-Pane Split View State
   leftPane: PaneState;
   rightPane: PaneState;
-  openInPane2: (type: PaneState['type'], id: string | null, title?: string, highlightSpan?: string, targetVersionNum?: number, targetVersionId?: string) => void;
-  openInPane1: (type: PaneState['type'], id: string | null, title?: string, highlightSpan?: string, targetVersionNum?: number, targetVersionId?: string) => void;
+  openInPane2: (type: PaneState['type'], id: string | null, title?: string, highlightSpan?: string, targetVersionNum?: number, targetVersionId?: string, autofocusTitle?: boolean) => void;
+  openInPane1: (type: PaneState['type'], id: string | null, title?: string, highlightSpan?: string, targetVersionNum?: number, targetVersionId?: string, autofocusTitle?: boolean) => void;
   closePane1: () => void;
   closePane2: () => void;
   swapPanes: () => void;
@@ -599,7 +599,7 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const decisions = pages.filter((p) => p.type === 'decision').reverse();
 
   // Pane Navigation Handlers
-  const openInPane2 = (type: PaneState['type'], id: string | null, title?: string, highlightSpan?: string, targetVersionNum?: number, targetVersionId?: string) => {
+  const openInPane2 = (type: PaneState['type'], id: string | null, title?: string, highlightSpan?: string, targetVersionNum?: number, targetVersionId?: string, autofocusTitle?: boolean) => {
     const newState: PaneState = {
       type,
       id,
@@ -607,13 +607,14 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       highlightSpan,
       targetVersionNum,
       targetVersionId,
+      autofocusTitle,
     };
     setRightHistory((prev) => [...prev, newState]);
     setNavigationHistory((prev) => [...prev, newState]);
     setRightPane(newState);
   };
 
-  const openInPane1 = (type: PaneState['type'], id: string | null, title?: string, highlightSpan?: string, targetVersionNum?: number, targetVersionId?: string) => {
+  const openInPane1 = (type: PaneState['type'], id: string | null, title?: string, highlightSpan?: string, targetVersionNum?: number, targetVersionId?: string, autofocusTitle?: boolean) => {
     const newState: PaneState = {
       type,
       id,
@@ -621,6 +622,7 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       highlightSpan,
       targetVersionNum,
       targetVersionId,
+      autofocusTitle,
     };
     setLeftHistory((prev) => [...prev, newState]);
     setNavigationHistory((prev) => [...prev, newState]);

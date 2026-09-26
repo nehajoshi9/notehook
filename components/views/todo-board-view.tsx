@@ -18,7 +18,7 @@ export const TodoBoardView: React.FC = () => {
 
   const handleCreateTodo = () => {
     const newTodo = createTodoPage('New Task', '');
-    openInPane2('todo', newTodo.id, newTodo.title);
+    openInPane2('todo', newTodo.id, newTodo.title, undefined, undefined, undefined, true);
   };
 
   return (

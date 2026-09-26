@@ -23,7 +23,7 @@ export const NoteIndexView: React.FC = () => {
 
   const handleCreateNote = () => {
     const newNote = createNotePage('Untitled Note', '');
-    openInPane2('note', newNote.id, newNote.title);
+    openInPane2('note', newNote.id, newNote.title, undefined, undefined, undefined, true);
   };
 
   return (

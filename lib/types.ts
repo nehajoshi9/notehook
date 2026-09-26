@@ -67,6 +67,7 @@ export interface PaneState {
   highlightSpan?: string;
   targetVersionNum?: number;
   targetVersionId?: string;
+  autofocusTitle?: boolean;
 }
 
 export interface AISettings {

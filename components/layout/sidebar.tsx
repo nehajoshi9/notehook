@@ -405,7 +405,7 @@ export const Sidebar: React.FC = () => {
                 type="button"
                 onClick={() => {
                   const newNote = createNotePage('New Note', '');
-                  openInPane2('note', newNote.id, newNote.title);
+                  openInPane2('note', newNote.id, newNote.title, undefined, undefined, undefined, true);
                 }}
                 className="p-1 rounded-md text-zinc-500 hover:text-zinc-950 hover:bg-zinc-200/80 transition-colors"
                 title="Create New Note"
@@ -484,7 +484,7 @@ export const Sidebar: React.FC = () => {
                   type="button"
                   onClick={() => {
                     const newTodo = createTodoPage('New Task', '');
-                    openInPane2('todo', newTodo.id, newTodo.title);
+                    openInPane2('todo', newTodo.id, newTodo.title, undefined, undefined, undefined, true);
                   }}
                   className="p-1 rounded-md text-zinc-500 hover:text-zinc-950 hover:bg-zinc-200/80 transition-colors"
                   title="Create New Todo"
@@ -594,7 +594,7 @@ export const Sidebar: React.FC = () => {
                   type="button"
                   onClick={() => {
                     const newDec = createDecisionPage('New Decision', '');
-                    openInPane2('decision', newDec.id, newDec.title);
+                    openInPane2('decision', newDec.id, newDec.title, undefined, undefined, undefined, true);
                   }}
                   className="p-1 rounded-md text-zinc-500 hover:text-zinc-950 hover:bg-zinc-200/80 transition-colors"
                   title="Create New Decision"
@@ -670,7 +670,7 @@ export const Sidebar: React.FC = () => {
                   type="button"
                   onClick={() => {
                     const newEnt = createEntityPage('New Entity', '');
-                    openInPane2('entity', newEnt.id, `@${newEnt.title}`);
+                    openInPane2('entity', newEnt.id, `@${newEnt.title}`, undefined, undefined, undefined, true);
                   }}
                   className="p-1 rounded-md text-zinc-500 hover:text-zinc-950 hover:bg-zinc-200/80 transition-colors"
                   title="Create New Entity"

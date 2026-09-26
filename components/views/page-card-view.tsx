@@ -7,6 +7,7 @@ import { getPastelColorForTitle } from '@/lib/color';
 import { getMentionSnippetsForPage, MentionHighlightedText, matchesExplicitReference } from '@/lib/mentions';
 import { getRankedSuggestions, SuggestionItem } from '@/lib/ranking';
 import { SuggestionList } from '../ai/suggestion-list';
+import { focusAndSelectTitle } from '@/lib/title-utils';
 
 interface GutterCheckboxProps {
   blockId: string;
@@ -333,6 +334,12 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
       }
     }
   }, [targetPage?.id, currentPaneState?.id, currentPaneState?.highlightSpan]);
+
+  useEffect(() => {
+    if (currentPaneState?.autofocusTitle && titleRef.current) {
+      focusAndSelectTitle(titleRef.current, 80);
+    }
+  }, [targetPage?.id, currentPaneState?.id, currentPaneState?.autofocusTitle]);
 
   const { renderedTitleHtml, renderedPromptHtml, renderedBodyHtml, totalMatchCount } = React.useMemo(() => {
     const query = pageSearchQuery.trim();

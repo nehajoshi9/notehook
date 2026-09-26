@@ -76,25 +76,25 @@ export const Header: React.FC = () => {
           e.preventDefault();
           e.stopPropagation();
           const page = createEntityPage('New Entity');
-          openInPane2('entity', page.id, `@${page.title}`);
+          openInPane2('entity', page.id, `@${page.title}`, undefined, undefined, undefined, true);
           setIsDropdownOpen(false);
         } else if (key === 'n') {
           e.preventDefault();
           e.stopPropagation();
           const page = createNotePage('New Note');
-          openInPane2('note', page.id, page.title);
+          openInPane2('note', page.id, page.title, undefined, undefined, undefined, true);
           setIsDropdownOpen(false);
         } else if (key === 'd') {
           e.preventDefault();
           e.stopPropagation();
           const page = createDecisionPage('New Decision');
-          openInPane2('decision', page.id, page.title);
+          openInPane2('decision', page.id, page.title, undefined, undefined, undefined, true);
           setIsDropdownOpen(false);
         } else if (key === 't') {
           e.preventDefault();
           e.stopPropagation();
           const page = createTodoPage('New Task');
-          openInPane2('todo', page.id, page.title);
+          openInPane2('todo', page.id, page.title, undefined, undefined, undefined, true);
           setIsDropdownOpen(false);
         } else if (key === 'escape') {
           if (isDropdownOpen) {
@@ -116,16 +116,16 @@ export const Header: React.FC = () => {
     setIsDropdownOpen(false);
     if (type === 'entity') {
       const page = createEntityPage('New Entity');
-      openInPane2('entity', page.id, `@${page.title}`);
+      openInPane2('entity', page.id, `@${page.title}`, undefined, undefined, undefined, true);
     } else if (type === 'note') {
       const page = createNotePage('New Note');
-      openInPane2('note', page.id, page.title);
+      openInPane2('note', page.id, page.title, undefined, undefined, undefined, true);
     } else if (type === 'decision') {
       const page = createDecisionPage('New Decision');
-      openInPane2('decision', page.id, page.title);
+      openInPane2('decision', page.id, page.title, undefined, undefined, undefined, true);
     } else if (type === 'todo') {
       const page = createTodoPage('New Task');
-      openInPane2('todo', page.id, page.title);
+      openInPane2('todo', page.id, page.title, undefined, undefined, undefined, true);
     }
   };
 

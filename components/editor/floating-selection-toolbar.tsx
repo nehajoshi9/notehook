@@ -698,7 +698,7 @@ export const FloatingSelectionToolbar: React.FC<FloatingSelectionToolbarProps> =
       if (sourcePage) {
         addManualMention(sourcePage.id, newEntity.title, selectedText);
       }
-      openInPane2('entity', newEntity.id, newEntity.title);
+      openInPane2('entity', newEntity.id, newEntity.title, undefined, undefined, undefined, true);
 
       setPosition(null);
       setSelectedText('');
@@ -724,7 +724,7 @@ export const FloatingSelectionToolbar: React.FC<FloatingSelectionToolbarProps> =
         ? `From ${sourceTag}:\n${cleanBodyText}`
         : cleanBodyText;
       const newNote = createNotePage(cleanTitle, noteBody);
-      openInPane2('note', newNote.id, newNote.title);
+      openInPane2('note', newNote.id, newNote.title, undefined, undefined, undefined, true);
 
       setPosition(null);
       setSelectedText('');
