@@ -413,26 +413,6 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
       if (!isEditingPrompt) {
         setPromptText(targetPage.user_prompt || '');
       }
-      if (!targetPage.content && !isEditing) {
-        setIsEditing(true);
-        if (targetPage.type === 'entity') {
-          setIsEditingVersionBody(true);
-        }
-        setTimeout(() => {
-          if (titleRef.current) {
-            titleRef.current.focus({ preventScroll: true });
-            try {
-              const range = document.createRange();
-              range.selectNodeContents(titleRef.current);
-              const sel = window.getSelection();
-              if (sel) {
-                sel.removeAllRanges();
-                sel.addRange(range);
-              }
-            } catch (err) { }
-          }
-        }, 60);
-      }
     }
   }, [targetPage?.id, targetPage?.content, targetPage?.user_prompt, isEditing, isEditingPrompt]);
 
@@ -730,8 +710,6 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
     if (targetPage && targetPage.type === 'entity' && allEntityVersions.length > 0) {
       if (currentPaneState?.targetVersionId && allEntityVersions.some((v) => v.id === currentPaneState.targetVersionId)) {
         setSelectedVersionId(currentPaneState.targetVersionId);
-        setIsEditingVersionBody(false);
-        setIsEditing(false);
         return;
       }
       if (currentPaneState?.targetVersionNum !== undefined) {
@@ -743,16 +721,12 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
           ) || allEntityVersions[currentPaneState.targetVersionNum - 1];
         if (found) {
           setSelectedVersionId(found.id);
-          setIsEditingVersionBody(false);
-          setIsEditing(false);
           return;
         }
       }
       const mostRecentId = allEntityVersions[allEntityVersions.length - 1].id;
       if (!selectedVersionId || !allEntityVersions.some((v) => v.id === selectedVersionId)) {
         setSelectedVersionId(mostRecentId);
-        setIsEditingVersionBody(false);
-        setIsEditing(false);
       }
     }
   }, [targetPage?.id, targetPage?.type, allEntityVersions.length, currentPaneState?.targetVersionNum, currentPaneState?.targetVersionId]);
@@ -1970,7 +1944,6 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
                           }}
                           placeholder="Type entity version notes (markdown and @tags supported)..."
                           className="w-full min-h-[140px] text-xs md:text-sm text-zinc-900 leading-relaxed font-sans bg-transparent border-0 outline-none focus:outline-none ring-0 shadow-none resize-none p-0 m-0 overflow-hidden"
-                          autoFocus
                         />
                       </>
                     ) : (
