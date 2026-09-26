@@ -181,7 +181,7 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [rightPane, setRightPane] = useState<PaneState>({
     type: 'note',
     id: 'seed-welcome-note',
-    title: 'Welcome',
+    title: 'Welcome to Notehook! 👋',
   });
 
   const [leftHistory, setLeftHistory] = useState<PaneState[]>([
@@ -195,14 +195,14 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     {
       type: 'note',
       id: 'seed-welcome-note',
-      title: 'Welcome',
+      title: 'Welcome to Notehook! 👋',
     },
   ]);
   const [navigationHistory, setNavigationHistory] = useState<PaneState[]>([
     {
       type: 'note',
       id: 'seed-welcome-note',
-      title: 'Welcome',
+      title: 'Welcome to Notehook! 👋',
     },
   ]);
 
@@ -237,10 +237,16 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const parsedPages: Page[] = storedPages ? JSON.parse(storedPages) : SEED_PAGES;
 
       const cleanedPages = parsedPages.map((p) => {
-        const cleanContent = normalizeRawContentToCanonicalBrackets(p.content || '', parsedPages);
+        let cleanContent = normalizeRawContentToCanonicalBrackets(p.content || '', parsedPages);
+        // Strip out redundant leading markdown H1 (e.g. "# Welcome to Notehook! 👋") so it doesn't duplicate the page's H1 title
+        cleanContent = cleanContent.replace(/^#\s+Welcome[^\n]*\n+/i, '').trim();
+        let title = p.title || 'Untitled';
+        if (title.toLowerCase() === 'welcome' || title === 'Welcome') {
+          title = 'Welcome to Notehook! 👋';
+        }
         return {
           ...p,
-          title: p.title || 'Untitled',
+          title,
           content: cleanContent,
         };
       });
@@ -283,7 +289,7 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             setPinnedPageIds(activeWs.pinnedPageIds || []);
             const activePages = activeWs.pages || [];
             const welcomePage =
-              activePages.find((p) => p.type === 'note' && (p.title.toLowerCase() === 'welcome' || p.short_id === 'n1')) ||
+              activePages.find((p) => p.type === 'note' && (p.title.toLowerCase().includes('welcome') || p.short_id === 'n1')) ||
               activePages.find((p) => p.type === 'note') ||
               activePages[0];
             if (welcomePage) {
@@ -321,7 +327,7 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           setPinnedPageIds(initialWs.pinnedPageIds || []);
 
           const welcomePage =
-            fallbackPages.find((p) => p.type === 'note' && (p.title.toLowerCase() === 'welcome' || p.short_id === 'n1')) ||
+            fallbackPages.find((p) => p.type === 'note' && (p.title.toLowerCase().includes('welcome') || p.short_id === 'n1')) ||
             fallbackPages.find((p) => p.type === 'note') ||
             fallbackPages[0];
           if (welcomePage) {
@@ -357,7 +363,7 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         setPinnedPageIds(initialWs.pinnedPageIds || []);
 
         const welcomePage =
-          fallbackPages.find((p) => p.type === 'note' && (p.title.toLowerCase() === 'welcome' || p.short_id === 'n1')) ||
+          fallbackPages.find((p) => p.type === 'note' && (p.title.toLowerCase().includes('welcome') || p.short_id === 'n1')) ||
           fallbackPages.find((p) => p.type === 'note') ||
           fallbackPages[0];
         if (welcomePage) {

@@ -1,5 +1,3 @@
-# Welcome to Notehook! 👋
-
 Have you ever had a long, productive brainstorm with an AI, only to find that important decisions, specs, and to-do items got lost under a mountain of scrolling?
 
 **Notehook solves that.** It gives your AI conversations a structured, dual-pane workspace where your ideas, decisions, tasks, and notes stay organized, linked, and easy to find—without breaking the flow of your chat.
