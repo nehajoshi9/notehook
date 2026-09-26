@@ -440,8 +440,10 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         const remoteData = await fetchUserWorkspacesAndPages(currentUserId);
         if (remoteData.workspaces && remoteData.workspaces.length > 0) {
           // User has existing data in Supabase! Load it cleanly
+          const storedWsId = localStorage.getItem(STORAGE_KEYS.CURRENT_WORKSPACE_ID);
           const activeWs =
-            remoteData.workspaces.find((w) => w.id === remoteData.activeWorkspaceId) ||
+            (storedWsId ? remoteData.workspaces.find((w) => w.id === storedWsId) : undefined) ||
+            (remoteData.activeWorkspaceId ? remoteData.workspaces.find((w) => w.id === remoteData.activeWorkspaceId) : undefined) ||
             remoteData.workspaces[0];
 
           const wsPages = activeWs.pages || [];
@@ -1341,6 +1343,7 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       id: `ws-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       name: cleanName || 'New Workspace',
       created_at: nowIso,
+      updated_at: nowIso,
       last_opened_at: nowIso,
       pages: [welcomeNote],
       mentions: [],
@@ -1348,7 +1351,7 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
 
     setWorkspaces((prev) => {
-      const updated = [...prev, newWs];
+      const updated = [newWs, ...prev];
       try {
         localStorage.setItem(STORAGE_KEYS.WORKSPACES, JSON.stringify(updated));
       } catch (e) {
@@ -1358,6 +1361,7 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     });
 
     setCurrentWorkspaceId(newWs.id);
+    localStorage.setItem(STORAGE_KEYS.CURRENT_WORKSPACE_ID, newWs.id);
     setWorkspaceNameState(newWs.name);
     setPages([welcomeNote]);
     setMentions([]);

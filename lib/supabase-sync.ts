@@ -32,12 +32,12 @@ export async function fetchUserWorkspacesAndPages(userId: string): Promise<{
       console.warn('Supabase fetch mentions warning:', mentionsError.message);
     }
 
-    // 3. Fetch all Workspaces for this user
+    // 3. Fetch all Workspaces for this user (ordered by latest activity)
     const { data: wsRows, error: wsError } = await supabase
       .from('workspaces')
       .select('*')
       .eq('user_id', userId)
-      .order('created_at', { ascending: true });
+      .order('updated_at', { ascending: false });
 
     if (wsError) {
       console.warn('Supabase fetch workspaces warning:', wsError.message);
@@ -76,12 +76,26 @@ export async function fetchUserWorkspacesAndPages(userId: string): Promise<{
 
       let title = row.title || 'Untitled';
       let content = row.content || '';
-      if (title.toLowerCase() === 'welcome' || title.toLowerCase().includes('welcome')) {
-        title = 'Welcome to Notehook! 👋';
-        content = content.replace(/^#\s+Welcome[^\n]*\n+/i, '').trim();
+      let needsDbUpdate = false;
+
+      if (
+        row.type === 'note' &&
+        (title.toLowerCase() === 'welcome' ||
+          title.toLowerCase().includes('welcome') ||
+          row.short_id === 'n1' ||
+          row.id?.includes('welcome'))
+      ) {
+        if (title.toLowerCase() === 'welcome' || title === 'Welcome') {
+          title = 'Welcome to Notehook! 👋';
+        }
+        const cleanedContent = content.replace(/^\s*#\s+[^\n]*\n+/i, '').trim();
+        if (cleanedContent !== content || title !== row.title) {
+          content = cleanedContent;
+          needsDbUpdate = true;
+        }
       }
 
-      return {
+      const pageObj: Page = {
         id: row.id,
         short_id: row.short_id,
         type: row.type,
@@ -100,6 +114,12 @@ export async function fetchUserWorkspacesAndPages(userId: string): Promise<{
         current_version_num: row.current_version_num || 1,
         versions: versions,
       };
+
+      if (needsDbUpdate) {
+        upsertPageToSupabase(userId, pageObj, row.workspace_id);
+      }
+
+      return pageObj;
     });
 
     const allMentions: Mention[] = (mentionRows || []).map((row) => ({

@@ -52,6 +52,20 @@ export const DashboardView: React.FC = () => {
     'Explorer';
   const userAvatar = user?.user_metadata?.avatar_url || user?.user_metadata?.picture;
 
+  const mostRecentWorkspace = [...workspaces].sort((a, b) => {
+    const timeA = new Date(a.last_opened_at || a.updated_at || a.created_at || 0).getTime();
+    const timeB = new Date(b.last_opened_at || b.updated_at || b.created_at || 0).getTime();
+    return timeB - timeA;
+  })[0];
+
+  const handleBackToWorkspace = () => {
+    if (mostRecentWorkspace) {
+      handleOpenWorkspace(mostRecentWorkspace.id);
+    } else {
+      router.push('/');
+    }
+  };
+
   const handleOpenWorkspace = (workspaceId: string) => {
     switchWorkspace(workspaceId);
     router.push('/');
@@ -124,13 +138,15 @@ export const DashboardView: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-3">
-          <Link
-            href="/"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white hover:bg-zinc-100 border border-zinc-200 text-zinc-700 hover:text-zinc-950 transition-all shadow-2xs"
+          <button
+            type="button"
+            onClick={handleBackToWorkspace}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white hover:bg-zinc-100 border border-zinc-200 text-zinc-700 hover:text-zinc-950 transition-all shadow-2xs cursor-pointer"
+            title="Open most recently used workspace"
           >
             <span>Back to Workspace</span>
             <ArrowRight className="w-3.5 h-3.5 text-zinc-500" />
-          </Link>
+          </button>
 
           {user ? (
             userAvatar ? (
@@ -367,28 +383,15 @@ export const DashboardView: React.FC = () => {
               <div
                 key={ws.id}
                 onClick={() => handleOpenWorkspace(ws.id)}
-                className={`group relative flex flex-col justify-between p-5 rounded-2xl border transition-all cursor-pointer min-h-[220px] bg-white ${isActive
-                  ? 'border-zinc-400 ring-1 ring-zinc-300/80 shadow-xs'
-                  : 'border-zinc-200/80 hover:border-zinc-300 shadow-2xs hover:shadow-xs'
-                  }`}
+                className="group relative flex flex-col justify-between p-5 rounded-2xl border border-zinc-200/80 hover:border-zinc-300 shadow-2xs hover:shadow-xs transition-all cursor-pointer min-h-[220px] bg-white"
               >
                 {/* Header of card */}
                 <div className="flex flex-col gap-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <div
-                        className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold border transition-all ${isActive
-                          ? 'bg-zinc-100 border-zinc-300 text-zinc-900 shadow-2xs'
-                          : 'bg-zinc-50 border-zinc-200/80 text-zinc-600'
-                          }`}
-                      >
+                      <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold border border-zinc-200/80 bg-zinc-50 text-zinc-600 transition-all">
                         <Folder className="w-4 h-4 text-fuchsia-600" />
                       </div>
-                      {isActive && (
-                        <span className="text-[10px] font-bold text-zinc-900 bg-white border border-zinc-300 px-2 py-0.5 rounded-full uppercase tracking-wider shadow-2xs">
-                          Current Workspace
-                        </span>
-                      )}
                     </div>
 
                     {/* Actions menu */}
