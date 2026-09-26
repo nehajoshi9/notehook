@@ -388,7 +388,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
     }
   }, [isPageSearchOpen, pageSearchQuery, currentMatchIndex, totalMatchCount]);
 
-  const autoResizeTextarea = (el: HTMLTextAreaElement | null, minHeight: number = 32) => {
+  const autoResizeTextarea = (el: HTMLTextAreaElement | null, minHeight: number = 28) => {
     if (!el) return;
     el.style.height = 'auto';
     el.style.height = `${Math.max(minHeight, el.scrollHeight)}px`;
@@ -418,7 +418,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
 
   useLayoutEffect(() => {
     if (isEditing && contentRef.current) {
-      const minH = targetPage?.type === 'entity' ? 32 : 180;
+      const minH = 28;
       autoResizeTextarea(contentRef.current, minH);
       if (savedScrollTopRef.current !== null && pageViewContainerRef.current) {
         pageViewContainerRef.current.scrollTop = savedScrollTopRef.current;
@@ -938,7 +938,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
 
     setTimeout(() => {
       textarea.setSelectionRange(newCursor, newCursor);
-      const minH = targetPage?.type === 'entity' ? 32 : 180;
+      const minH = 28;
       autoResizeTextarea(textarea, minH);
     }, 0);
   };
@@ -1050,7 +1050,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
 
     setTimeout(() => {
       if (contentRef.current) {
-        const minH = targetPage?.type === 'entity' ? 32 : 180;
+        const minH = 28;
         autoResizeTextarea(contentRef.current, minH);
         contentRef.current.focus({ preventScroll: true });
         contentRef.current.setSelectionRange(targetOffset, targetOffset);
@@ -1212,7 +1212,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
       )}
 
       {/* Obsidian-Style Seamless Document Canvas */}
-      <div ref={pageViewContainerRef} data-page-canvas="true" className="flex-1 overflow-y-auto bg-white flex flex-col pl-10 pr-6 py-6 md:pl-12 md:pr-8 space-y-4">
+      <div ref={pageViewContainerRef} data-page-canvas="true" className="flex-1 overflow-y-auto [scrollbar-gutter:stable] bg-white flex flex-col pl-10 pr-6 py-6 md:pl-12 md:pr-8 space-y-4">
         {/* Top Row: Page ID Pill (Left-aligned with page text) & Action Buttons (Right-aligned) */}
         <div className="flex items-center justify-between gap-2 select-none">
           <div>
@@ -1562,7 +1562,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
         )}
 
         {/* Seamless Canvas (Automatic Edit / Blur Transition) */}
-        <div className={`flex flex-col relative py-2 ${targetPage.type === 'entity' ? 'flex-none min-h-[32px]' : 'flex-1 min-h-[180px]'}`}>
+        <div className="flex flex-col relative w-full min-h-[28px]">
           {isEditing ? (
             <>
               {isTypingAtContent && contentSuggestions.length > 0 && (
@@ -1600,7 +1600,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
                   updatePageContent(targetPage.id, val);
                   setContentCursorPos(e.target.selectionStart ?? val.length);
                   setIsContentDismissed(false);
-                  const minH = targetPage?.type === 'entity' ? 32 : 180;
+                  const minH = 28;
                   autoResizeTextarea(e.target, minH);
                 }}
                 onFocus={(e) => {
@@ -1608,7 +1608,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
                     e.target.setSelectionRange(bodyText.length, bodyText.length);
                   }
                   setContentCursorPos(e.target.selectionStart ?? bodyText.length);
-                  const minH = targetPage?.type === 'entity' ? 32 : 180;
+                  const minH = 28;
                   autoResizeTextarea(e.target, minH);
                 }}
                 onKeyUp={(e) => setContentCursorPos((e.target as HTMLTextAreaElement).selectionStart ?? bodyText.length)}
