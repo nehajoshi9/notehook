@@ -1,24 +1,18 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Laptop, X } from 'lucide-react';
+import { Laptop, Monitor } from 'lucide-react';
 
 export const MobileNoticeModal: React.FC = () => {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
-    // Check if dismissed in this session
-    const isDismissed = sessionStorage.getItem('notehook_mobile_notice_dismissed');
-    if (isDismissed) return;
-
     const checkMobile = () => {
-      const isMobileWidth = window.innerWidth < 768;
+      const isMobileWidth = window.innerWidth < 1024;
       const isMobileAgent = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
         navigator.userAgent
       );
-      if (isMobileWidth || isMobileAgent) {
-        setIsOpen(true);
-      }
+      setIsMobile(isMobileWidth || isMobileAgent);
     };
 
     checkMobile();
@@ -26,52 +20,40 @@ export const MobileNoticeModal: React.FC = () => {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  const handleDismiss = () => {
-    setIsOpen(false);
-    sessionStorage.setItem('notehook_mobile_notice_dismissed', 'true');
-  };
-
-  if (!isOpen) return null;
+  if (!isMobile) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
-      <div 
-        className="relative w-full max-w-sm bg-white rounded-2xl border border-zinc-200 shadow-2xl p-6 text-center space-y-4 animate-in zoom-in-95 duration-200"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="mobile-notice-title"
-      >
-        <button
-          onClick={handleDismiss}
-          className="absolute top-4 right-4 p-1.5 text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 rounded-lg transition-colors"
-          aria-label="Close dialog"
-        >
-          <X className="w-4 h-4" />
-        </button>
+    <div 
+      className="fixed inset-0 z-[99999] flex items-center justify-center p-6 bg-zinc-950 text-white select-none overflow-hidden"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="mobile-notice-title"
+    >
+      {/* Background ambient glow */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-72 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
 
-        <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-zinc-100 border border-zinc-200 text-zinc-800 shadow-2xs mx-auto">
-          <Laptop className="w-6 h-6" />
+      <div className="relative w-full max-w-sm bg-zinc-900/90 border border-zinc-800 rounded-3xl p-8 text-center space-y-5 shadow-2xl backdrop-blur-md">
+        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-zinc-800 border border-zinc-700 text-indigo-400 shadow-inner mx-auto">
+          <Monitor className="w-7 h-7" />
         </div>
 
-        <div className="space-y-1.5">
-          <h3 id="mobile-notice-title" className="text-base font-semibold text-zinc-900 tracking-tight">
-            Desktop Web App
-          </h3>
-          <p className="text-xs text-zinc-600 leading-relaxed">
-            Notehook is a dual-pane workspace designed for desktop screens, keyboard shortcuts, and side-by-side editing.
+        <div className="space-y-2">
+          <h2 id="mobile-notice-title" className="text-lg font-bold text-white tracking-tight">
+            Desktop Only
+          </h2>
+          <p className="text-xs text-zinc-300 leading-relaxed">
+            Notehook is an AI-assisted dual-pane workspace designed exclusively for desktop monitors, side-by-side editing, and keyboard workflows.
           </p>
           <p className="text-xs text-zinc-500 leading-relaxed pt-1">
-            For the optimal experience, please open Notehook on your laptop or desktop browser.
+            Mobile and small-screen devices are not supported. Please open Notehook on a laptop or desktop computer.
           </p>
         </div>
 
-        <div className="pt-2">
-          <button
-            onClick={handleDismiss}
-            className="w-full py-2.5 px-4 bg-zinc-900 hover:bg-zinc-800 active:scale-[0.99] text-white text-xs font-medium rounded-xl shadow-xs transition-all cursor-pointer"
-          >
-            Continue Anyway
-          </button>
+        <div className="pt-3 border-t border-zinc-800/80">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-zinc-800/70 border border-zinc-700/60 text-[11px] font-mono text-zinc-400">
+            <Laptop className="w-3.5 h-3.5 text-zinc-400" />
+            <span>Desktop browser required</span>
+          </div>
         </div>
       </div>
     </div>
