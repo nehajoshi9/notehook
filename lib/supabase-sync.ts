@@ -1,26 +1,28 @@
 import { supabase } from './supabase';
-import { Page, Mention } from './types';
+import { Page, Mention, Workspace } from './types';
 
-export async function fetchUserWorkspaceData(userId: string): Promise<{
-  pages: Page[] | null;
-  mentions: Mention[] | null;
-  workspaceName: string | null;
+export async function fetchUserWorkspacesAndPages(userId: string): Promise<{
+  workspaces: Workspace[] | null;
+  activeWorkspaceId: string | null;
 }> {
   if (!supabase || !userId) {
-    return { pages: null, mentions: null, workspaceName: null };
+    return { workspaces: null, activeWorkspaceId: null };
   }
 
   try {
-    // 1. Fetch Workspace Name
-    const { data: wsData } = await supabase
+    // 1. Fetch all Workspaces for this user
+    const { data: wsRows, error: wsError } = await supabase
       .from('workspaces')
-      .select('name')
+      .select('*')
       .eq('user_id', userId)
-      .limit(1)
-      .maybeSingle();
+      .order('created_at', { ascending: true });
 
-    // 2. Fetch Pages
-    const { data: pagesData, error: pagesError } = await supabase
+    if (wsError) {
+      console.warn('Supabase fetch workspaces warning:', wsError.message);
+    }
+
+    // 2. Fetch all Pages for this user
+    const { data: pageRows, error: pagesError } = await supabase
       .from('pages')
       .select('*')
       .eq('user_id', userId)
@@ -30,8 +32,8 @@ export async function fetchUserWorkspaceData(userId: string): Promise<{
       console.warn('Supabase fetch pages warning:', pagesError.message);
     }
 
-    // 3. Fetch Mentions
-    const { data: mentionsData, error: mentionsError } = await supabase
+    // 3. Fetch all Mentions for this user
+    const { data: mentionRows, error: mentionsError } = await supabase
       .from('mentions')
       .select('*')
       .eq('user_id', userId)
@@ -41,7 +43,12 @@ export async function fetchUserWorkspaceData(userId: string): Promise<{
       console.warn('Supabase fetch mentions warning:', mentionsError.message);
     }
 
-    const pages: Page[] | null = pagesData ? pagesData.map((row) => ({
+    // If no workspaces and no pages exist in Supabase for this user, return null so we can initialize/migrate
+    if ((!wsRows || wsRows.length === 0) && (!pageRows || pageRows.length === 0)) {
+      return { workspaces: null, activeWorkspaceId: null };
+    }
+
+    const allPages: Page[] = (pageRows || []).map((row) => ({
       id: row.id,
       short_id: row.short_id,
       type: row.type,
@@ -55,13 +62,13 @@ export async function fetchUserWorkspaceData(userId: string): Promise<{
       pinned: row.pinned,
       user_prompt: row.user_prompt,
       injected_context: row.injected_context,
-      referenced_page_ids: row.referenced_page_ids || [],
+      referenced_page_ids: Array.isArray(row.referenced_page_ids) ? row.referenced_page_ids : [],
       canonical_version_id: row.canonical_version_id,
       current_version_num: row.current_version_num || 1,
-      versions: row.versions || [],
-    })) : null;
+      versions: Array.isArray(row.versions) ? row.versions : [],
+    }));
 
-    const mentions: Mention[] | null = mentionsData ? mentionsData.map((row) => ({
+    const allMentions: Mention[] = (mentionRows || []).map((row) => ({
       id: row.id,
       target_page_id: row.target_page_id,
       source_page_id: row.source_page_id,
@@ -71,26 +78,101 @@ export async function fetchUserWorkspaceData(userId: string): Promise<{
       source: row.source,
       orphaned: row.orphaned,
       created_at: row.created_at,
-    })) : null;
+    }));
+
+    // If workspaces exist, partition pages and mentions by workspace_id
+    if (wsRows && wsRows.length > 0) {
+      const workspaces: Workspace[] = wsRows.map((wRow) => {
+        const wsPages = (pageRows || [])
+          .filter((pRow) => pRow.workspace_id === wRow.id || (!pRow.workspace_id && wRow.id === wsRows[0].id))
+          .map((pRow) => allPages.find((p) => p.id === pRow.id)!)
+          .filter(Boolean);
+
+        const wsMentions = (mentionRows || [])
+          .filter((mRow) => mRow.workspace_id === wRow.id || (!mRow.workspace_id && wRow.id === wsRows[0].id))
+          .map((mRow) => allMentions.find((m) => m.id === mRow.id)!)
+          .filter(Boolean);
+
+        let pinned: string[] = [];
+        if (Array.isArray(wRow.pinned_page_ids)) {
+          pinned = wRow.pinned_page_ids;
+        }
+
+        return {
+          id: wRow.id,
+          name: wRow.name || 'My Workspace',
+          created_at: wRow.created_at,
+          updated_at: wRow.updated_at,
+          last_opened_at: wRow.updated_at || wRow.created_at,
+          pages: wsPages,
+          mentions: wsMentions,
+          pinnedPageIds: pinned,
+        };
+      });
+
+      return {
+        workspaces,
+        activeWorkspaceId: workspaces[0]?.id || null,
+      };
+    }
+
+    // If pages exist but no workspace row, wrap them in a default workspace
+    const defaultWs: Workspace = {
+      id: `ws-${userId.slice(0, 8)}`,
+      name: 'My Workspace',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      last_opened_at: new Date().toISOString(),
+      pages: allPages,
+      mentions: allMentions,
+      pinnedPageIds: [],
+    };
 
     return {
-      pages,
-      mentions,
-      workspaceName: wsData?.name || null,
+      workspaces: [defaultWs],
+      activeWorkspaceId: defaultWs.id,
     };
   } catch (err) {
     console.error('Error fetching Supabase workspace data:', err);
-    return { pages: null, mentions: null, workspaceName: null };
+    return { workspaces: null, activeWorkspaceId: null };
   }
 }
 
-export async function upsertPageToSupabase(userId: string, page: Page): Promise<void> {
+export async function upsertWorkspaceToSupabase(userId: string, workspace: Workspace): Promise<void> {
+  if (!supabase || !userId) return;
+  try {
+    await supabase.from('workspaces').upsert(
+      {
+        id: workspace.id,
+        user_id: userId,
+        name: workspace.name,
+        pinned_page_ids: workspace.pinnedPageIds || [],
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'id' }
+    );
+  } catch (err) {
+    console.error('Failed to upsert workspace to Supabase:', err);
+  }
+}
+
+export async function deleteWorkspaceFromSupabase(userId: string, workspaceId: string): Promise<void> {
+  if (!supabase || !userId) return;
+  try {
+    await supabase.from('workspaces').delete().eq('id', workspaceId).eq('user_id', userId);
+  } catch (err) {
+    console.error('Failed to delete workspace from Supabase:', err);
+  }
+}
+
+export async function upsertPageToSupabase(userId: string, page: Page, workspaceId?: string): Promise<void> {
   if (!supabase || !userId) return;
   try {
     await supabase.from('pages').upsert(
       {
         id: page.id,
         user_id: userId,
+        workspace_id: workspaceId || null,
         short_id: page.short_id,
         type: page.type,
         title: page.title,
@@ -132,13 +214,14 @@ export async function deletePagesFromSupabase(userId: string, pageIds: string[])
   }
 }
 
-export async function upsertMentionToSupabase(userId: string, mention: Mention): Promise<void> {
+export async function upsertMentionToSupabase(userId: string, mention: Mention, workspaceId?: string): Promise<void> {
   if (!supabase || !userId) return;
   try {
     await supabase.from('mentions').upsert(
       {
         id: mention.id,
         user_id: userId,
+        workspace_id: workspaceId || null,
         target_page_id: mention.target_page_id,
         source_page_id: mention.source_page_id,
         span_start: mention.span_start,
@@ -163,26 +246,19 @@ export async function deleteMentionFromSupabase(userId: string, mentionId: strin
   }
 }
 
-export async function saveWorkspaceNameToSupabase(userId: string, name: string): Promise<void> {
-  if (!supabase || !userId) return;
+export async function syncAllWorkspacesToSupabase(userId: string, workspaces: Workspace[]): Promise<void> {
+  if (!supabase || !userId || workspaces.length === 0) return;
   try {
-    const { data: existing } = await supabase
-      .from('workspaces')
-      .select('id')
-      .eq('user_id', userId)
-      .maybeSingle();
-
-    if (existing) {
-      await supabase
-        .from('workspaces')
-        .update({ name, updated_at: new Date().toISOString() })
-        .eq('id', existing.id);
-    } else {
-      await supabase
-        .from('workspaces')
-        .insert({ user_id: userId, name });
+    for (const ws of workspaces) {
+      await upsertWorkspaceToSupabase(userId, ws);
+      for (const p of ws.pages || []) {
+        await upsertPageToSupabase(userId, p, ws.id);
+      }
+      for (const m of ws.mentions || []) {
+        await upsertMentionToSupabase(userId, m, ws.id);
+      }
     }
   } catch (err) {
-    console.error('Failed to save workspace name to Supabase:', err);
+    console.error('Failed to sync all workspaces to Supabase:', err);
   }
 }

@@ -1,10 +1,22 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { Page, Mention, PaneState, AISettings, EntityVersion, Workspace } from './types';
 import { SEED_PAGES, SEED_MENTIONS, createDefaultWelcomePage } from './store';
 import { parseNotehookMarkup, formatItemTitle, generateTopicTitle, stripCodeSpans, normalizeRawContentToCanonicalBrackets } from './notehook-parser';
 import { generateNotehookResponse } from './ai-notehook';
+import { useAuth } from './auth-context';
+import {
+  fetchUserWorkspacesAndPages,
+  upsertWorkspaceToSupabase,
+  deleteWorkspaceFromSupabase,
+  upsertPageToSupabase,
+  deletePageFromSupabase,
+  deletePagesFromSupabase,
+  upsertMentionToSupabase,
+  deleteMentionFromSupabase,
+  syncAllWorkspacesToSupabase,
+} from './supabase-sync';
 
 export interface NotehookContextType {
   pages: Page[];
@@ -115,6 +127,9 @@ export function generateShortId(type: Page['type'], currentPages: Page[]): strin
 }
 
 export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user, loading: authLoading } = useAuth();
+  const prevUserIdRef = useRef<string | null>(null);
+
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [currentWorkspaceId, setCurrentWorkspaceId] = useState<string>('ws-default');
   const [pages, setPages] = useState<Page[]>([]);
@@ -191,6 +206,7 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     },
   ]);
 
+  // Initial Local Storage Load (runs once on mount)
   useEffect(() => {
     try {
       localStorage.removeItem('scribe_pages_v5');
@@ -362,7 +378,6 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
       if (storedAi) {
         const parsedAi: AISettings = JSON.parse(storedAi);
-        // If stored settings were 'simulated' or had old models, auto-upgrade to Gemini 3.6 Flash
         if ((parsedAi.provider === 'simulated' || parsedAi.model === 'gemini-1.5-flash' || parsedAi.model === 'gemini-2.0-flash' || parsedAi.model === 'gemini-2.0-flash-lite' || parsedAi.model === 'gemini-2.5-flash' || parsedAi.model === 'gemini-3.5-flash-lite') && envGeminiKey) {
           setAiSettings({
             provider: 'gemini',
@@ -387,6 +402,69 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setIsLoaded(true);
     }
   }, []);
+
+  // Supabase User Auth Sync: When signed in, load user's cloud workspaces and pages
+  useEffect(() => {
+    if (authLoading) return;
+    const currentUserId = user?.id || null;
+    if (prevUserIdRef.current === currentUserId) return;
+    prevUserIdRef.current = currentUserId;
+
+    const loadUserData = async () => {
+      if (currentUserId) {
+        try {
+          const remoteData = await fetchUserWorkspacesAndPages(currentUserId);
+          if (remoteData.workspaces && remoteData.workspaces.length > 0) {
+            // User has existing data in Supabase! Load it cleanly
+            const activeWs =
+              remoteData.workspaces.find((w) => w.id === remoteData.activeWorkspaceId) ||
+              remoteData.workspaces[0];
+            setWorkspaces(remoteData.workspaces);
+            setCurrentWorkspaceId(activeWs.id);
+            setWorkspaceNameState(activeWs.name || 'My Workspace');
+            setPages(activeWs.pages || []);
+            setMentions(activeWs.mentions || []);
+            setPinnedPageIds(activeWs.pinnedPageIds || []);
+
+            const activePages = activeWs.pages || [];
+            const welcomePage =
+              activePages.find((p) => p.type === 'note' && (p.title.toLowerCase() === 'welcome' || p.short_id === 'n1')) ||
+              activePages.find((p) => p.type === 'note') ||
+              activePages[0];
+            if (welcomePage) {
+              setRightPane({
+                type: welcomePage.type as PaneState['type'],
+                id: welcomePage.id,
+                title: welcomePage.title,
+              });
+              setRightHistory([
+                {
+                  type: welcomePage.type as PaneState['type'],
+                  id: welcomePage.id,
+                  title: welcomePage.title,
+                },
+              ]);
+            }
+          } else {
+            // First time this user logged in: sync initial/local workspaces to Supabase so their data is saved to cloud
+            const defaultWsList: Workspace[] = workspaces.length > 0 ? workspaces : [{
+              id: `ws-${currentUserId.slice(0, 8)}`,
+              name: 'Main Workspace',
+              created_at: new Date().toISOString(),
+              pages: pages.length > 0 ? pages : [createDefaultWelcomePage()],
+              mentions: mentions,
+              pinnedPageIds: pinnedPageIds,
+            }];
+            await syncAllWorkspacesToSupabase(currentUserId, defaultWsList);
+          }
+        } catch (err) {
+          console.error('Failed to load user data from Supabase:', err);
+        }
+      }
+    };
+
+    loadUserData();
+  }, [user, authLoading]);
 
   useEffect(() => {
     if (!isLoaded || !currentWorkspaceId) return;
@@ -609,6 +687,9 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       created_at: new Date().toISOString(),
     };
     setPages((prev) => [newPage, ...prev]);
+    if (user?.id) {
+      upsertPageToSupabase(user.id, newPage, currentWorkspaceId);
+    }
     return newPage;
   };
 
@@ -626,6 +707,9 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       created_at: new Date().toISOString(),
     };
     setPages((prev) => [newPage, ...prev]);
+    if (user?.id) {
+      upsertPageToSupabase(user.id, newPage, currentWorkspaceId);
+    }
     return newPage;
   };
 
@@ -646,19 +730,23 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
 
     setPages((prev) => [targetPage, ...prev]);
+    if (user?.id) {
+      upsertPageToSupabase(user.id, targetPage, currentWorkspaceId);
+    }
 
     if (sourceNoteId) {
-      setMentions((prev) => [
-        {
-          id: `men-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-          target_page_id: targetPage.id,
-          source_page_id: sourceNoteId,
-          snippet: `[@todo: ${uniqueTitle}]`,
-          source: 'auto',
-          created_at: new Date().toISOString(),
-        },
-        ...prev,
-      ]);
+      const newMention: Mention = {
+        id: `men-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+        target_page_id: targetPage.id,
+        source_page_id: sourceNoteId,
+        snippet: `[@todo: ${uniqueTitle}]`,
+        source: 'auto',
+        created_at: new Date().toISOString(),
+      };
+      setMentions((prev) => [newMention, ...prev]);
+      if (user?.id) {
+        upsertMentionToSupabase(user.id, newMention, currentWorkspaceId);
+      }
     }
 
     return targetPage;
@@ -679,19 +767,23 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
 
     setPages((prev) => [targetPage, ...prev]);
+    if (user?.id) {
+      upsertPageToSupabase(user.id, targetPage, currentWorkspaceId);
+    }
 
     if (sourceNoteId) {
-      setMentions((prev) => [
-        {
-          id: `men-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-          target_page_id: targetPage.id,
-          source_page_id: sourceNoteId,
-          snippet: `[@decision: ${uniqueTitle}]`,
-          source: 'auto',
-          created_at: new Date().toISOString(),
-        },
-        ...prev,
-      ]);
+      const newMention: Mention = {
+        id: `men-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+        target_page_id: targetPage.id,
+        source_page_id: sourceNoteId,
+        snippet: `[@decision: ${uniqueTitle}]`,
+        source: 'auto',
+        created_at: new Date().toISOString(),
+      };
+      setMentions((prev) => [newMention, ...prev]);
+      if (user?.id) {
+        upsertMentionToSupabase(user.id, newMention, currentWorkspaceId);
+      }
     }
 
     return targetPage;
@@ -748,39 +840,42 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const displayTitle = targetPage.type === 'entity' ? `@${resolvedTitle}` : resolvedTitle;
 
     // 1. Update pages & replace references in content & user_prompt across all pages
-    setPages((prevPages) =>
-      prevPages.map((p) => {
-        if (p.id === id) {
-          return { ...p, title: resolvedTitle, updated_at: new Date().toISOString() };
+    const updatedPagesList: Page[] = pages.map((p) => {
+      if (p.id === id) {
+        return { ...p, title: resolvedTitle, updated_at: new Date().toISOString() };
+      }
+
+      let updatedContent = p.content;
+      let updatedPrompt = p.user_prompt;
+
+      if (oldTitle) {
+        const escapedOld = oldTitle.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+        const regex = new RegExp(escapedOld, 'gi');
+
+        if (updatedContent && regex.test(updatedContent)) {
+          updatedContent = updatedContent.replace(regex, resolvedTitle);
         }
 
-        let updatedContent = p.content;
-        let updatedPrompt = p.user_prompt;
-
-        if (oldTitle) {
-          const escapedOld = oldTitle.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
-          const regex = new RegExp(escapedOld, 'gi');
-
-          if (updatedContent && regex.test(updatedContent)) {
-            updatedContent = updatedContent.replace(regex, resolvedTitle);
-          }
-
-          if (updatedPrompt && regex.test(updatedPrompt)) {
-            updatedPrompt = updatedPrompt.replace(regex, resolvedTitle);
-          }
+        if (updatedPrompt && regex.test(updatedPrompt)) {
+          updatedPrompt = updatedPrompt.replace(regex, resolvedTitle);
         }
+      }
 
-        return {
-          ...p,
-          content: updatedContent,
-          user_prompt: updatedPrompt,
-          updated_at:
-            updatedContent !== p.content || updatedPrompt !== p.user_prompt
-              ? new Date().toISOString()
-              : p.updated_at,
-        };
-      })
-    );
+      return {
+        ...p,
+        content: updatedContent,
+        user_prompt: updatedPrompt,
+        updated_at:
+          updatedContent !== p.content || updatedPrompt !== p.user_prompt
+            ? new Date().toISOString()
+            : p.updated_at,
+      };
+    });
+
+    setPages(updatedPagesList);
+    if (user?.id) {
+      updatedPagesList.forEach((p) => upsertPageToSupabase(user.id, p, currentWorkspaceId));
+    }
 
     // 2. Update mentions snippets
     if (oldTitle) {
@@ -789,7 +884,9 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setMentions((prevMentions) =>
         prevMentions.map((m) => {
           if (m.snippet && regex.test(m.snippet)) {
-            return { ...m, snippet: m.snippet.replace(regex, resolvedTitle) };
+            const updatedM = { ...m, snippet: m.snippet.replace(regex, resolvedTitle) };
+            if (user?.id) upsertMentionToSupabase(user.id, updatedM, currentWorkspaceId);
+            return updatedM;
           }
           return m;
         })
@@ -830,13 +927,17 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       prev.map((p) => {
         if (p.id === entityId) {
           const currentVers = (p.versions || []).map((v) => ({ ...v, is_canonical: false }));
-          return {
+          const updatedEntity: Page = {
             ...p,
             versions: [...currentVers, newVer],
             canonical_version_id: newVer.id,
             current_version_num: nextVerNum,
             updated_at: new Date().toISOString(),
           };
+          if (user?.id) {
+            upsertPageToSupabase(user.id, updatedEntity, currentWorkspaceId);
+          }
+          return updatedEntity;
         }
         return p;
       })
@@ -865,7 +966,11 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             }
             return v;
           });
-          return { ...p, versions: updatedVers, updated_at: new Date().toISOString() };
+          const updatedEntity: Page = { ...p, versions: updatedVers, updated_at: new Date().toISOString() };
+          if (user?.id) {
+            upsertPageToSupabase(user.id, updatedEntity, currentWorkspaceId);
+          }
+          return updatedEntity;
         }
         return p;
       })
@@ -881,13 +986,17 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             is_canonical: v.id === versionId,
           }));
           const canonicalVer = currentVers.find((v) => v.id === versionId);
-          return {
+          const updatedEntity: Page = {
             ...p,
             versions: currentVers,
             canonical_version_id: versionId,
             content: canonicalVer ? canonicalVer.content : p.content,
             updated_at: new Date().toISOString(),
           };
+          if (user?.id) {
+            upsertPageToSupabase(user.id, updatedEntity, currentWorkspaceId);
+          }
+          return updatedEntity;
         }
         return p;
       })
@@ -899,7 +1008,11 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       prev.map((p) => {
         if (p.id === entityId) {
           const currentVers = (p.versions || []).filter((v) => v.id !== versionId);
-          return { ...p, versions: currentVers, updated_at: new Date().toISOString() };
+          const updatedEntity: Page = { ...p, versions: currentVers, updated_at: new Date().toISOString() };
+          if (user?.id) {
+            upsertPageToSupabase(user.id, updatedEntity, currentWorkspaceId);
+          }
+          return updatedEntity;
         }
         return p;
       })
@@ -912,6 +1025,9 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         if (p.id !== id) return p;
         const normalizedContent = normalizeRawContentToCanonicalBrackets(newContent, prev);
         const updated = { ...p, content: normalizedContent, updated_at: new Date().toISOString() };
+        if (user?.id) {
+          upsertPageToSupabase(user.id, updated, currentWorkspaceId);
+        }
 
         // Check for orphaned mentions if source message content changed
         if (p.type === 'message' || (p.type as string) === 'note') {
@@ -921,7 +1037,9 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
               const targetPage = pages.find((tp) => tp.id === m.target_page_id);
               if (!targetPage) return m;
               const isStillPresent = newContent.toLowerCase().includes(targetPage.title.toLowerCase());
-              return { ...m, orphaned: !isStillPresent };
+              const updatedM = { ...m, orphaned: !isStillPresent };
+              if (user?.id) upsertMentionToSupabase(user.id, updatedM, currentWorkspaceId);
+              return updatedM;
             })
           );
         }
@@ -933,7 +1051,14 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const updatePageUserPrompt = (id: string, newPrompt: string) => {
     setPages((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, user_prompt: newPrompt, updated_at: new Date().toISOString() } : p))
+      prev.map((p) => {
+        if (p.id === id) {
+          const updated = { ...p, user_prompt: newPrompt, updated_at: new Date().toISOString() };
+          if (user?.id) upsertPageToSupabase(user.id, updated, currentWorkspaceId);
+          return updated;
+        }
+        return p;
+      })
     );
   };
 
@@ -945,6 +1070,9 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setPinnedPageIds((prev) => prev.filter((pid) => !idSet.has(pid)));
     setLeftPane((prev) => (prev.id && idSet.has(prev.id) ? { type: 'chat', id: null, title: 'Chat Thread' } : prev));
     setRightPane((prev) => (prev.id && idSet.has(prev.id) ? { type: 'empty', id: null } : prev));
+    if (user?.id) {
+      deletePagesFromSupabase(user.id, ids);
+    }
   };
 
   const deletePage = (id: string) => {
@@ -953,17 +1081,27 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const toggleTodoDone = (id: string) => {
     setPages((prev) =>
-      prev.map((p) =>
-        p.id === id ? { ...p, done: !p.done, updated_at: new Date().toISOString() } : p
-      )
+      prev.map((p) => {
+        if (p.id === id) {
+          const updated = { ...p, done: !p.done, updated_at: new Date().toISOString() };
+          if (user?.id) upsertPageToSupabase(user.id, updated, currentWorkspaceId);
+          return updated;
+        }
+        return p;
+      })
     );
   };
 
   const toggleTodoStarred = (id: string) => {
     setPages((prev) =>
-      prev.map((p) =>
-        p.id === id ? { ...p, starred: !p.starred, updated_at: new Date().toISOString() } : p
-      )
+      prev.map((p) => {
+        if (p.id === id) {
+          const updated = { ...p, starred: !p.starred, updated_at: new Date().toISOString() };
+          if (user?.id) upsertPageToSupabase(user.id, updated, currentWorkspaceId);
+          return updated;
+        }
+        return p;
+      })
     );
   };
 
@@ -974,14 +1112,23 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
 
     if (pinnedPageIds.includes(id)) {
-      setPinnedPageIds((prev) => prev.filter((pid) => pid !== id));
+      const nextPinned = pinnedPageIds.filter((pid) => pid !== id);
+      setPinnedPageIds(nextPinned);
+      if (user?.id) {
+        const ws = workspaces.find((w) => w.id === currentWorkspaceId);
+        if (ws) upsertWorkspaceToSupabase(user.id, { ...ws, pinnedPageIds: nextPinned });
+      }
       return false;
     } else {
       if (pinnedPageIds.length >= 3) {
-        // Enforce maximum of 3 pinned knowledge pages
         return false;
       }
-      setPinnedPageIds((prev) => [...prev, id]);
+      const nextPinned = [...pinnedPageIds, id];
+      setPinnedPageIds(nextPinned);
+      if (user?.id) {
+        const ws = workspaces.find((w) => w.id === currentWorkspaceId);
+        if (ws) upsertWorkspaceToSupabase(user.id, { ...ws, pinnedPageIds: nextPinned });
+      }
       return true;
     }
   };
@@ -1012,11 +1159,17 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
 
     setMentions((prev) => [newMention, ...prev]);
+    if (user?.id) {
+      upsertMentionToSupabase(user.id, newMention, currentWorkspaceId);
+    }
     return newMention;
   };
 
   const removeMention = (mentionId: string) => {
     setMentions((prev) => prev.filter((m) => m.id !== mentionId));
+    if (user?.id) {
+      deleteMentionFromSupabase(user.id, mentionId);
+    }
   };
 
   const executeRetroactiveLinking = (pageId: string, noteIds: string[]): number => {
@@ -1030,14 +1183,18 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const existing = mentions.find((m) => m.source_page_id === nId && m.target_page_id === targetPage.id);
       if (!existing) {
         const note = notes.find((n) => n.id === nId);
-        newMentions.push({
+        const newM: Mention = {
           id: `men-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
           target_page_id: targetPage.id,
           source_page_id: nId,
           snippet: note ? `Literal occurrence matched in "${note.title}"` : `Retroactive link to [@${targetPage.title}]`,
           source: 'manual',
           created_at: new Date().toISOString(),
-        });
+        };
+        newMentions.push(newM);
+        if (user?.id) {
+          upsertMentionToSupabase(user.id, newM, currentWorkspaceId);
+        }
         addedCount++;
       }
     });
@@ -1087,6 +1244,9 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       };
 
       setPages((prev) => [messagePage, ...prev]);
+      if (user?.id) {
+        upsertPageToSupabase(user.id, messagePage, currentWorkspaceId);
+      }
 
       // Resolve parsed LLM items against existing pages or create new todo/decision pages
       parsedItems.forEach((item) => {
@@ -1094,17 +1254,18 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           // Closed list lookup
           const matchedEntity = entities.find((e) => e.title.toLowerCase() === item.nameOrTitle.toLowerCase());
           if (matchedEntity) {
-            setMentions((prev) => [
-              {
-                id: `men-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-                target_page_id: matchedEntity.id,
-                source_page_id: messagePage.id,
-                snippet: item.fullText,
-                source: 'auto',
-                created_at: new Date().toISOString(),
-              },
-              ...prev,
-            ]);
+            const newM: Mention = {
+              id: `men-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+              target_page_id: matchedEntity.id,
+              source_page_id: messagePage.id,
+              snippet: item.fullText,
+              source: 'auto',
+              created_at: new Date().toISOString(),
+            };
+            setMentions((prev) => [newM, ...prev]);
+            if (user?.id) {
+              upsertMentionToSupabase(user.id, newM, currentWorkspaceId);
+            }
           }
         } else if (item.type === 'todo') {
           createTodoPage(item.nameOrTitle, item.fullText, messagePage.id);
@@ -1177,6 +1338,10 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     ]);
 
     localStorage.setItem(STORAGE_KEYS.CURRENT_WORKSPACE_ID, newWs.id);
+    if (user?.id) {
+      upsertWorkspaceToSupabase(user.id, newWs);
+      upsertPageToSupabase(user.id, welcomeNote, newWs.id);
+    }
     return newWs;
   };
 
@@ -1261,6 +1426,10 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setPinnedPageIds([]);
       localStorage.setItem(STORAGE_KEYS.WORKSPACES, JSON.stringify([freshWs]));
       localStorage.setItem(STORAGE_KEYS.CURRENT_WORKSPACE_ID, freshWs.id);
+      if (user?.id) {
+        deleteWorkspaceFromSupabase(user.id, workspaceId);
+        upsertWorkspaceToSupabase(user.id, freshWs);
+      }
       return;
     }
 
@@ -1277,22 +1446,31 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setPinnedPageIds(nextWs.pinnedPageIds || []);
       localStorage.setItem(STORAGE_KEYS.CURRENT_WORKSPACE_ID, nextWs.id);
     }
+    if (user?.id) {
+      deleteWorkspaceFromSupabase(user.id, workspaceId);
+    }
   };
 
   const renameWorkspace = (workspaceId: string, newName: string) => {
-    const clean = sanitizeWorkspaceName(newName);
-    if (!clean) return;
+    const cleanName = sanitizeWorkspaceName(newName);
+    if (!cleanName) return;
 
     setWorkspaces((prev) => {
       const updated = prev.map((ws) =>
-        ws.id === workspaceId ? { ...ws, name: clean, updated_at: new Date().toISOString() } : ws
+        ws.id === workspaceId ? { ...ws, name: cleanName, updated_at: new Date().toISOString() } : ws
       );
       localStorage.setItem(STORAGE_KEYS.WORKSPACES, JSON.stringify(updated));
       return updated;
     });
 
     if (currentWorkspaceId === workspaceId) {
-      setWorkspaceNameState(clean);
+      setWorkspaceNameState(cleanName);
+    }
+    if (user?.id) {
+      const targetWs = workspaces.find((w) => w.id === workspaceId);
+      if (targetWs) {
+        upsertWorkspaceToSupabase(user.id, { ...targetWs, name: cleanName });
+      }
     }
   };
 
