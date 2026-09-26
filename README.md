@@ -5,6 +5,7 @@
 ![Next.js](https://img.shields.io/badge/Next.js-16_Turbopack-black?style=flat-square&logo=next.js)
 ![React](https://img.shields.io/badge/React-19-61dafb?style=flat-square&logo=react)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?style=flat-square&logo=typescript)
+![Supabase](https://img.shields.io/badge/Supabase-Auth_&_DB-3ECF8E?style=flat-square&logo=supabase)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind-CSS-38bdf8?style=flat-square&logo=tailwind-css)
 
 ---
@@ -23,16 +24,17 @@ In standard AI chat interfaces (ChatGPT, Claude, Cursor), long technical convers
 
 ## ✨ Key Features
 
-- ⚡ **AI-Assisted Extraction**: Notehook automatically extracts decisions and action items from conversations. Entities are human-curated workspace objects that users can create, reference, version, and link to conversation content.
+- ⚡ **AI-Assisted Extraction & Intelligence**: Notehook automatically extracts decisions and action items from conversations. Entities are human-curated workspace objects that users can create, reference, version, and link to conversation content.
+- 🔐 **Google OAuth & Supabase Persistence**: 1-click Google authentication backed by PostgreSQL with strict **Row-Level Security (RLS)** ensuring complete tenant isolation.
+- 🗂️ **Workspaces Dashboard Hub**: Multi-tenancy support allowing users to manage, search, create, rename, and switch across multiple independent project workspaces with live statistics.
 - 📑 **Dual-Pane Split Workspace**: Continuous chat thread feed in Pane 1 (left); detail cards, todo boards, entity specs, and decision logs in Pane 2 (right).
 - 🔍 **Real-time `@` Mention Autocomplete**: Typing `@` in chat inputs or note editors triggers popover suggestions filtered by prefix (`@todo:`, `@decision:`, `@note:`, `@entity`) with keyboard navigation.
 - 🏷️ **Clean Visual Reference Pills**: Raw bracketed tags (`[@todo: ...]`, `[@decision: ...]`) render visually as `@Title` with distinct accessibility icons (`✓`, `⚡`, `📄`, `🏷️`).
-- ✍️ **Floating Selection Toolbar**: Select text anywhere to tag entities, tasks, or decisions with 60fps selection positioning and under-the-hood untruncated copy mapping (`[@Full Title]`).
+- ✍️ **Floating Selection Toolbar**: Select text anywhere to tag entities, tasks, or decisions with selection positioning and under-the-hood untruncated copy mapping (`[@Full Title]`).
 - 📜 **Entity Version History & Spec Evolution**: Track evolving entity specs with primary versioning, snapshot history, and "Promote to Version" bridge actions.
 - 📝 **Sacred Notes System**: Dedicated human scratchpad notes isolated from automated AI modifications.
 - 🎯 **Instant Context Jumping & Backlinks**: Click any mention excerpt in the right pane to instantly scroll to the exact historical message turn with highlighted visual feedback.
 - 📋 **Interactive Todo Board & Decision Log**: Dedicated index views for viewing, starring, completing, filtering, and organizing action items and ADRs.
-
 
 ---
 
@@ -57,7 +59,24 @@ All raw text representations of reference tags maintain canonical bracket syntax
 
 ## 🛠️ Getting Started
 
-### Installation & Running Locally
+### 1. Prerequisites & Environment Variables
+
+Create a `.env.local` file in the root directory:
+
+```env
+# Google Gemini API Key (for Notehook AI Intelligence)
+NEXT_PUBLIC_GEMINI_API_KEY=your_gemini_api_key
+
+# Supabase Configuration
+NEXT_PUBLIC_SUPABASE_URL=https://<your-project-id>.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+### 2. Database Setup
+
+Run the SQL script located at `supabase/schema.sql` inside your Supabase **SQL Editor** to create the tables, indexes, and Row-Level Security (RLS) policies.
+
+### 3. Installation & Running Locally
 
 ```bash
 # Clone the repository
@@ -79,4 +98,5 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 - [x] **Phase 1 & 2**: Dual-pane split navigation, real-time `@` autocomplete, reference pill rendering, context injection bridge, and Sacred Notes.
 - [x] **Phase 3**: Interactive Todo Board, Decision viewer, floating selection toolbar, entity versioning, and title collision resolution.
-- [ ] **Phase 4**: Multi-session knowledge graphs, Git export formatting (`notehook/entities/`, `notehook/decisions/`), and 2-way sync with Linear/GitHub/Notion.
+- [x] **Phase 4**: Supabase database layer with Row-Level Security, Google OAuth authentication, and Workspace Dashboard Hub.
+- [ ] **Phase 5**: Multi-session knowledge graphs, Git export formatting (`notehook/entities/`, `notehook/decisions/`), and 2-way sync with Linear/GitHub/Notion.

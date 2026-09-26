@@ -75,3 +75,12 @@ export interface AISettings {
   model: string;
 }
 
+export interface Workspace {
+  id: string;
+  name: string;
+  created_at: string;
+  updated_at?: string;
+  pages: Page[];
+  mentions: Mention[];
+  pinnedPageIds?: string[];
+}

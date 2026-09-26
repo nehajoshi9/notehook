@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Page, Mention, PaneState, AISettings, EntityVersion } from './types';
+import { Page, Mention, PaneState, AISettings, EntityVersion, Workspace } from './types';
 import { SEED_PAGES, SEED_MENTIONS } from './store';
 import { parseNotehookMarkup, formatItemTitle, generateTopicTitle, stripCodeSpans, normalizeRawContentToCanonicalBrackets } from './notehook-parser';
 import { generateNotehookResponse } from './ai-notehook';
@@ -22,6 +22,14 @@ export interface NotehookContextType {
 
   workspaceName: string;
   setWorkspaceName: (name: string) => void;
+
+  // Workspace Multi-Tenancy
+  workspaces: Workspace[];
+  currentWorkspaceId: string;
+  createWorkspace: (name?: string) => Workspace;
+  switchWorkspace: (id: string) => void;
+  deleteWorkspace: (id: string) => void;
+  renameWorkspace: (id: string, newName: string) => void;
 
   // 2-Pane Split View State
   leftPane: PaneState;
@@ -86,6 +94,8 @@ const STORAGE_KEYS = {
   AI_SETTINGS: 'notehook_ai_settings_v6',
   WORKSPACE_NAME: 'notehook_workspace_name_v6',
   PINNED_PAGES: 'notehook_pinned_pages_v6',
+  WORKSPACES: 'notehook_workspaces_v6',
+  CURRENT_WORKSPACE_ID: 'notehook_current_workspace_id_v6',
 };
 
 export function generateShortId(type: Page['type'], currentPages: Page[]): string {
@@ -105,6 +115,8 @@ export function generateShortId(type: Page['type'], currentPages: Page[]): strin
 }
 
 export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const [currentWorkspaceId, setCurrentWorkspaceId] = useState<string>('ws-default');
   const [pages, setPages] = useState<Page[]>([]);
   const [mentions, setMentions] = useState<Mention[]>([]);
   const [pinnedPageIds, setPinnedPageIds] = useState<string[]>([]);
@@ -175,23 +187,22 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       localStorage.removeItem('notehook_mentions_v5');
       localStorage.removeItem('notehook_ai_settings_v5');
 
+      const storedWorkspacesRaw = localStorage.getItem(STORAGE_KEYS.WORKSPACES);
+      const storedCurrentWorkspaceId = localStorage.getItem(STORAGE_KEYS.CURRENT_WORKSPACE_ID);
       const storedPages = localStorage.getItem(STORAGE_KEYS.PAGES) || localStorage.getItem('scribe_pages_v6');
       const storedMentions = localStorage.getItem(STORAGE_KEYS.MENTIONS) || localStorage.getItem('scribe_mentions_v6');
       const storedAi = localStorage.getItem(STORAGE_KEYS.AI_SETTINGS) || localStorage.getItem('scribe_ai_settings_v6');
       const storedWorkspace = localStorage.getItem(STORAGE_KEYS.WORKSPACE_NAME) || localStorage.getItem('scribe_workspace_name_v6');
       const storedPinned = localStorage.getItem(STORAGE_KEYS.PINNED_PAGES) || localStorage.getItem('scribe_pinned_pages_v6');
 
+      let parsedPinned: string[] = [];
       if (storedPinned) {
         try {
-          const parsedPinned = JSON.parse(storedPinned);
-          if (Array.isArray(parsedPinned)) setPinnedPageIds(parsedPinned);
+          const parsed = JSON.parse(storedPinned);
+          if (Array.isArray(parsed)) parsedPinned = parsed;
         } catch (e) {
           console.error('Failed to parse pinned pages', e);
         }
-      }
-
-      if (storedWorkspace) {
-        setWorkspaceNameState(sanitizeWorkspaceName(storedWorkspace));
       }
 
       const parsedPages: Page[] = storedPages ? JSON.parse(storedPages) : SEED_PAGES;
@@ -242,8 +253,54 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         assignedPages.push(p);
       }
 
-      setPages(assignedPages);
-      setMentions(storedMentions ? JSON.parse(storedMentions) : SEED_MENTIONS);
+      if (storedWorkspacesRaw) {
+        try {
+          const parsedWorkspaces: Workspace[] = JSON.parse(storedWorkspacesRaw);
+          if (Array.isArray(parsedWorkspaces) && parsedWorkspaces.length > 0) {
+            const activeWs =
+              parsedWorkspaces.find((w) => w.id === storedCurrentWorkspaceId) || parsedWorkspaces[0];
+            setWorkspaces(parsedWorkspaces);
+            setCurrentWorkspaceId(activeWs.id);
+            setWorkspaceNameState(activeWs.name || 'My Workspace');
+            setPages(activeWs.pages || []);
+            setMentions(activeWs.mentions || []);
+            setPinnedPageIds(activeWs.pinnedPageIds || []);
+          } else {
+            throw new Error('Empty workspaces array');
+          }
+        } catch (e) {
+          console.error('Failed to parse workspaces, creating default', e);
+          const initialWs: Workspace = {
+            id: 'ws-default',
+            name: storedWorkspace ? sanitizeWorkspaceName(storedWorkspace) : 'My Workspace',
+            created_at: new Date().toISOString(),
+            pages: assignedPages,
+            mentions: storedMentions ? JSON.parse(storedMentions) : SEED_MENTIONS,
+            pinnedPageIds: parsedPinned,
+          };
+          setWorkspaces([initialWs]);
+          setCurrentWorkspaceId(initialWs.id);
+          setWorkspaceNameState(initialWs.name);
+          setPages(assignedPages);
+          setMentions(initialWs.mentions);
+          setPinnedPageIds(initialWs.pinnedPageIds || []);
+        }
+      } else {
+        const initialWs: Workspace = {
+          id: 'ws-default',
+          name: storedWorkspace ? sanitizeWorkspaceName(storedWorkspace) : 'My Workspace',
+          created_at: new Date().toISOString(),
+          pages: assignedPages,
+          mentions: storedMentions ? JSON.parse(storedMentions) : SEED_MENTIONS,
+          pinnedPageIds: parsedPinned,
+        };
+        setWorkspaces([initialWs]);
+        setCurrentWorkspaceId(initialWs.id);
+        setWorkspaceNameState(initialWs.name);
+        setPages(assignedPages);
+        setMentions(initialWs.mentions);
+        setPinnedPageIds(initialWs.pinnedPageIds || []);
+      }
 
       if (storedAi) {
         const parsedAi: AISettings = JSON.parse(storedAi);
@@ -274,13 +331,51 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, []);
 
   useEffect(() => {
-    if (!isLoaded) return;
+    if (!isLoaded || !currentWorkspaceId) return;
+
+    // Update workspaces list with current workspace state
+    setWorkspaces((prevWorkspaces) => {
+      const existingIdx = prevWorkspaces.findIndex((w) => w.id === currentWorkspaceId);
+      let updated: Workspace[];
+      if (existingIdx >= 0) {
+        updated = prevWorkspaces.map((w) =>
+          w.id === currentWorkspaceId
+            ? {
+                ...w,
+                name: workspaceName,
+                pages,
+                mentions,
+                pinnedPageIds,
+                updated_at: new Date().toISOString(),
+              }
+            : w
+        );
+      } else {
+        const newWs: Workspace = {
+          id: currentWorkspaceId,
+          name: workspaceName,
+          created_at: new Date().toISOString(),
+          pages,
+          mentions,
+          pinnedPageIds,
+        };
+        updated = [...prevWorkspaces, newWs];
+      }
+      try {
+        localStorage.setItem(STORAGE_KEYS.WORKSPACES, JSON.stringify(updated));
+      } catch (e) {
+        console.error('Failed to save workspaces', e);
+      }
+      return updated;
+    });
+
+    localStorage.setItem(STORAGE_KEYS.CURRENT_WORKSPACE_ID, currentWorkspaceId);
     localStorage.setItem(STORAGE_KEYS.PAGES, JSON.stringify(pages));
     localStorage.setItem(STORAGE_KEYS.MENTIONS, JSON.stringify(mentions));
     localStorage.setItem(STORAGE_KEYS.AI_SETTINGS, JSON.stringify(aiSettings));
     localStorage.setItem(STORAGE_KEYS.WORKSPACE_NAME, workspaceName);
     localStorage.setItem(STORAGE_KEYS.PINNED_PAGES, JSON.stringify(pinnedPageIds));
-  }, [pages, mentions, aiSettings, workspaceName, pinnedPageIds, isLoaded]);
+  }, [pages, mentions, aiSettings, workspaceName, pinnedPageIds, currentWorkspaceId, isLoaded]);
 
   // Derived filtered page lists
   const messages = pages.filter((p) => p.type === 'message').reverse(); // all have newest first
@@ -968,8 +1063,138 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   };
 
+  const createWorkspace = (name?: string): Workspace => {
+    const cleanName = sanitizeWorkspaceName(name || 'New Workspace');
+    const newWs: Workspace = {
+      id: `ws-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      name: cleanName || 'New Workspace',
+      created_at: new Date().toISOString(),
+      pages: [],
+      mentions: [],
+      pinnedPageIds: [],
+    };
+
+    setWorkspaces((prev) => {
+      const updated = [...prev, newWs];
+      try {
+        localStorage.setItem(STORAGE_KEYS.WORKSPACES, JSON.stringify(updated));
+      } catch (e) {
+        console.error('Failed to save workspaces', e);
+      }
+      return updated;
+    });
+
+    setCurrentWorkspaceId(newWs.id);
+    setWorkspaceNameState(newWs.name);
+    setPages([]);
+    setMentions([]);
+    setPinnedPageIds([]);
+
+    setLeftPane({
+      type: 'chat',
+      id: null,
+      title: 'Chat Thread',
+    });
+    setLeftHistory([
+      {
+        type: 'chat',
+        id: null,
+        title: 'Chat Thread',
+      },
+    ]);
+    setRightPane({ type: 'empty', id: null });
+    setRightHistory([]);
+
+    localStorage.setItem(STORAGE_KEYS.CURRENT_WORKSPACE_ID, newWs.id);
+    return newWs;
+  };
+
+  const switchWorkspace = (workspaceId: string) => {
+    if (workspaceId === currentWorkspaceId) return;
+    const targetWs = workspaces.find((w) => w.id === workspaceId);
+    if (!targetWs) return;
+
+    setCurrentWorkspaceId(targetWs.id);
+    setWorkspaceNameState(targetWs.name);
+    setPages(targetWs.pages || []);
+    setMentions(targetWs.mentions || []);
+    setPinnedPageIds(targetWs.pinnedPageIds || []);
+
+    setLeftPane({
+      type: 'chat',
+      id: null,
+      title: 'Chat Thread',
+    });
+    setLeftHistory([
+      {
+        type: 'chat',
+        id: null,
+        title: 'Chat Thread',
+      },
+    ]);
+    setRightPane({ type: 'empty', id: null });
+    setRightHistory([]);
+
+    localStorage.setItem(STORAGE_KEYS.CURRENT_WORKSPACE_ID, targetWs.id);
+  };
+
+  const deleteWorkspace = (workspaceId: string) => {
+    if (workspaces.length <= 1) {
+      // If deleting the only workspace, reset to a fresh workspace
+      const freshWs: Workspace = {
+        id: `ws-${Date.now()}`,
+        name: 'My Workspace',
+        created_at: new Date().toISOString(),
+        pages: [],
+        mentions: [],
+        pinnedPageIds: [],
+      };
+      setWorkspaces([freshWs]);
+      setCurrentWorkspaceId(freshWs.id);
+      setWorkspaceNameState(freshWs.name);
+      setPages([]);
+      setMentions([]);
+      setPinnedPageIds([]);
+      localStorage.setItem(STORAGE_KEYS.WORKSPACES, JSON.stringify([freshWs]));
+      localStorage.setItem(STORAGE_KEYS.CURRENT_WORKSPACE_ID, freshWs.id);
+      return;
+    }
+
+    const remaining = workspaces.filter((w) => w.id !== workspaceId);
+    setWorkspaces(remaining);
+    localStorage.setItem(STORAGE_KEYS.WORKSPACES, JSON.stringify(remaining));
+
+    if (currentWorkspaceId === workspaceId) {
+      const nextWs = remaining[0];
+      setCurrentWorkspaceId(nextWs.id);
+      setWorkspaceNameState(nextWs.name);
+      setPages(nextWs.pages || []);
+      setMentions(nextWs.mentions || []);
+      setPinnedPageIds(nextWs.pinnedPageIds || []);
+      localStorage.setItem(STORAGE_KEYS.CURRENT_WORKSPACE_ID, nextWs.id);
+    }
+  };
+
+  const renameWorkspace = (workspaceId: string, newName: string) => {
+    const clean = sanitizeWorkspaceName(newName);
+    if (!clean) return;
+
+    setWorkspaces((prev) => {
+      const updated = prev.map((ws) =>
+        ws.id === workspaceId ? { ...ws, name: clean, updated_at: new Date().toISOString() } : ws
+      );
+      localStorage.setItem(STORAGE_KEYS.WORKSPACES, JSON.stringify(updated));
+      return updated;
+    });
+
+    if (currentWorkspaceId === workspaceId) {
+      setWorkspaceNameState(clean);
+    }
+  };
+
   const clearAllData = () => {
     localStorage.clear();
+    setWorkspaces([]);
     setPages([]);
     setMentions([]);
     setLeftPane({
@@ -1002,6 +1227,12 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         setAiSettings,
         workspaceName,
         setWorkspaceName,
+        workspaces,
+        currentWorkspaceId,
+        createWorkspace,
+        switchWorkspace,
+        deleteWorkspace,
+        renameWorkspace,
         leftPane,
         rightPane,
         leftHistory,
@@ -1057,4 +1288,3 @@ export const useNotehook = () => {
   }
   return ctx;
 };
-

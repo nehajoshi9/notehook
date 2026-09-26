@@ -1,7 +1,18 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Compass, Search, Plus, Tag, FileText, Zap, CheckSquare, LogIn, LogOut, User as UserIcon } from 'lucide-react';
+import Link from 'next/link';
+import {
+  Compass,
+  Search,
+  Plus,
+  Tag,
+  FileText,
+  Zap,
+  CheckSquare,
+  LogOut,
+  LayoutDashboard,
+} from 'lucide-react';
 import { openCommandPalette } from '@/components/modals/command-palette-modal';
 import { useIsMac } from '@/lib/use-os';
 import { useNotehook } from '@/lib/context';
@@ -122,14 +133,25 @@ export const Header: React.FC = () => {
 
   return (
     <header className="h-14 px-5 bg-white border-b border-zinc-200 flex items-center justify-between z-30 text-zinc-900 shrink-0 select-none relative">
-      {/* Brand Logo */}
-      <div className="flex items-center gap-2">
-        <div className="p-1 rounded-md bg-zinc-900 text-white shadow-2xs">
-          <Compass className="h-4 w-4" />
-        </div>
-        <span className="text-sm font-bold tracking-tight text-zinc-950 font-heading">
-          Notehook
-        </span>
+      {/* Brand Logo & Dashboard Button */}
+      <div className="flex items-center gap-2.5">
+        <Link href="/dashboard" className="flex items-center gap-2 group cursor-pointer" title="Go to Workspaces Dashboard">
+          <div className="p-1 rounded-md bg-zinc-900 text-white shadow-2xs group-hover:bg-zinc-800 transition-colors">
+            <Compass className="h-4 w-4" />
+          </div>
+          <span className="text-sm font-bold tracking-tight text-zinc-950 font-heading">
+            Notehook
+          </span>
+        </Link>
+
+        <Link
+          href="/dashboard"
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold text-zinc-600 hover:text-zinc-950 bg-zinc-100/70 hover:bg-zinc-100 border border-zinc-200/80 transition-all cursor-pointer shadow-2xs"
+          title="Open Workspaces Dashboard"
+        >
+          <LayoutDashboard className="w-3.5 h-3.5 text-zinc-500" />
+          <span className="hidden sm:inline">Dashboard</span>
+        </Link>
       </div>
 
       {/* Center Group: Workspace Name Input (Left) + Command Palette Button (Right) */}
@@ -288,7 +310,7 @@ export const Header: React.FC = () => {
                       className="w-6 h-6 rounded-full object-cover"
                     />
                   ) : (
-                    <div className="w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px] font-bold">
+                    <div className="w-6 h-6 rounded-full bg-zinc-900 text-white flex items-center justify-center text-[10px] font-bold">
                       {userName.charAt(0).toUpperCase()}
                     </div>
                   )}
@@ -304,6 +326,15 @@ export const Header: React.FC = () => {
                       <p className="font-semibold text-zinc-900 truncate">{userName}</p>
                       <p className="text-[11px] text-zinc-500 truncate">{user.email}</p>
                     </div>
+
+                    <Link
+                      href="/dashboard"
+                      onClick={() => setIsUserMenuOpen(false)}
+                      className="w-full text-left px-2 py-1.5 rounded flex items-center gap-2 text-zinc-700 hover:text-zinc-950 hover:bg-zinc-100 transition-colors cursor-pointer mb-1"
+                    >
+                      <LayoutDashboard className="w-3.5 h-3.5 text-zinc-500" />
+                      <span className="font-medium">All Workspaces</span>
+                    </Link>
 
                     <button
                       type="button"

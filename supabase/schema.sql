@@ -7,9 +7,10 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- 2. Workspaces Table
 CREATE TABLE IF NOT EXISTS public.workspaces (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
   name TEXT NOT NULL DEFAULT 'Main Workspace',
+  pinned_page_ids JSONB DEFAULT '[]'::jsonb,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -18,7 +19,7 @@ CREATE TABLE IF NOT EXISTS public.workspaces (
 CREATE TABLE IF NOT EXISTS public.pages (
   id TEXT PRIMARY KEY,
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
-  workspace_id UUID REFERENCES public.workspaces(id) ON DELETE CASCADE,
+  workspace_id TEXT REFERENCES public.workspaces(id) ON DELETE CASCADE,
   short_id TEXT,
   type TEXT NOT NULL CHECK (type IN ('message', 'todo', 'decision', 'entity', 'note')),
   title TEXT NOT NULL,
@@ -41,6 +42,7 @@ CREATE TABLE IF NOT EXISTS public.pages (
 CREATE TABLE IF NOT EXISTS public.mentions (
   id TEXT PRIMARY KEY,
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  workspace_id TEXT REFERENCES public.workspaces(id) ON DELETE CASCADE,
   target_page_id TEXT NOT NULL,
   source_page_id TEXT NOT NULL,
   span_start INTEGER,
@@ -51,11 +53,14 @@ CREATE TABLE IF NOT EXISTS public.mentions (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 5. Indexes for fast lookup & backlink queries
+-- 5. Indexes for fast lookup, workspace filtering & backlink queries
+CREATE INDEX IF NOT EXISTS idx_workspaces_user_id ON public.workspaces(user_id);
 CREATE INDEX IF NOT EXISTS idx_pages_user_id ON public.pages(user_id);
+CREATE INDEX IF NOT EXISTS idx_pages_workspace_id ON public.pages(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_pages_type ON public.pages(type);
 CREATE INDEX IF NOT EXISTS idx_pages_created_at ON public.pages(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_mentions_user_id ON public.mentions(user_id);
+CREATE INDEX IF NOT EXISTS idx_mentions_workspace_id ON public.mentions(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_mentions_target_page ON public.mentions(target_page_id);
 CREATE INDEX IF NOT EXISTS idx_mentions_source_page ON public.mentions(source_page_id);
 
@@ -64,9 +69,10 @@ ALTER TABLE public.workspaces ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.pages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.mentions ENABLE ROW LEVEL SECURITY;
 
--- 7. RLS Policies (Users can only read and mutate their own rows)
+-- 7. RLS Policies (Drop existing first so this script can be re-run safely)
 
 -- Workspaces Policies
+DROP POLICY IF EXISTS "Users can manage their own workspaces" ON public.workspaces;
 CREATE POLICY "Users can manage their own workspaces"
   ON public.workspaces
   FOR ALL
@@ -74,6 +80,7 @@ CREATE POLICY "Users can manage their own workspaces"
   WITH CHECK (auth.uid() = user_id);
 
 -- Pages Policies
+DROP POLICY IF EXISTS "Users can manage their own pages" ON public.pages;
 CREATE POLICY "Users can manage their own pages"
   ON public.pages
   FOR ALL
@@ -81,6 +88,7 @@ CREATE POLICY "Users can manage their own pages"
   WITH CHECK (auth.uid() = user_id);
 
 -- Mentions Policies
+DROP POLICY IF EXISTS "Users can manage their own mentions" ON public.mentions;
 CREATE POLICY "Users can manage their own mentions"
   ON public.mentions
   FOR ALL
