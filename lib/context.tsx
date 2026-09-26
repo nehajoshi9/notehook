@@ -101,13 +101,13 @@ export interface NotehookContextType {
 const NotehookContext = createContext<NotehookContextType | undefined>(undefined);
 
 const STORAGE_KEYS = {
-  PAGES: 'notehook_pages_v6',
-  MENTIONS: 'notehook_mentions_v6',
-  AI_SETTINGS: 'notehook_ai_settings_v6',
-  WORKSPACE_NAME: 'notehook_workspace_name_v6',
-  PINNED_PAGES: 'notehook_pinned_pages_v6',
-  WORKSPACES: 'notehook_workspaces_v6',
-  CURRENT_WORKSPACE_ID: 'notehook_current_workspace_id_v6',
+  PAGES: 'notehook_pages_v7',
+  MENTIONS: 'notehook_mentions_v7',
+  AI_SETTINGS: 'notehook_ai_settings_v7',
+  WORKSPACE_NAME: 'notehook_workspace_name_v7',
+  PINNED_PAGES: 'notehook_pinned_pages_v7',
+  WORKSPACES: 'notehook_workspaces_v7',
+  CURRENT_WORKSPACE_ID: 'notehook_current_workspace_id_v7',
 };
 
 function deduplicateWorkspacePages(rawPages: Page[]): Page[] {
@@ -237,20 +237,17 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // Initial Local Storage Load (runs once on mount)
   useEffect(() => {
     try {
-      localStorage.removeItem('scribe_pages_v5');
-      localStorage.removeItem('scribe_mentions_v5');
-      localStorage.removeItem('scribe_ai_settings_v5');
-      localStorage.removeItem('notehook_pages_v5');
-      localStorage.removeItem('notehook_mentions_v5');
-      localStorage.removeItem('notehook_ai_settings_v5');
+      localStorage.removeItem('notehook_pages_v6');
+      localStorage.removeItem('notehook_mentions_v6');
+      localStorage.removeItem('notehook_workspaces_v6');
 
       const storedWorkspacesRaw = localStorage.getItem(STORAGE_KEYS.WORKSPACES);
       const storedCurrentWorkspaceId = localStorage.getItem(STORAGE_KEYS.CURRENT_WORKSPACE_ID);
-      const storedPages = localStorage.getItem(STORAGE_KEYS.PAGES) || localStorage.getItem('scribe_pages_v6');
-      const storedMentions = localStorage.getItem(STORAGE_KEYS.MENTIONS) || localStorage.getItem('scribe_mentions_v6');
-      const storedAi = localStorage.getItem(STORAGE_KEYS.AI_SETTINGS) || localStorage.getItem('scribe_ai_settings_v6');
-      const storedWorkspace = localStorage.getItem(STORAGE_KEYS.WORKSPACE_NAME) || localStorage.getItem('scribe_workspace_name_v6');
-      const storedPinned = localStorage.getItem(STORAGE_KEYS.PINNED_PAGES) || localStorage.getItem('scribe_pinned_pages_v6');
+      const storedPages = localStorage.getItem(STORAGE_KEYS.PAGES);
+      const storedMentions = localStorage.getItem(STORAGE_KEYS.MENTIONS);
+      const storedAi = localStorage.getItem(STORAGE_KEYS.AI_SETTINGS);
+      const storedWorkspace = localStorage.getItem(STORAGE_KEYS.WORKSPACE_NAME);
+      const storedPinned = localStorage.getItem(STORAGE_KEYS.PINNED_PAGES);
 
       let parsedPinned: string[] = [];
       if (storedPinned) {

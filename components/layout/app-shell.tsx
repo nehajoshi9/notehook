@@ -9,6 +9,7 @@ import { PaneContainer } from './pane-container';
 import { AIChatInput } from '../ai/ai-chat-input';
 import { FloatingSelectionToolbar } from '../editor/floating-selection-toolbar';
 import { CommandPaletteModal } from '../modals/command-palette-modal';
+import { MobileNoticeModal } from '../modals/mobile-notice-modal';
 
 export const AppShell: React.FC = () => {
   React.useEffect(() => {
@@ -99,6 +100,7 @@ export const AppShell: React.FC = () => {
       </div>
       <FloatingSelectionToolbar />
       <CommandPaletteModal />
+      <MobileNoticeModal />
     </div>
   );
 };
