@@ -355,7 +355,7 @@ body.is-selecting-text .page-mention-pill:hover .pill-short {
 
 .notehook-gutter-handle {
   position: absolute;
-  left: -2.25rem;
+  left: -1.35rem;
   top: 0.15rem;
   transform: translateX(-50%);
   opacity: 0;
@@ -382,12 +382,12 @@ body.is-selecting-text .page-mention-pill:hover .pill-short {
 
 @media (min-width: 768px) {
   .notehook-gutter-handle {
-    left: -2.75rem;
+    left: -1.6rem;
   }
 
   .notehook-gutter-handle::before {
-    left: -1.75rem;
-    right: -1.75rem;
+    left: -1.5rem;
+    right: -1.5rem;
   }
 }
 
@@ -398,13 +398,13 @@ body.is-selecting-text .page-mention-pill:hover .pill-short {
 
 .notehook-user-prompt-turn .notehook-gutter-handle {
   top: 1.85rem;
-  left: -1.25rem;
+  left: -1.35rem;
   transform: translateX(-50%);
 }
 
 @media (min-width: 768px) {
   .notehook-user-prompt-turn .notehook-gutter-handle {
-    left: -1.75rem;
+    left: -1.6rem;
     transform: translateX(-50%);
   }
 }

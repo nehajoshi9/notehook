@@ -221,23 +221,10 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const parsedPages: Page[] = storedPages ? JSON.parse(storedPages) : SEED_PAGES;
 
       const cleanedPages = parsedPages.map((p) => {
-        let cleanTitle = p.title.replace(/…$/, '').trim();
-        const seedMatch = SEED_PAGES.find(
-          (sp) => sp.id === p.id || sp.title.toLowerCase().startsWith(cleanTitle.toLowerCase())
-        );
-        if (seedMatch) {
-          cleanTitle = seedMatch.title;
-        }
-
-        let cleanContent = p.content || '';
-        if (seedMatch && seedMatch.content && p.id === seedMatch.id) {
-          cleanContent = seedMatch.content;
-        }
-        cleanContent = normalizeRawContentToCanonicalBrackets(cleanContent, parsedPages);
-
+        const cleanContent = normalizeRawContentToCanonicalBrackets(p.content || '', parsedPages);
         return {
           ...p,
-          title: cleanTitle,
+          title: p.title || 'Untitled',
           content: cleanContent,
         };
       });

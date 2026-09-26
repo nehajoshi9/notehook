@@ -365,7 +365,7 @@ export const ChatThreadView: React.FC<ChatThreadViewProps> = ({ paneIndex = 1 })
         </button>
       )}
       {/* Scrollable Chat Conversation Feed */}
-      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto overflow-x-hidden space-y-6 bg-white p-4 md:p-6">
+      <div ref={scrollContainerRef} className={`flex-1 overflow-y-auto overflow-x-hidden space-y-6 bg-white py-4 pr-4 md:py-6 md:pr-6 ${isDualPane ? 'pl-10 md:pl-12' : 'pl-10 md:pl-12'}`}>
         {sortedNotes.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full min-h-[360px] text-center max-w-xl mx-auto py-8 px-4 select-none">
             <NotehookLogo className="w-12 h-12 text-purple-600 mb-3" />
