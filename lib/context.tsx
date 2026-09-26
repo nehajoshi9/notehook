@@ -110,6 +110,33 @@ const STORAGE_KEYS = {
   CURRENT_WORKSPACE_ID: 'notehook_current_workspace_id_v6',
 };
 
+function deduplicateWorkspacePages(rawPages: Page[]): Page[] {
+  const result: Page[] = [];
+  let hasWelcome = false;
+  for (const p of rawPages) {
+    const isWelcome =
+      p.type === 'note' &&
+      (p.title.toLowerCase().includes('welcome') ||
+        p.short_id === 'n1' ||
+        p.id.startsWith('welcome-note') ||
+        p.id === 'seed-welcome-note');
+
+    if (isWelcome) {
+      if (!hasWelcome) {
+        hasWelcome = true;
+        result.push({
+          ...p,
+          title: 'Welcome to Notehook! 👋',
+          content: p.content ? p.content.replace(/^#\s+Welcome[^\n]*\n+/i, '').trim() : '',
+        });
+      }
+    } else {
+      result.push(p);
+    }
+  }
+  return result;
+}
+
 export function generateShortId(type: Page['type'], currentPages: Page[]): string {
   const prefix = type === 'entity' ? 'e' : type === 'message' ? 'm' : type === 'note' ? 'n' : type === 'decision' ? 'd' : 't';
   const sameType = currentPages.filter((p) => p.type === type);
@@ -281,15 +308,7 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           if (Array.isArray(parsedWorkspacesRawList) && parsedWorkspacesRawList.length > 0) {
             const parsedWorkspaces: Workspace[] = parsedWorkspacesRawList.map((ws) => ({
               ...ws,
-              pages: (ws.pages || []).map((p) => {
-                let content = normalizeRawContentToCanonicalBrackets(p.content || '', ws.pages || []);
-                content = content.replace(/^#\s+Welcome[^\n]*\n+/i, '').trim();
-                let title = p.title || 'Untitled';
-                if (title.toLowerCase() === 'welcome' || title === 'Welcome') {
-                  title = 'Welcome to Notehook! 👋';
-                }
-                return { ...p, title, content };
-              }),
+              pages: deduplicateWorkspacePages(ws.pages || []),
             }));
             const activeWs =
               parsedWorkspaces.find((w) => w.id === storedCurrentWorkspaceId) || parsedWorkspaces[0];
@@ -440,11 +459,16 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         const remoteData = await fetchUserWorkspacesAndPages(currentUserId);
         if (remoteData.workspaces && remoteData.workspaces.length > 0) {
           // User has existing data in Supabase! Load it cleanly
+          const sanitizedWorkspaces = remoteData.workspaces.map((ws) => ({
+            ...ws,
+            pages: deduplicateWorkspacePages(ws.pages || []),
+          }));
+
           const storedWsId = localStorage.getItem(STORAGE_KEYS.CURRENT_WORKSPACE_ID);
           const activeWs =
-            (storedWsId ? remoteData.workspaces.find((w) => w.id === storedWsId) : undefined) ||
-            (remoteData.activeWorkspaceId ? remoteData.workspaces.find((w) => w.id === remoteData.activeWorkspaceId) : undefined) ||
-            remoteData.workspaces[0];
+            (storedWsId ? sanitizedWorkspaces.find((w) => w.id === storedWsId) : undefined) ||
+            (remoteData.activeWorkspaceId ? sanitizedWorkspaces.find((w) => w.id === remoteData.activeWorkspaceId) : undefined) ||
+            sanitizedWorkspaces[0];
 
           const wsPages = activeWs.pages || [];
           const wsMentions = activeWs.mentions || [];
@@ -452,7 +476,7 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
           isHydratingRef.current = true;
 
-          setWorkspaces(remoteData.workspaces);
+          setWorkspaces(sanitizedWorkspaces);
           setCurrentWorkspaceId(activeWs.id);
           setWorkspaceNameState(activeWs.name || 'My Workspace');
           setPages(wsPages);

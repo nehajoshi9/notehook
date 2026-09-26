@@ -136,17 +136,44 @@ export async function fetchUserWorkspacesAndPages(userId: string): Promise<{
 
     // If workspaces exist, partition pages and mentions by workspace_id
     if (hasWorkspaces && wsRows) {
-      const workspaces: Workspace[] = wsRows.map((wRow, idx) => {
-        // Collect pages matching workspace_id or unassigned pages attached to the first workspace
-        const wsPages = (pageRows || [])
-          .filter((pRow) => pRow.workspace_id === wRow.id || (!pRow.workspace_id && idx === 0))
+      const isSingleWorkspace = wsRows.length === 1;
+      const allDuplicateWelcomeIdsToDelete: string[] = [];
+
+      const workspaces: Workspace[] = wsRows.map((wRow) => {
+        // Collect pages belonging to this specific workspace (or fallback if only 1 workspace exists)
+        const wsPagesRaw = (pageRows || [])
+          .filter((pRow) => pRow.workspace_id === wRow.id || (isSingleWorkspace && !pRow.workspace_id))
           .map((pRow) => allPages.find((p) => p.id === pRow.id)!)
           .filter(Boolean);
 
         const wsMentions = (mentionRows || [])
-          .filter((mRow) => mRow.workspace_id === wRow.id || (!mRow.workspace_id && idx === 0))
+          .filter((mRow) => mRow.workspace_id === wRow.id || (isSingleWorkspace && !mRow.workspace_id))
           .map((mRow) => allMentions.find((m) => m.id === mRow.id)!)
           .filter(Boolean);
+
+        // Deduplicate welcome notes so each workspace has strictly 1 default welcome note
+        const wsPages: Page[] = [];
+        let hasWelcomeNote = false;
+
+        for (const p of wsPagesRaw) {
+          const isWelcome =
+            p.type === 'note' &&
+            (p.title.toLowerCase().includes('welcome') ||
+              p.short_id === 'n1' ||
+              p.id.startsWith('welcome-note') ||
+              p.id === 'seed-welcome-note');
+
+          if (isWelcome) {
+            if (!hasWelcomeNote) {
+              hasWelcomeNote = true;
+              wsPages.push(p);
+            } else {
+              allDuplicateWelcomeIdsToDelete.push(p.id);
+            }
+          } else {
+            wsPages.push(p);
+          }
+        }
 
         let pinned: string[] = [];
         if (Array.isArray(wRow.pinned_page_ids)) {
@@ -174,10 +201,9 @@ export async function fetchUserWorkspacesAndPages(userId: string): Promise<{
         };
       });
 
-      // If all workspaces somehow ended up empty but allPages has data, put allPages in workspace 0
-      if (allPages.length > 0 && workspaces.every((w) => w.pages.length === 0)) {
-        workspaces[0].pages = allPages;
-        workspaces[0].mentions = allMentions;
+      // Asynchronously clean up any extraneous duplicate welcome notes from Supabase
+      if (allDuplicateWelcomeIdsToDelete.length > 0) {
+        deletePagesFromSupabase(userId, allDuplicateWelcomeIdsToDelete);
       }
 
       return {
