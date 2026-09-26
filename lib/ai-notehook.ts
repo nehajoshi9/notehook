@@ -865,15 +865,20 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
           let toolCallToExecute: { name: string; args: any } | null = null;
 
           if (reader) {
+            let sseBuffer = '';
             while (true) {
               const { done, value } = await reader.read();
               if (done) break;
-              const chunk = decoder.decode(value, { stream: true });
-              const lines = chunk.split('\n');
+              sseBuffer += decoder.decode(value, { stream: true });
+              const lines = sseBuffer.split('\n');
+              // Save the last incomplete segment back into the buffer
+              sseBuffer = lines.pop() || '';
+
               for (const line of lines) {
-                if (line.startsWith('data: ')) {
+                const trimmed = line.trim();
+                if (trimmed.startsWith('data: ')) {
                   try {
-                    const json = JSON.parse(line.substring(6));
+                    const json = JSON.parse(trimmed.substring(6));
                     const parts = json.candidates?.[0]?.content?.parts || [];
                     for (const part of parts) {
                       if (part.text) {
@@ -889,6 +894,22 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
                   }
                 }
               }
+            }
+            // Process any remaining buffered data
+            if (sseBuffer.trim().startsWith('data: ')) {
+              try {
+                const json = JSON.parse(sseBuffer.trim().substring(6));
+                const parts = json.candidates?.[0]?.content?.parts || [];
+                for (const part of parts) {
+                  if (part.text) {
+                    fullText += part.text;
+                    if (onChunk) onChunk(part.text);
+                  }
+                  if (part.functionCall) {
+                    toolCallToExecute = part.functionCall;
+                  }
+                }
+              } catch (e) {}
             }
           }
 
@@ -940,15 +961,19 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
               const secondReader = secondRes.body?.getReader();
               let secondFullText = '';
               if (secondReader) {
+                let sseBuffer = '';
                 while (true) {
                   const { done, value } = await secondReader.read();
                   if (done) break;
-                  const chunk = decoder.decode(value, { stream: true });
-                  const lines = chunk.split('\n');
+                  sseBuffer += decoder.decode(value, { stream: true });
+                  const lines = sseBuffer.split('\n');
+                  sseBuffer = lines.pop() || '';
+
                   for (const line of lines) {
-                    if (line.startsWith('data: ')) {
+                    const trimmed = line.trim();
+                    if (trimmed.startsWith('data: ')) {
                       try {
-                        const json = JSON.parse(line.substring(6));
+                        const json = JSON.parse(trimmed.substring(6));
                         const textPart = json.candidates?.[0]?.content?.parts?.[0]?.text || '';
                         if (textPart) {
                           secondFullText += textPart;
@@ -957,6 +982,16 @@ CONTRAST EXAMPLES (BEHAVIOR TARGETS):
                       } catch (e) {}
                     }
                   }
+                }
+                if (sseBuffer.trim().startsWith('data: ')) {
+                  try {
+                    const json = JSON.parse(sseBuffer.trim().substring(6));
+                    const textPart = json.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                    if (textPart) {
+                      secondFullText += textPart;
+                      if (onChunk) onChunk(textPart);
+                    }
+                  } catch (e) {}
                 }
               }
               if (secondFullText) {
