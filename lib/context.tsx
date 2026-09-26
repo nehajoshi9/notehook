@@ -277,8 +277,20 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
       if (storedWorkspacesRaw) {
         try {
-          const parsedWorkspaces: Workspace[] = JSON.parse(storedWorkspacesRaw);
-          if (Array.isArray(parsedWorkspaces) && parsedWorkspaces.length > 0) {
+          const parsedWorkspacesRawList: Workspace[] = JSON.parse(storedWorkspacesRaw);
+          if (Array.isArray(parsedWorkspacesRawList) && parsedWorkspacesRawList.length > 0) {
+            const parsedWorkspaces: Workspace[] = parsedWorkspacesRawList.map((ws) => ({
+              ...ws,
+              pages: (ws.pages || []).map((p) => {
+                let content = normalizeRawContentToCanonicalBrackets(p.content || '', ws.pages || []);
+                content = content.replace(/^#\s+Welcome[^\n]*\n+/i, '').trim();
+                let title = p.title || 'Untitled';
+                if (title.toLowerCase() === 'welcome' || title === 'Welcome') {
+                  title = 'Welcome to Notehook! 👋';
+                }
+                return { ...p, title, content };
+              }),
+            }));
             const activeWs =
               parsedWorkspaces.find((w) => w.id === storedCurrentWorkspaceId) || parsedWorkspaces[0];
             setWorkspaces(parsedWorkspaces);

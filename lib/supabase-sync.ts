@@ -74,12 +74,19 @@ export async function fetchUserWorkspacesAndPages(userId: string): Promise<{
         }
       }
 
+      let title = row.title || 'Untitled';
+      let content = row.content || '';
+      if (title.toLowerCase() === 'welcome' || title.toLowerCase().includes('welcome')) {
+        title = 'Welcome to Notehook! 👋';
+        content = content.replace(/^#\s+Welcome[^\n]*\n+/i, '').trim();
+      }
+
       return {
         id: row.id,
         short_id: row.short_id,
         type: row.type,
-        title: row.title || 'Untitled',
-        content: row.content || '',
+        title,
+        content,
         created_at: row.created_at || new Date().toISOString(),
         updated_at: row.updated_at,
         role: row.role,

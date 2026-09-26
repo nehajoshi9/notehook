@@ -448,6 +448,12 @@ export function convertNotehookTextToHtml(
   if (!rawText) return '';
   let html = rawText;
 
+  // Strip redundant leading markdown H1 matching Welcome
+  html = html.replace(/^#\s+Welcome[^\n]*\n*/i, '').trim();
+
+  // Convert any remaining single # H1 in body to ## H2 so the page card title remains the sole H1
+  html = html.replace(/^(?<!#)#\s+([^\n]+)/gm, '## $1');
+
   const isPageExists = (type: 'todo' | 'decision' | 'note' | 'message' | 'entity', cleanName: string): boolean => {
     if (!pages || pages.length === 0) return true;
     const clean = cleanName.replace(/^(todo:|decision:|note:|message:|\s*)+/i, '').trim().toLowerCase();

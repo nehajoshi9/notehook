@@ -400,8 +400,15 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
   useEffect(() => {
     if (targetPage) {
       if (!isEditing) {
-        const normalized = normalizeRawContentToCanonicalBrackets(targetPage.content || '', pages);
+        let normalized = normalizeRawContentToCanonicalBrackets(targetPage.content || '', pages);
+        // Strip duplicate leading markdown H1 from welcome note or content matching title
+        if (targetPage.type === 'note' && (targetPage.title.toLowerCase().includes('welcome') || targetPage.short_id === 'n1')) {
+          normalized = normalized.replace(/^#\s+Welcome[^\n]*\n+/i, '').trim();
+        }
         setBodyText(normalized);
+        if (normalized !== targetPage.content) {
+          updatePageContent(targetPage.id, normalized);
+        }
       }
       if (!isEditingPrompt) {
         setPromptText(targetPage.user_prompt || '');
@@ -1392,7 +1399,11 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
               }`}
             dangerouslySetInnerHTML={isPageSearchOpen && pageSearchQuery.trim() ? { __html: renderedTitleHtml } : undefined}
           >
-            {isPageSearchOpen && pageSearchQuery.trim() ? null : targetPage.title}
+            {isPageSearchOpen && pageSearchQuery.trim()
+              ? null
+              : (targetPage.title.toLowerCase() === 'welcome' || targetPage.title === 'Welcome'
+                ? 'Welcome to Notehook! 👋'
+                : targetPage.title)}
           </h1>
         </div>
 
