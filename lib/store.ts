@@ -1,8 +1,6 @@
 import { Page, Mention } from './types';
 
-export const WELCOME_NOTE_CONTENT = `# Welcome to Notehook! 👋
-
-Have you ever had a long, productive brainstorm with an AI, only to find that important decisions, specs, and to-do items got lost under a mountain of scrolling?
+export const WELCOME_NOTE_CONTENT = `Have you ever had a long, productive brainstorm with an AI, only to find that important decisions, specs, and to-do items got lost under a mountain of scrolling?
 
 **Notehook solves that.** It gives your AI conversations a structured, dual-pane workspace where your ideas, decisions, tasks, and notes stay organized, linked, and easy to find—without breaking the flow of your chat.
 
@@ -97,7 +95,7 @@ export function createDefaultWelcomePage(): Page {
     id: `welcome-note-${Date.now()}`,
     short_id: 'n1',
     type: 'note',
-    title: 'Welcome',
+    title: 'Welcome to Notehook! 👋',
     content: WELCOME_NOTE_CONTENT,
     created_at: new Date().toISOString(),
   };
