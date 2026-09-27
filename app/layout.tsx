@@ -26,6 +26,7 @@ export const metadata: Metadata = {
 };
 
 import { Providers } from "@/components/providers";
+import { Analytics } from "@vercel/analytics/next";
 
 export default function RootLayout({
   children,
@@ -39,6 +40,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-zinc-950 text-zinc-100">
         <Providers>{children}</Providers>
+        <Analytics />
       </body>
     </html>
   );
