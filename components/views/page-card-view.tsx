@@ -374,6 +374,18 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
     );
     runningCount += bodyRes.count;
 
+    // Include active entity version content in search count
+    let versionRes = { html: '', count: 0 } as any;
+    if (activeVersion?.content) {
+      versionRes = highlightSearchInHtml(
+        convertNotehookTextToHtml(activeVersion.content, 'auto', pages),
+        query,
+        runningCount,
+        currentMatchIndex
+      );
+      runningCount += versionRes.count;
+    }
+
     return {
       renderedTitleHtml: titleRes.html,
       renderedPromptHtml: promptRes.html,
@@ -1714,7 +1726,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
             onMouseDown={(e) => {
               handleGutterMouseDown(e, e.currentTarget.parentElement || e.currentTarget);
             }}
-            className="mt-3 bg-zinc-100/90 border border-zinc-200/90 rounded-2xl p-4 md:p-5 flex flex-col gap-3 shadow-2xs select-text shrink-0 w-full notehook-markdown-block relative"
+            className="mt-1 bg-zinc-100/90 border border-zinc-200/90 rounded-2xl p-4 md:p-5 flex flex-col gap-3 shadow-2xs select-text shrink-0 w-full notehook-markdown-block relative"
           >
             <div
               className="notehook-gutter-handle"
