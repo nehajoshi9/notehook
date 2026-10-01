@@ -303,7 +303,11 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'f') {
         e.preventDefault();
         e.stopPropagation();
-        setIsPageSearchOpen((prev) => !prev);
+        setIsPageSearchOpen(true);
+        setTimeout(() => {
+          pageSearchInputRef.current?.focus();
+          pageSearchInputRef.current?.select();
+        }, 30);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -312,7 +316,10 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
 
   useEffect(() => {
     if (isPageSearchOpen) {
-      setTimeout(() => pageSearchInputRef.current?.focus(), 50);
+      setTimeout(() => {
+        pageSearchInputRef.current?.focus();
+        pageSearchInputRef.current?.select();
+      }, 50);
     }
   }, [isPageSearchOpen]);
 
@@ -341,72 +348,6 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
       focusAndSelectTitle(titleRef.current, 80);
     }
   }, [targetPage?.id, currentPaneState?.id, currentPaneState?.autofocusTitle]);
-
-  const { renderedTitleHtml, renderedPromptHtml, renderedBodyHtml, totalMatchCount } = React.useMemo(() => {
-    const query = pageSearchQuery.trim();
-    if (!isPageSearchOpen || !query || !targetPage) {
-      return {
-        renderedTitleHtml: targetPage?.title || '',
-        renderedPromptHtml: convertNotehookTextToHtml(targetPage?.user_prompt || '', 'auto', pages),
-        renderedBodyHtml: convertNotehookTextToHtml(bodyText || '', 'auto', pages),
-        totalMatchCount: 0,
-      };
-    }
-
-    let runningCount = 0;
-
-    const titleRes = highlightSearchInHtml(targetPage.title, query, runningCount, currentMatchIndex);
-    runningCount += titleRes.count;
-
-    const promptRes = highlightSearchInHtml(
-      convertNotehookTextToHtml(targetPage.user_prompt || '', 'auto', pages),
-      query,
-      runningCount,
-      currentMatchIndex
-    );
-    runningCount += promptRes.count;
-
-    const bodyRes = highlightSearchInHtml(
-      convertNotehookTextToHtml(bodyText || '', 'auto', pages),
-      query,
-      runningCount,
-      currentMatchIndex
-    );
-    runningCount += bodyRes.count;
-
-    // Include active entity version content in search count
-    let versionRes = { html: '', count: 0 } as any;
-    if (activeVersion?.content) {
-      versionRes = highlightSearchInHtml(
-        convertNotehookTextToHtml(activeVersion.content, 'auto', pages),
-        query,
-        runningCount,
-        currentMatchIndex
-      );
-      runningCount += versionRes.count;
-    }
-
-    return {
-      renderedTitleHtml: titleRes.html,
-      renderedPromptHtml: promptRes.html,
-      renderedBodyHtml: bodyRes.html,
-      totalMatchCount: runningCount,
-    };
-  }, [isPageSearchOpen, pageSearchQuery, currentMatchIndex, targetPage, bodyText, pages]);
-
-  // Scroll active search match smoothly into view (focusing first match index 0 when triggered)
-  useEffect(() => {
-    if (isPageSearchOpen && pageSearchQuery.trim() && totalMatchCount > 0) {
-      const scrollTimer = setTimeout(() => {
-        const targetIdx = currentMatchIndex >= 0 && currentMatchIndex < totalMatchCount ? currentMatchIndex : 0;
-        const activeEl = document.querySelector(`[data-search-index="${targetIdx}"]`);
-        if (activeEl) {
-          activeEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-      }, 80);
-      return () => clearTimeout(scrollTimer);
-    }
-  }, [isPageSearchOpen, pageSearchQuery, currentMatchIndex, totalMatchCount]);
 
   const autoResizeTextarea = (el: HTMLTextAreaElement | null, minHeight: number = 28) => {
     if (!el) return;
@@ -791,6 +732,74 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
       prevVersionQueryRef.current = versionQuery;
     }
   }, [versionQuery]);
+
+  const { renderedTitleHtml, renderedPromptHtml, renderedBodyHtml, renderedVersionHtml, totalMatchCount } = React.useMemo(() => {
+    const query = pageSearchQuery.trim();
+    if (!isPageSearchOpen || !query || !targetPage) {
+      return {
+        renderedTitleHtml: targetPage?.title || '',
+        renderedPromptHtml: convertNotehookTextToHtml(targetPage?.user_prompt || '', 'auto', pages),
+        renderedBodyHtml: convertNotehookTextToHtml(bodyText || '', 'auto', pages),
+        renderedVersionHtml: convertNotehookTextToHtml(activeVersion?.content || '', 'auto', pages),
+        totalMatchCount: 0,
+      };
+    }
+
+    let runningCount = 0;
+
+    const titleRes = highlightSearchInHtml(targetPage.title, query, runningCount, currentMatchIndex);
+    runningCount += titleRes.count;
+
+    const promptRes = highlightSearchInHtml(
+      convertNotehookTextToHtml(targetPage.user_prompt || '', 'auto', pages),
+      query,
+      runningCount,
+      currentMatchIndex
+    );
+    runningCount += promptRes.count;
+
+    const bodyRes = highlightSearchInHtml(
+      convertNotehookTextToHtml(bodyText || '', 'auto', pages),
+      query,
+      runningCount,
+      currentMatchIndex
+    );
+    runningCount += bodyRes.count;
+
+    // Include active entity version content in search count
+    let versionRes = { html: '', count: 0 } as any;
+    if (activeVersion?.content) {
+      versionRes = highlightSearchInHtml(
+        convertNotehookTextToHtml(activeVersion.content, 'auto', pages),
+        query,
+        runningCount,
+        currentMatchIndex
+      );
+      runningCount += versionRes.count;
+    }
+
+    return {
+      renderedTitleHtml: titleRes.html,
+      renderedPromptHtml: promptRes.html,
+      renderedBodyHtml: bodyRes.html,
+      renderedVersionHtml: versionRes.html,
+      totalMatchCount: runningCount,
+    };
+  }, [isPageSearchOpen, pageSearchQuery, currentMatchIndex, targetPage, bodyText, activeVersion?.content, pages]);
+
+  // Scroll active search match smoothly into view (focusing first match index 0 when triggered)
+  useEffect(() => {
+    if (isPageSearchOpen && pageSearchQuery.trim() && totalMatchCount > 0) {
+      const scrollTimer = setTimeout(() => {
+        const targetIdx = currentMatchIndex >= 0 && currentMatchIndex < totalMatchCount ? currentMatchIndex : 0;
+        const activeEl = document.querySelector(`[data-search-index="${targetIdx}"]`);
+        if (activeEl) {
+          activeEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 80);
+      return () => clearTimeout(scrollTimer);
+    }
+  }, [isPageSearchOpen, pageSearchQuery, currentMatchIndex, totalMatchCount]);
 
   if (!targetPage) {
     return (
@@ -1178,6 +1187,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
                 setCurrentMatchIndex(0);
               }}
               onKeyDown={(e) => {
+                e.stopPropagation();
                 if (e.key === 'Escape') {
                   e.preventDefault();
                   setIsPageSearchOpen(false);
@@ -2031,9 +2041,11 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
                         <div
                           className="text-xs md:text-sm text-zinc-900 leading-relaxed font-normal bg-transparent"
                           dangerouslySetInnerHTML={{
-                            __html: activeVersion.content
-                              ? convertNotehookTextToHtml(activeVersion.content, 'auto', pages)
-                              : '<span class="text-zinc-400 font-normal">Type page content (markdown and @tags supported)...</span>',
+                            __html: isPageSearchOpen && pageSearchQuery.trim() && renderedVersionHtml
+                              ? renderedVersionHtml
+                              : (activeVersion.content
+                                ? convertNotehookTextToHtml(activeVersion.content, 'auto', pages)
+                                : '<span class="text-zinc-400 font-normal">Type page content (markdown and @tags supported)...</span>'),
                           }}
                         />
                       </div>
