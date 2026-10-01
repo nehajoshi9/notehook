@@ -439,7 +439,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
 
   useLayoutEffect(() => {
     if (isEditing && contentRef.current) {
-      const minH = targetPage?.type === 'entity' ? 80 : 160;
+      const minH = targetPage?.type === 'entity' ? 28 : 60;
       autoResizeTextarea(contentRef.current, minH);
       if (savedScrollTopRef.current !== null && pageViewContainerRef.current) {
         pageViewContainerRef.current.scrollTop = savedScrollTopRef.current;
@@ -959,7 +959,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
 
     setTimeout(() => {
       textarea.setSelectionRange(newCursor, newCursor);
-      const minH = targetPage?.type === 'entity' ? 80 : 160;
+      const minH = targetPage?.type === 'entity' ? 28 : 60;
       autoResizeTextarea(textarea, minH);
     }, 0);
   };
@@ -1071,7 +1071,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
 
     setTimeout(() => {
       if (contentRef.current) {
-        const minH = targetPage?.type === 'entity' ? 80 : 160;
+        const minH = targetPage?.type === 'entity' ? 28 : 60;
         autoResizeTextarea(contentRef.current, minH);
         contentRef.current.focus({ preventScroll: true });
         contentRef.current.setSelectionRange(targetOffset, targetOffset);
@@ -1239,7 +1239,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
       <div
         ref={pageViewContainerRef}
         data-page-canvas="true"
-        className="flex-1 min-h-0 overflow-y-auto [scrollbar-gutter:stable] bg-white flex flex-col pl-10 pr-6 pt-6 md:pl-12 md:pr-8 md:pt-6 space-y-4 pb-24 md:pb-32"
+        className="flex-1 min-h-0 overflow-y-auto [scrollbar-gutter:stable] bg-white flex flex-col pl-10 pr-6 pt-6 md:pl-12 md:pr-8 md:pt-6 space-y-4 pb-4 md:pb-6"
       >
         {/* Top Row: Page ID Pill (Left-aligned with page text) & Action Buttons (Right-aligned) */}
         <div className="flex items-center justify-between gap-2 select-none">
@@ -1590,7 +1590,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
         )}
 
         {/* Seamless Canvas (Automatic Edit / Blur Transition) */}
-        <div className="flex flex-col relative w-full shrink-0 min-h-[160px] pb-12">
+        <div className={`flex flex-col relative w-full shrink-0 ${targetPage.type === 'entity' ? 'min-h-[28px]' : 'min-h-[60px]'}`}>
           {isEditing ? (
             <>
               {isTypingAtContent && contentSuggestions.length > 0 && (
@@ -1628,7 +1628,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
                   updatePageContent(targetPage.id, val);
                   setContentCursorPos(e.target.selectionStart ?? val.length);
                   setIsContentDismissed(false);
-                  const minH = targetPage?.type === 'entity' ? 80 : 160;
+                  const minH = targetPage?.type === 'entity' ? 28 : 60;
                   autoResizeTextarea(e.target, minH);
                 }}
                 onFocus={(e) => {
@@ -1636,7 +1636,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
                     e.target.setSelectionRange(bodyText.length, bodyText.length);
                   }
                   setContentCursorPos(e.target.selectionStart ?? bodyText.length);
-                  const minH = targetPage?.type === 'entity' ? 80 : 160;
+                  const minH = targetPage?.type === 'entity' ? 28 : 60;
                   autoResizeTextarea(e.target, minH);
                 }}
                 onKeyUp={(e) => setContentCursorPos((e.target as HTMLTextAreaElement).selectionStart ?? bodyText.length)}
@@ -1688,7 +1688,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
                   }
                 }}
                 placeholder="Type page content (markdown and @tags supported)..."
-                className="overflow-hidden w-full shrink-0 min-h-[160px] text-xs md:text-sm text-zinc-900 leading-relaxed font-sans bg-transparent border-0 outline-none focus:outline-none focus:ring-0 ring-0 shadow-none resize-none p-0 m-0"
+                className={`overflow-hidden w-full shrink-0 ${targetPage.type === 'entity' ? 'min-h-[28px]' : 'min-h-[60px]'} text-xs md:text-sm text-zinc-900 leading-relaxed font-sans bg-transparent border-0 outline-none focus:outline-none focus:ring-0 ring-0 shadow-none resize-none p-0 m-0`}
               />
             </>
           ) : (
@@ -1697,7 +1697,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
               onMouseDown={(e) => {
                 handleGutterMouseDown(e, e.currentTarget);
               }}
-              className="cursor-text w-full h-full min-h-[160px] p-0 m-0 pb-12"
+              className={`cursor-text w-full h-full ${targetPage.type === 'entity' ? 'min-h-[28px]' : 'min-h-[60px]'} p-0 m-0`}
               title="Click anywhere on the document to edit"
             >
               <div
@@ -1726,7 +1726,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
             onMouseDown={(e) => {
               handleGutterMouseDown(e, e.currentTarget.parentElement || e.currentTarget);
             }}
-            className="mt-1 bg-zinc-100/90 border border-zinc-200/90 rounded-2xl p-4 md:p-5 flex flex-col gap-3 shadow-2xs select-text shrink-0 w-full notehook-markdown-block relative"
+            className="mt-0 bg-zinc-100/90 border border-zinc-200/90 rounded-2xl p-4 md:p-5 flex flex-col gap-3 shadow-2xs select-text shrink-0 w-full notehook-markdown-block relative"
           >
             <div
               className="notehook-gutter-handle"
@@ -2045,7 +2045,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
           </div>
         )}
 
-        {/* Extra Bottom Margin Spacer for comfortable reading, scrolling, and clicking to focus */}
+        {/* Bottom Margin Spacer for comfortable reading and clicking to focus (1-2 lines) */}
         <div
           onClick={(e) => {
             if (!isEditing && !isEditingPrompt && !isEditingVersionBody) {
@@ -2056,7 +2056,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
               contentRef.current.setSelectionRange(len, len);
             }
           }}
-          className="w-full h-48 md:h-64 shrink-0 cursor-text select-none"
+          className="w-full h-4 shrink-0 cursor-text select-none"
           title={isEditing ? 'Bottom margin' : 'Click anywhere on the document to edit'}
         />
       </div>
