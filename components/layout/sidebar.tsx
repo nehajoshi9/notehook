@@ -196,11 +196,18 @@ export const Sidebar: React.FC = () => {
   const filteredTodos = filterPages(todos);
   const filteredDecisions = filterPages(decisions);
 
-  const isMessagesExpanded = messagesExpanded || Boolean(queryLower);
+  const prevQueryRef = useRef('');
+  useEffect(() => {
+    const trimmed = searchQuery.trim();
+    if (trimmed && !prevQueryRef.current) {
+      setMessagesExpanded(true);
+    }
+    prevQueryRef.current = trimmed;
+  }, [searchQuery]);
 
   // Ordered list of currently visible pages across all expanded sections in the sidebar
   const visiblePages = [
-    ...(isMessagesExpanded ? filteredMessages : []),
+    ...(messagesExpanded ? filteredMessages : []),
     ...(notesExpanded ? filteredNotes : []),
     ...(todosExpanded ? filteredTodos : []),
     ...(decisionsExpanded ? filteredDecisions : []),
@@ -276,6 +283,7 @@ export const Sidebar: React.FC = () => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'f') {
         e.preventDefault();
+        e.stopPropagation();
         if (searchInputRef.current) {
           searchInputRef.current.focus();
           searchInputRef.current.select();
@@ -286,8 +294,8 @@ export const Sidebar: React.FC = () => {
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, []);
 
   return (
@@ -337,16 +345,16 @@ export const Sidebar: React.FC = () => {
           <div className="flex items-center justify-between px-2 text-xs font-bold text-zinc-700 tracking-wider">
             <button
               type="button"
-              onClick={() => setMessagesExpanded(!isMessagesExpanded)}
+              onClick={() => setMessagesExpanded(!messagesExpanded)}
               className="flex items-center gap-1 hover:text-zinc-950"
             >
-              {isMessagesExpanded ? <ChevronDown className="h-3.5 w-3.5 text-zinc-500" /> : <ChevronRight className="h-3.5 w-3.5 text-zinc-500" />}
+              {messagesExpanded ? <ChevronDown className="h-3.5 w-3.5 text-zinc-500" /> : <ChevronRight className="h-3.5 w-3.5 text-zinc-500" />}
               <MessageSquare className="h-3.5 w-3.5 text-sky-600 mr-1" />
               <span>Messages ({filteredMessages.length})</span>
             </button>
           </div>
 
-          {isMessagesExpanded && (
+          {messagesExpanded && (
             <div className="space-y-0.5 pl-3 pt-0.5 border-l-2 border-zinc-200 ml-3">
               {filteredMessages.length === 0 ? (
                 <p className="px-2 text-[11px] text-zinc-400 italic">
@@ -363,7 +371,7 @@ export const Sidebar: React.FC = () => {
                     <button
                       key={msg.id}
                       type="button"
-                      onClick={(e) => handlePageClick(e, msg.id, () => navigateToMessage(msg.id, searchQuery.trim() || undefined))}
+                      onClick={(e) => handlePageClick(e, msg.id, () => navigateToMessage(msg.id, searchQuery.trim() || undefined, msg.title, searchQuery.trim() || undefined))}
                       onContextMenu={(e) => handleContextMenu(e, msg.id, msg.title)}
                       className={`w-full text-left px-2 py-1 rounded-md flex flex-col text-xs ${
                         isSelected
@@ -439,7 +447,7 @@ export const Sidebar: React.FC = () => {
                     <button
                       key={note.id}
                       type="button"
-                      onClick={(e) => handlePageClick(e, note.id, () => openInPane2('note', note.id, note.title, searchQuery.trim() || undefined))}
+                      onClick={(e) => handlePageClick(e, note.id, () => openInPane2('note', note.id, note.title, searchQuery.trim() || undefined, undefined, undefined, false, searchQuery.trim() || undefined))}
                       onContextMenu={(e) => handleContextMenu(e, note.id, note.title)}
                       className={`w-full text-left px-2 py-1 rounded-md flex flex-col text-xs ${
                         isSelected
@@ -518,7 +526,7 @@ export const Sidebar: React.FC = () => {
                       <button
                         key={todo.id}
                         type="button"
-                        onClick={(e) => handlePageClick(e, todo.id, () => openInPane2('todo', todo.id, todo.title, searchQuery.trim() || undefined))}
+                        onClick={(e) => handlePageClick(e, todo.id, () => openInPane2('todo', todo.id, todo.title, searchQuery.trim() || undefined, undefined, undefined, false, searchQuery.trim() || undefined))}
                         onContextMenu={(e) => handleContextMenu(e, todo.id, todo.title)}
                         className={`w-full text-left px-2 py-1 rounded-md flex flex-col text-xs group ${
                           isSelected
@@ -628,7 +636,7 @@ export const Sidebar: React.FC = () => {
                       <button
                         key={dec.id}
                         type="button"
-                        onClick={(e) => handlePageClick(e, dec.id, () => openInPane2('decision', dec.id, dec.title, searchQuery.trim() || undefined))}
+                        onClick={(e) => handlePageClick(e, dec.id, () => openInPane2('decision', dec.id, dec.title, searchQuery.trim() || undefined, undefined, undefined, false, searchQuery.trim() || undefined))}
                         onContextMenu={(e) => handleContextMenu(e, dec.id, dec.title)}
                         className={`w-full text-left px-2 py-1 rounded-md flex flex-col text-xs ${
                           isSelected
@@ -704,7 +712,7 @@ export const Sidebar: React.FC = () => {
                       <button
                         key={ent.id}
                         type="button"
-                        onClick={(e) => handlePageClick(e, ent.id, () => openInPane2('entity', ent.id, ent.title, searchQuery.trim() || undefined))}
+                        onClick={(e) => handlePageClick(e, ent.id, () => openInPane2('entity', ent.id, ent.title, searchQuery.trim() || undefined, undefined, undefined, false, searchQuery.trim() || undefined))}
                         onContextMenu={(e) => handleContextMenu(e, ent.id, ent.title)}
                         className={`w-full text-left px-2 py-1 rounded-md flex flex-col text-xs ${
                           isSelected

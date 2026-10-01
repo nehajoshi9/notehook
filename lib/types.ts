@@ -68,6 +68,8 @@ export interface PaneState {
   targetVersionNum?: number;
   targetVersionId?: string;
   autofocusTitle?: boolean;
+  initialSearchQuery?: string;
+  searchTriggerTime?: number;
 }
 
 export interface AISettings {

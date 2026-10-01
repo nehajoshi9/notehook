@@ -46,12 +46,12 @@ export interface NotehookContextType {
   // 2-Pane Split View State
   leftPane: PaneState;
   rightPane: PaneState;
-  openInPane2: (type: PaneState['type'], id: string | null, title?: string, highlightSpan?: string, targetVersionNum?: number, targetVersionId?: string, autofocusTitle?: boolean) => void;
-  openInPane1: (type: PaneState['type'], id: string | null, title?: string, highlightSpan?: string, targetVersionNum?: number, targetVersionId?: string, autofocusTitle?: boolean) => void;
+  openInPane2: (type: PaneState['type'], id: string | null, title?: string, highlightSpan?: string, targetVersionNum?: number, targetVersionId?: string, autofocusTitle?: boolean, initialSearchQuery?: string) => void;
+  openInPane1: (type: PaneState['type'], id: string | null, title?: string, highlightSpan?: string, targetVersionNum?: number, targetVersionId?: string, autofocusTitle?: boolean, initialSearchQuery?: string) => void;
   closePane1: () => void;
   closePane2: () => void;
   swapPanes: () => void;
-  navigateToMessage: (messageId: string, highlightSpan?: string, title?: string) => void;
+  navigateToMessage: (messageId: string, highlightSpan?: string, title?: string, initialSearchQuery?: string) => void;
   scrollToMessageInChat: (messageId: string, highlightSpan?: string) => void;
 
   // Navigation History
@@ -581,7 +581,7 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const decisions = pages.filter((p) => p.type === 'decision').reverse();
 
   // Pane Navigation Handlers
-  const openInPane2 = (type: PaneState['type'], id: string | null, title?: string, highlightSpan?: string, targetVersionNum?: number, targetVersionId?: string, autofocusTitle?: boolean) => {
+  const openInPane2 = (type: PaneState['type'], id: string | null, title?: string, highlightSpan?: string, targetVersionNum?: number, targetVersionId?: string, autofocusTitle?: boolean, initialSearchQuery?: string) => {
     const newState: PaneState = {
       type,
       id,
@@ -590,13 +590,15 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       targetVersionNum,
       targetVersionId,
       autofocusTitle,
+      initialSearchQuery,
+      searchTriggerTime: initialSearchQuery ? Date.now() : undefined,
     };
     setRightHistory((prev) => [...prev, newState]);
     setNavigationHistory((prev) => [...prev, newState]);
     setRightPane(newState);
   };
 
-  const openInPane1 = (type: PaneState['type'], id: string | null, title?: string, highlightSpan?: string, targetVersionNum?: number, targetVersionId?: string, autofocusTitle?: boolean) => {
+  const openInPane1 = (type: PaneState['type'], id: string | null, title?: string, highlightSpan?: string, targetVersionNum?: number, targetVersionId?: string, autofocusTitle?: boolean, initialSearchQuery?: string) => {
     const newState: PaneState = {
       type,
       id,
@@ -605,6 +607,8 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       targetVersionNum,
       targetVersionId,
       autofocusTitle,
+      initialSearchQuery,
+      searchTriggerTime: initialSearchQuery ? Date.now() : undefined,
     };
     setLeftHistory((prev) => [...prev, newState]);
     setNavigationHistory((prev) => [...prev, newState]);
@@ -689,14 +693,14 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setNavigationHistory((prev) => [...prev, chatState]);
   };
 
-  const navigateToMessage = (messageId: string, highlightSpan?: string, title?: string) => {
+  const navigateToMessage = (messageId: string, highlightSpan?: string, title?: string, initialSearchQuery?: string) => {
     const isChatOpen = leftPane.type === 'chat' || rightPane.type === 'chat';
 
-    if (isChatOpen) {
-      // Chat pane is already open -> open message in page view (Pane 2)
+    if (isChatOpen || initialSearchQuery) {
+      // Chat pane is already open (or searching) -> open message in page view (Pane 2)
       const msgPage = pages.find((p) => p.id === messageId);
       const displayTitle = title || msgPage?.title || 'Message';
-      openInPane2('message', messageId, displayTitle, highlightSpan);
+      openInPane2('message', messageId, displayTitle, highlightSpan, undefined, undefined, false, initialSearchQuery);
       return;
     }
 

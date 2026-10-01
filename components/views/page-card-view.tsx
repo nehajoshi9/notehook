@@ -326,6 +326,37 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
   const currentPaneState = paneIndex === 1 ? leftPane : rightPane;
   // Match left-gutter width with the chat view when in split-pane mode
   const isDualPane = rightPane.type !== 'empty';
+
+  // Activate focused local search when opened from global search results
+  const lastSearchTriggerRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (
+      targetPage &&
+      currentPaneState?.id === targetPage.id &&
+      currentPaneState?.initialSearchQuery
+    ) {
+      const triggerKey = `${targetPage.id}:${currentPaneState.initialSearchQuery}:${currentPaneState.searchTriggerTime || 0}`;
+      if (lastSearchTriggerRef.current === triggerKey) return;
+      lastSearchTriggerRef.current = triggerKey;
+
+      setIsPageSearchOpen(true);
+      setPageSearchQuery(currentPaneState.initialSearchQuery);
+      setCurrentMatchIndex(0);
+      requestAnimationFrame(() => {
+        pageSearchInputRef.current?.focus();
+        pageSearchInputRef.current?.select();
+      });
+      setTimeout(() => {
+        pageSearchInputRef.current?.focus();
+        pageSearchInputRef.current?.select();
+      }, 50);
+    }
+  }, [
+    targetPage?.id,
+    currentPaneState?.id,
+    currentPaneState?.initialSearchQuery,
+    currentPaneState?.searchTriggerTime,
+  ]);
   const lastScrolledSpanRef = useRef<string | null>(null);
   useEffect(() => {
     if (targetPage && currentPaneState?.highlightSpan && currentPaneState.id === targetPage.id) {
@@ -1187,6 +1218,12 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
                 setCurrentMatchIndex(0);
               }}
               onKeyDown={(e) => {
+                if (
+                  (e.ctrlKey || e.metaKey) &&
+                  (e.shiftKey || e.key.toLowerCase() === 'k')
+                ) {
+                  return;
+                }
                 e.stopPropagation();
                 if (e.key === 'Escape') {
                   e.preventDefault();
