@@ -246,6 +246,10 @@ export const CommandPaletteModal: React.FC = () => {
           <input
             ref={inputRef}
             type="text"
+            id="command-palette-search-input"
+            data-search-input="true"
+            data-ignore-selection="true"
+            data-command-palette="true"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={`Quick-jump to page title... (${isMac ? '⌘K' : 'Ctrl+K'})`}

@@ -318,7 +318,6 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
     if (isPageSearchOpen) {
       setTimeout(() => {
         pageSearchInputRef.current?.focus();
-        pageSearchInputRef.current?.select();
       }, 50);
     }
   }, [isPageSearchOpen]);
@@ -343,12 +342,18 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
       setPageSearchQuery(currentPaneState.initialSearchQuery);
       setCurrentMatchIndex(0);
       requestAnimationFrame(() => {
-        pageSearchInputRef.current?.focus();
-        pageSearchInputRef.current?.select();
+        if (pageSearchInputRef.current) {
+          pageSearchInputRef.current.focus();
+          const len = pageSearchInputRef.current.value.length;
+          pageSearchInputRef.current.setSelectionRange(len, len);
+        }
       });
       setTimeout(() => {
-        pageSearchInputRef.current?.focus();
-        pageSearchInputRef.current?.select();
+        if (pageSearchInputRef.current) {
+          pageSearchInputRef.current.focus();
+          const len = pageSearchInputRef.current.value.length;
+          pageSearchInputRef.current.setSelectionRange(len, len);
+        }
       }, 50);
     }
   }, [
@@ -1206,12 +1211,15 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
     <div data-page-id={targetPage.id} data-page-short-id={targetPage.short_id || ''} className="relative flex flex-col h-full bg-white text-zinc-900 overflow-hidden font-sans select-text">
       {/* Sticky Floating In-Page Search Bar (Ctrl+F) */}
       {isPageSearchOpen && (
-        <div className="absolute top-3 left-4 z-50 flex items-center justify-between w-[320px] h-9 px-2.5 bg-white/95 backdrop-blur-md border border-zinc-200/90 rounded-xl shadow-md text-xs select-none animate-in fade-in slide-in-from-top-1 duration-100 shrink-0">
-          <div className="flex items-center gap-2 flex-1 min-w-0 mr-2">
+        <div data-search-input="true" data-ignore-selection="true" className="absolute top-3 left-4 z-50 flex items-center justify-between w-[320px] h-9 px-2.5 bg-white/95 backdrop-blur-md border border-zinc-200/90 rounded-xl shadow-md text-xs select-none animate-in fade-in slide-in-from-top-1 duration-100 shrink-0">
+          <div data-search-input="true" data-ignore-selection="true" className="flex items-center gap-2 flex-1 min-w-0 mr-2">
             <Search className="w-3.5 h-3.5 text-zinc-400 shrink-0 pointer-events-none" />
             <input
               ref={pageSearchInputRef}
               type="text"
+              id="page-search-input"
+              data-search-input="true"
+              data-ignore-selection="true"
               value={pageSearchQuery}
               onChange={(e) => {
                 setPageSearchQuery(e.target.value);

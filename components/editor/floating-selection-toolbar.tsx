@@ -96,6 +96,32 @@ function getTextareaSelectionCoords(
   }
 }
 
+function isSearchOrIgnoredElement(el: Element | null | undefined): boolean {
+  if (!el) return false;
+  if (
+    el.closest(
+      '[data-search-input], [data-ignore-selection="true"], input[type="search"], .search-input, [data-command-palette], #global-search-input, #page-search-input'
+    )
+  ) {
+    return true;
+  }
+  const inputEl = el.closest('input, textarea');
+  if (inputEl) {
+    if (inputEl.hasAttribute('data-search-input') || inputEl.getAttribute('data-ignore-selection') === 'true') {
+      return true;
+    }
+    const placeholder = inputEl.getAttribute('placeholder')?.toLowerCase() || '';
+    if (placeholder.includes('search') || placeholder.includes('find') || placeholder.includes('quick-jump')) {
+      return true;
+    }
+    const type = inputEl.getAttribute('type')?.toLowerCase();
+    if (type === 'search') return true;
+    const id = inputEl.id?.toLowerCase() || '';
+    if (id.includes('search') || id.includes('find')) return true;
+  }
+  return false;
+}
+
 interface FloatingSelectionToolbarProps {
   noteId?: string;
 }
@@ -163,8 +189,12 @@ export const FloatingSelectionToolbar: React.FC<FloatingSelectionToolbarProps> =
       let top = 0;
       let left = 0;
 
-      // Exclude selections inside page titles or entity version titles
-      if (activeEl && activeEl.closest('h1, [data-title-input], .page-title, .version-title-input, [data-title]')) {
+      // Exclude selections inside search bars, page titles, or entity version titles
+      if (
+        activeEl &&
+        (activeEl.closest('h1, [data-title-input], .page-title, .version-title-input, [data-title]') ||
+          isSearchOrIgnoredElement(activeEl))
+      ) {
         setPosition(null);
         setSelectedText('');
         setHasReferenceError(false);
@@ -239,6 +269,15 @@ export const FloatingSelectionToolbar: React.FC<FloatingSelectionToolbarProps> =
 
       // 1. Check if user is selecting text inside an active <textarea> or <input> (Edit Mode)
       if (!isGutterSelection && activeEl && (activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'INPUT')) {
+        if (isSearchOrIgnoredElement(activeEl)) {
+          setPosition(null);
+          setSelectedText('');
+          setHasReferenceError(false);
+          setAllAvailableEntities([]);
+          setMenuView('root');
+          return;
+        }
+
         const start = activeEl.selectionStart;
         const end = activeEl.selectionEnd;
         if (start !== null && end !== null && start !== end) {
@@ -278,12 +317,20 @@ export const FloatingSelectionToolbar: React.FC<FloatingSelectionToolbarProps> =
         }
 
         const anchorNode = selection.anchorNode;
+        const focusNode = selection.focusNode;
         const parentEl = anchorNode?.nodeType === 1 ? (anchorNode as HTMLElement) : anchorNode?.parentElement;
-        if (parentEl && parentEl.closest('h1, [data-title-input], .page-title, .version-title-input, [data-title]')) {
+        const focusParentEl = focusNode?.nodeType === 1 ? (focusNode as HTMLElement) : focusNode?.parentElement;
+        if (
+          (parentEl &&
+            (parentEl.closest('h1, [data-title-input], .page-title, .version-title-input, [data-title]') ||
+              isSearchOrIgnoredElement(parentEl))) ||
+          (focusParentEl && isSearchOrIgnoredElement(focusParentEl))
+        ) {
           setPosition(null);
           setSelectedText('');
           setHasReferenceError(false);
           setAllAvailableEntities([]);
+          setMenuView('root');
           return;
         }
 
@@ -564,6 +611,17 @@ export const FloatingSelectionToolbar: React.FC<FloatingSelectionToolbarProps> =
 
     const handleEvent = (e?: Event) => {
       if (e && containerRef.current && e.target && containerRef.current.contains(e.target as Node)) {
+        return;
+      }
+      if (
+        (e?.target && isSearchOrIgnoredElement(e.target as Element)) ||
+        (document.activeElement && isSearchOrIgnoredElement(document.activeElement))
+      ) {
+        if (rafId !== null) cancelAnimationFrame(rafId);
+        setPosition(null);
+        setSelectedText('');
+        setHasReferenceError(false);
+        setAllAvailableEntities([]);
         return;
       }
       if (rafId !== null) {

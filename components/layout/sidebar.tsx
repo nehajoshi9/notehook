@@ -312,12 +312,15 @@ export const Sidebar: React.FC = () => {
       >
 
         {/* Cute Pill Search Bar */}
-        <div className="px-1">
-          <div className="relative flex items-center rounded-full bg-zinc-100/90 border border-zinc-200/90 px-2.5 py-1 text-xs text-zinc-900 focus-within:border-zinc-300 focus-within:bg-white focus-within:shadow-2xs transition-all">
+        <div className="px-1" data-search-input="true" data-ignore-selection="true">
+          <div data-search-input="true" data-ignore-selection="true" className="relative flex items-center rounded-full bg-zinc-100/90 border border-zinc-200/90 px-2.5 py-1 text-xs text-zinc-900 focus-within:border-zinc-300 focus-within:bg-white focus-within:shadow-2xs transition-all">
             <Search className="h-3.5 w-3.5 text-zinc-400 shrink-0 mr-1.5 pointer-events-none" />
             <input
               ref={searchInputRef}
               type="text"
+              id="global-search-input"
+              data-search-input="true"
+              data-ignore-selection="true"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search pages..."

@@ -61,6 +61,9 @@ export const NoteIndexView: React.FC = () => {
           <Search className="h-3.5 w-3.5 text-zinc-400 shrink-0 mr-2 pointer-events-none" />
           <input
             type="text"
+            id="notes-search-input"
+            data-search-input="true"
+            data-ignore-selection="true"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search notes..."
