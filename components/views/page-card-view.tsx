@@ -1773,34 +1773,16 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
             data-entity-version-container="true"
             onClick={(e) => {
               const targetEl = e.target as HTMLElement;
-              const isGutter = handleGutterRangeClick(targetEl, e.currentTarget.parentElement || e.currentTarget, e.shiftKey);
+              const isGutter = handleGutterRangeClick(targetEl, e.currentTarget, e.shiftKey);
               if (isGutter) {
                 e.stopPropagation();
               }
             }}
             onMouseDown={(e) => {
-              handleGutterMouseDown(e, e.currentTarget.parentElement || e.currentTarget);
+              handleGutterMouseDown(e, e.currentTarget);
             }}
-            className="mt-0 bg-zinc-100/90 border border-zinc-200/90 rounded-2xl p-4 md:p-5 flex flex-col gap-3 shadow-2xs select-text shrink-0 w-full notehook-markdown-block relative"
+            className="mt-0 bg-zinc-100/90 border border-zinc-200/90 rounded-2xl p-4 md:p-5 flex flex-col gap-3 shadow-2xs select-text shrink-0 w-full relative"
           >
-            <div
-              className="notehook-gutter-handle"
-              title="Select markdown block"
-              onMouseDown={(e) => e.preventDefault()}
-              data-block-index="entity-version"
-              style={{ top: '1.25rem' }}
-            >
-              <button
-                type="button"
-                className="notehook-gutter-btn"
-                title="Select markdown block"
-                onMouseDown={(e) => e.preventDefault()}
-                data-block-id="block-entity-version"
-              >
-                <svg className="w-4.5 h-4.5 square-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" /></svg>
-                <svg className="w-4.5 h-4.5 check-square-icon hidden fill-indigo-50 text-indigo-600" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" /><path d="m9 12 2 2 4-4" /></svg>
-              </button>
-            </div>
             <div className="flex items-center justify-between gap-3 pb-3 border-b border-zinc-200/80 select-none shrink-0">
               <div className="flex items-center gap-2">
                 <Tag className="w-4 h-4 text-purple-600" />
@@ -2033,7 +2015,8 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
                       <div
                         onClick={(e) => {
                           const targetEl = e.target as HTMLElement;
-                          const isGutter = handleGutterRangeClick(targetEl, e.currentTarget, e.shiftKey);
+                          const scope = (e.currentTarget.closest('[data-entity-version-container]') as HTMLElement) || e.currentTarget;
+                          const isGutter = handleGutterRangeClick(targetEl, scope, e.shiftKey);
                           if (isGutter) {
                             e.stopPropagation();
                             return;

@@ -522,7 +522,7 @@ body.is-selecting-text .page-mention-pill:hover .pill-short {
 }
 
 /* Reveal when hovering over the block text in the chat, over the margin area / handle, or when block is checked */
-.notehook-markdown-block:hover .notehook-gutter-handle,
+.notehook-markdown-block:hover > .notehook-gutter-handle,
 .notehook-gutter-handle:hover,
 .notehook-gutter-handle:has(.is-checked),
 .notehook-gutter-handle.is-checked {
