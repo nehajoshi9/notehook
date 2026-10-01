@@ -177,7 +177,7 @@ export const PaneContainer: React.FC = () => {
       {isRightPaneActive && (
         <div
           style={{ width: `${100 - leftPanePercent}%` }}
-          className="flex flex-col h-full min-w-0 border-l border-zinc-200 animate-in fade-in duration-150 transition-none [scrollbar-gutter:stable]"
+          className="flex flex-col h-full min-w-0 border-l border-zinc-200 animate-in fade-in duration-150 transition-none"
         >
           {/* Tab Header Bar */}
           <div className="h-9 flex items-end justify-between border-b border-zinc-200 bg-zinc-100/60 px-2 select-none shrink-0">
