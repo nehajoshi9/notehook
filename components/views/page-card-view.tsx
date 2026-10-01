@@ -410,8 +410,9 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
 
   const autoResizeTextarea = (el: HTMLTextAreaElement | null, minHeight: number = 28) => {
     if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = `${Math.max(minHeight, el.scrollHeight)}px`;
+    el.style.height = '0px';
+    const newHeight = Math.max(minHeight, el.scrollHeight);
+    el.style.height = `${newHeight}px`;
   };
 
   const pageViewContainerRef = useRef<HTMLDivElement>(null);
@@ -1432,7 +1433,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
             {isEditingPrompt ? (
               <div
                 onClick={(e) => e.stopPropagation()}
-                className="p-3.5 rounded-xl bg-zinc-50 border border-indigo-400 text-xs text-zinc-800 shadow-2xs space-y-1 relative"
+                className="p-3.5 rounded-xl bg-zinc-50 border border-indigo-400 text-xs text-zinc-800 shadow-2xs space-y-1 relative shrink-0"
               >
                 <div className="flex items-center justify-between font-bold text-zinc-900 text-xs select-none">
                   <span>Prompt:</span>
@@ -1525,7 +1526,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
                     }
                   }}
                   placeholder="Type prompt text..."
-                  className="w-full text-xs text-zinc-900 leading-relaxed font-normal bg-transparent border-0 outline-none focus:outline-none focus:ring-0 shadow-none resize-none p-0 m-0 pt-0.5 min-h-[36px] overflow-hidden"
+                  className="w-full shrink-0 text-xs text-zinc-900 leading-relaxed font-normal bg-transparent border-0 outline-none focus:outline-none focus:ring-0 shadow-none resize-none p-0 m-0 pt-0.5 min-h-[36px] overflow-hidden"
                   autoFocus
                 />
               </div>
@@ -1589,7 +1590,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
         )}
 
         {/* Seamless Canvas (Automatic Edit / Blur Transition) */}
-        <div className="flex flex-col relative w-full min-h-[160px] pb-12">
+        <div className="flex flex-col relative w-full shrink-0 min-h-[160px] pb-12">
           {isEditing ? (
             <>
               {isTypingAtContent && contentSuggestions.length > 0 && (
@@ -1687,7 +1688,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
                   }
                 }}
                 placeholder="Type page content (markdown and @tags supported)..."
-                className="overflow-hidden w-full min-h-[160px] text-xs md:text-sm text-zinc-900 leading-relaxed font-sans bg-transparent border-0 outline-none focus:outline-none focus:ring-0 ring-0 shadow-none resize-none p-0 m-0"
+                className="overflow-hidden w-full shrink-0 min-h-[160px] text-xs md:text-sm text-zinc-900 leading-relaxed font-sans bg-transparent border-0 outline-none focus:outline-none focus:ring-0 ring-0 shadow-none resize-none p-0 m-0"
               />
             </>
           ) : (
@@ -1881,7 +1882,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
                   {/* Stable min-h container — both edit and view modes share this so toggling between
                       them never shifts the layout. The textarea grows beyond 140px when content is long,
                       but that's additive (not a jump) because the initial floor is identical. */}
-                  <div className="relative min-h-[140px]">
+                  <div className="relative min-h-[140px] shrink-0">
                     {isEditingVersionBody ? (
                       <>
                         {isTypingAtVersion && versionSuggestions.length > 0 && (
@@ -1970,7 +1971,7 @@ export const PageCardView: React.FC<PageCardViewProps> = ({ pageId, paneIndex = 
                             }
                           }}
                           placeholder="Type entity version notes (markdown and @tags supported)..."
-                          className="w-full min-h-[140px] text-xs md:text-sm text-zinc-900 leading-relaxed font-sans bg-transparent border-0 outline-none focus:outline-none ring-0 shadow-none resize-none p-0 m-0 overflow-hidden"
+                          className="w-full shrink-0 min-h-[140px] text-xs md:text-sm text-zinc-900 leading-relaxed font-sans bg-transparent border-0 outline-none focus:outline-none ring-0 shadow-none resize-none p-0 m-0 overflow-hidden"
                         />
                       </>
                     ) : (
