@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { Page, Mention, PaneState, AISettings, EntityVersion, Workspace } from './types';
 import { SEED_PAGES, SEED_MENTIONS, createDefaultWelcomePage, createDefaultDemoWorkspace, DEFAULT_DEMO_WORKSPACE_NAME } from './store';
 import { parseNotehookMarkup, formatItemTitle, generateTopicTitle, stripCodeSpans, normalizeRawContentToCanonicalBrackets } from './notehook-parser';
@@ -55,6 +55,9 @@ export interface NotehookContextType {
   swapPanes: () => void;
   navigateToMessage: (messageId: string, highlightSpan?: string, title?: string, initialSearchQuery?: string) => void;
   scrollToMessageInChat: (messageId: string, highlightSpan?: string) => void;
+  chatScrollTarget: { messageId: string; highlightSpan?: string; timestamp: number } | null;
+  consumeChatScrollTarget: () => void;
+  clearChatTarget: (paneIndex: 1 | 2) => void;
 
   // Navigation History
   leftHistory: PaneState[];
@@ -780,40 +783,69 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setNavigationHistory((prev) => [...prev, targetState]);
   };
 
+  const [chatScrollTarget, setChatScrollTarget] = useState<{
+    messageId: string;
+    highlightSpan?: string;
+    timestamp: number;
+  } | null>(null);
+
+  const consumeChatScrollTarget = useCallback(() => {
+    setChatScrollTarget(null);
+  }, []);
+
+  const clearChatTarget = useCallback((paneIndex: 1 | 2) => {
+    if (paneIndex === 1) {
+      setLeftPane((prev) => {
+        if (prev.type === 'chat' && (prev.id || prev.highlightSpan || prev.scrollTriggerTime)) {
+          return { ...prev, id: null, highlightSpan: undefined, scrollTriggerTime: undefined };
+        }
+        return prev;
+      });
+    } else if (paneIndex === 2) {
+      setRightPane((prev) => {
+        if (prev.type === 'chat' && (prev.id || prev.highlightSpan || prev.scrollTriggerTime)) {
+          return { ...prev, id: null, highlightSpan: undefined, scrollTriggerTime: undefined };
+        }
+        return prev;
+      });
+    }
+  }, []);
+
   const scrollToMessageInChat = (messageId: string, highlightSpan?: string) => {
     const triggerTime = Date.now();
-    // 1. If leftPane is already 'chat', update leftPane and scroll to message
-    if (leftPane.type === 'chat') {
-      openInPane1('chat', messageId, 'Chat Thread', highlightSpan, undefined, undefined, false, undefined, triggerTime);
-      return;
-    }
-
-    // 2. If rightPane is already 'chat', update rightPane and scroll to message
-    if (rightPane.type === 'chat') {
-      openInPane2('chat', messageId, 'Chat Thread', highlightSpan, undefined, undefined, false, undefined, triggerTime);
-      return;
-    }
-
-    // 3. Neither pane is 'chat' (e.g. leftPane has a page view and rightPane is empty after chat was closed):
+    // 1. If neither pane is 'chat' (e.g. page view is taking up full screen):
     // Move the active page to rightPane so it stays open, and put Chat Thread on the left (dual pane mode!)
-    if (leftPane.type !== 'empty') {
-      if (rightPane.type === 'empty') {
-        setRightPane(leftPane);
-        setRightHistory(leftHistory.length > 0 ? leftHistory : [leftPane]);
+    if (leftPane.type !== 'chat' && rightPane.type !== 'chat') {
+      if (leftPane.type !== 'empty') {
+        if (rightPane.type === 'empty') {
+          setRightPane(leftPane);
+          setRightHistory(leftHistory.length > 0 ? leftHistory : [leftPane]);
+        }
+      }
+      const chatState: PaneState = {
+        type: 'chat',
+        id: null,
+        title: 'Chat Thread',
+      };
+      setLeftPane(chatState);
+      setLeftHistory((prev) => [...prev, chatState]);
+      setNavigationHistory((prev) => [...prev, chatState]);
+    } else {
+      // Chat is already open in one of the panes. Clear any lingering id on it so it never holds onto scroll state.
+      if (leftPane.type === 'chat' && leftPane.id) {
+        setLeftPane((prev) => ({ ...prev, id: null, highlightSpan: undefined, scrollTriggerTime: undefined }));
+      }
+      if (rightPane.type === 'chat' && rightPane.id) {
+        setRightPane((prev) => ({ ...prev, id: null, highlightSpan: undefined, scrollTriggerTime: undefined }));
       }
     }
 
-    // Open Chat Thread on left pane
-    const chatState: PaneState = {
-      type: 'chat',
-      id: messageId,
-      title: 'Chat Thread',
+    // Set transient one-time scroll target (consumed immediately once scrolled, never held in state)
+    setChatScrollTarget({
+      messageId,
       highlightSpan,
-      scrollTriggerTime: triggerTime,
-    };
-    setLeftPane(chatState);
-    setLeftHistory((prev) => [...prev, chatState]);
-    setNavigationHistory((prev) => [...prev, chatState]);
+      timestamp: triggerTime,
+    });
   };
 
   const navigateToMessage = (messageId: string, highlightSpan?: string, title?: string, initialSearchQuery?: string) => {
@@ -1400,12 +1432,9 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (!prompt.trim() || isAiGenerating) return;
 
     // Reset any lingering target scroll ID or highlight span on chat panes
-    if (leftPane.type === 'chat' && (leftPane.id || leftPane.highlightSpan)) {
-      setLeftPane((prev) => ({ ...prev, id: null, highlightSpan: undefined, scrollTriggerTime: undefined }));
-    }
-    if (rightPane.type === 'chat' && (rightPane.id || rightPane.highlightSpan)) {
-      setRightPane((prev) => ({ ...prev, id: null, highlightSpan: undefined, scrollTriggerTime: undefined }));
-    }
+    setLeftPane((prev) => (prev.type === 'chat' && (prev.id || prev.highlightSpan || prev.scrollTriggerTime) ? { ...prev, id: null, highlightSpan: undefined, scrollTriggerTime: undefined } : prev));
+    setRightPane((prev) => (prev.type === 'chat' && (prev.id || prev.highlightSpan || prev.scrollTriggerTime) ? { ...prev, id: null, highlightSpan: undefined, scrollTriggerTime: undefined } : prev));
+    setChatScrollTarget(null);
 
     setIsAiGenerating(true);
     setAiStreamingPrompt(prompt.trim());
@@ -1743,6 +1772,9 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         swapPanes,
         navigateToMessage,
         scrollToMessageInChat,
+        chatScrollTarget,
+        consumeChatScrollTarget,
+        clearChatTarget,
         leftPaneCanGoBack,
         rightPaneCanGoBack,
         goBackPane1,

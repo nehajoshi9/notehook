@@ -43,7 +43,26 @@ interface ChatThreadViewProps {
 }
 
 export const ChatThreadView: React.FC<ChatThreadViewProps> = ({ paneIndex = 1 }) => {
-  const { messages, pages, mentions, openInPane2, openInPane1, navigateToMessage, isAiGenerating, aiStreamingText, aiStreamingPrompt, leftPane, rightPane, addEntityVersion, createEntityPage, createNotePage, deletePage } = useNotehook();
+  const {
+    messages,
+    pages,
+    mentions,
+    openInPane2,
+    openInPane1,
+    navigateToMessage,
+    isAiGenerating,
+    aiStreamingText,
+    aiStreamingPrompt,
+    leftPane,
+    rightPane,
+    addEntityVersion,
+    createEntityPage,
+    createNotePage,
+    deletePage,
+    chatScrollTarget,
+    consumeChatScrollTarget,
+    clearChatTarget,
+  } = useNotehook();
   const isDualPane = paneIndex === 2 || rightPane.type !== 'empty';
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -146,83 +165,84 @@ export const ChatThreadView: React.FC<ChatThreadViewProps> = ({ paneIndex = 1 })
     };
   }, [openSaveMenuNoteId]);
 
-  const lastScrolledTargetRef = useRef<string | null>(null);
+  const lastScrolledTargetRef = useRef<number | null>(null);
   const pagesRef = useRef(pages);
   pagesRef.current = pages;
 
-  // Reset lastScrolledTargetRef if chat pane target id is cleared
+  // 1. One-time transient navigation scroll effect: Scroll to target message ONCE and immediately release scroll state
   useEffect(() => {
-    if (!currentPane.id) {
-      lastScrolledTargetRef.current = null;
+    if (!chatScrollTarget?.messageId) return;
+
+    const targetId = chatScrollTarget.messageId;
+    const triggerTimestamp = chatScrollTarget.timestamp;
+    if (lastScrolledTargetRef.current === triggerTimestamp) {
+      return;
     }
-  }, [currentPane.id]);
+    lastScrolledTargetRef.current = triggerTimestamp;
 
-  // 1. Navigation effect: Scroll to specific message / mention reliably over multiple layout frames ONLY ONCE per navigation
-  useEffect(() => {
-    if ((currentPane.type === 'message' || currentPane.type === 'chat') && currentPane.id) {
-      const targetId = currentPane.id;
-      const targetHighlightSpan = currentPane.highlightSpan;
-      const triggerTime = currentPane.scrollTriggerTime || 0;
-      const triggerKey = `${currentPane.type}:${targetId}:${targetHighlightSpan || ''}:${triggerTime}`;
+    let canceled = false;
+    let attempts = 0;
+    const maxAttempts = 15;
 
-      if (lastScrolledTargetRef.current === triggerKey) {
+    const attemptScroll = () => {
+      if (canceled) return;
+      attempts++;
+      const container = scrollContainerRef.current;
+      if (!container) {
+        if (attempts < maxAttempts) {
+          setTimeout(attemptScroll, 40);
+        } else {
+          consumeChatScrollTarget();
+          clearChatTarget(paneIndex);
+        }
         return;
       }
-      lastScrolledTargetRef.current = triggerKey;
 
-      let canceled = false;
-      let attempts = 0;
-      const maxAttempts = 12;
+      const cleanTargetId = targetId.toLowerCase().replace(/^page-/, '');
+      const currentPages = pagesRef.current;
+      const matchedPage = currentPages.find(
+        (p) => p.id === targetId || p.id === cleanTargetId || (p.short_id && p.short_id.toLowerCase() === cleanTargetId)
+      );
+      const resolvedId = matchedPage?.id || targetId;
 
-      const attemptScroll = () => {
-        if (canceled) return;
-        attempts++;
-        const container = scrollContainerRef.current;
-        if (!container) {
-          if (attempts < maxAttempts) setTimeout(attemptScroll, 40);
-          return;
-        }
+      const el =
+        document.getElementById(`page-${resolvedId}`) ||
+        document.getElementById(`page-${targetId}`) ||
+        document.getElementById(`page-${cleanTargetId}`) ||
+        (container.querySelector(
+          `[data-page-id="${resolvedId}"], [data-page-id="${targetId}"], [data-page-id="${cleanTargetId}"], [data-message-id="${resolvedId}"], [data-message-id="${targetId}"], [data-page-short-id="${cleanTargetId}"]`
+        ) as HTMLElement | null);
 
-        const cleanTargetId = targetId.toLowerCase().replace(/^page-/, '');
-        const currentPages = pagesRef.current;
-        const matchedPage = currentPages.find(
-          (p) => p.id === targetId || p.id === cleanTargetId || (p.short_id && p.short_id.toLowerCase() === cleanTargetId)
+      if (el) {
+        const elRect = el.getBoundingClientRect();
+        const containerRect = container.getBoundingClientRect();
+        const currentScrollTop = container.scrollTop;
+        const targetScrollTop = Math.max(
+          0,
+          currentScrollTop + (elRect.top - containerRect.top) - (containerRect.height / 2) + (elRect.height / 2)
         );
-        const resolvedId = matchedPage?.id || targetId;
 
-        const el =
-          document.getElementById(`page-${resolvedId}`) ||
-          document.getElementById(`page-${targetId}`) ||
-          document.getElementById(`page-${cleanTargetId}`) ||
-          (container.querySelector(
-            `[data-page-id="${resolvedId}"], [data-page-id="${targetId}"], [data-page-id="${cleanTargetId}"], [data-message-id="${resolvedId}"], [data-message-id="${targetId}"], [data-page-short-id="${cleanTargetId}"]`
-          ) as HTMLElement | null);
+        container.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
+        // Immediately consume and clear scroll state so it is NEVER held onto!
+        consumeChatScrollTarget();
+        clearChatTarget(paneIndex);
+        return;
+      }
 
-        if (el) {
-          const elRect = el.getBoundingClientRect();
-          const containerRect = container.getBoundingClientRect();
-          const currentScrollTop = container.scrollTop;
-          const targetScrollTop = Math.max(
-            0,
-            currentScrollTop + (elRect.top - containerRect.top) - (containerRect.height / 2) + (elRect.height / 2)
-          );
+      if (attempts < maxAttempts) {
+        setTimeout(attemptScroll, 50);
+      } else {
+        consumeChatScrollTarget();
+        clearChatTarget(paneIndex);
+      }
+    };
 
-          container.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
-          return;
-        }
-
-        if (attempts < maxAttempts) {
-          setTimeout(attemptScroll, 50);
-        }
-      };
-
-      const timer = setTimeout(attemptScroll, 20);
-      return () => {
-        canceled = true;
-        clearTimeout(timer);
-      };
-    }
-  }, [currentPane.type, currentPane.id, currentPane.highlightSpan, currentPane.scrollTriggerTime]);
+    const timer = setTimeout(attemptScroll, 20);
+    return () => {
+      canceled = true;
+      clearTimeout(timer);
+    };
+  }, [chatScrollTarget, consumeChatScrollTarget, clearChatTarget, paneIndex]);
 
   const sortedNotes = [...messages].sort(
     (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
