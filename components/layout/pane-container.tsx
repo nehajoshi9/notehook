@@ -122,18 +122,20 @@ export const PaneContainer: React.FC = () => {
         {/* Tab Header Bar */}
         <div className="h-9 flex items-end justify-between border-b border-zinc-200 bg-zinc-100/60 px-2 select-none shrink-0">
           <div className="inline-flex items-center gap-1.5 px-2.5 h-9 rounded-t-md bg-white border-t border-x border-zinc-200 text-xs font-semibold text-zinc-900 border-b-0 -mb-[1px] shadow-2xs max-w-xs truncate">
-            <button
-              type="button"
-              onClick={goBackPane1}
-              disabled={!leftPaneCanGoBack}
-              className={`p-0.5 rounded transition-colors shrink-0 ${leftPaneCanGoBack
-                ? 'hover:bg-zinc-100 text-zinc-700 hover:text-zinc-950 cursor-pointer'
-                : 'text-zinc-300 cursor-not-allowed'
-                }`}
-              title={leftPaneCanGoBack ? 'Go back in Pane 1' : 'No history in Pane 1'}
-            >
-              <ArrowLeft className="h-3.5 w-3.5" />
-            </button>
+            {leftPane.type !== 'chat' && (
+              <button
+                type="button"
+                onClick={goBackPane1}
+                disabled={!leftPaneCanGoBack}
+                className={`p-0.5 rounded transition-colors shrink-0 ${leftPaneCanGoBack
+                  ? 'hover:bg-zinc-100 text-zinc-700 hover:text-zinc-950 cursor-pointer'
+                  : 'text-zinc-300 cursor-not-allowed'
+                  }`}
+                title={leftPaneCanGoBack ? 'Go back in Pane 1' : 'No history in Pane 1'}
+              >
+                <ArrowLeft className="h-3.5 w-3.5" />
+              </button>
+            )}
             {getPaneIcon(leftPane)}
             <span className="truncate">{leftPane.title || 'Chat Thread'}</span>
             <button
@@ -182,18 +184,20 @@ export const PaneContainer: React.FC = () => {
           {/* Tab Header Bar */}
           <div className="h-9 flex items-end justify-between border-b border-zinc-200 bg-zinc-100/60 px-2 select-none shrink-0">
             <div className="inline-flex items-center gap-1.5 px-2.5 h-9 rounded-t-md bg-white border-t border-x border-zinc-200 text-xs font-semibold text-zinc-900 border-b-0 -mb-[1px] shadow-2xs max-w-xs truncate">
-              <button
-                type="button"
-                onClick={goBackPane2}
-                disabled={!rightPaneCanGoBack}
-                className={`p-0.5 rounded transition-colors shrink-0 ${rightPaneCanGoBack
-                  ? 'hover:bg-zinc-100 text-zinc-700 hover:text-zinc-950 cursor-pointer'
-                  : 'text-zinc-300 cursor-not-allowed'
-                  }`}
-                title={rightPaneCanGoBack ? 'Go back in Pane 2' : 'No history in Pane 2'}
-              >
-                <ArrowLeft className="h-3.5 w-3.5" />
-              </button>
+              {rightPane.type !== 'chat' && (
+                <button
+                  type="button"
+                  onClick={goBackPane2}
+                  disabled={!rightPaneCanGoBack}
+                  className={`p-0.5 rounded transition-colors shrink-0 ${rightPaneCanGoBack
+                    ? 'hover:bg-zinc-100 text-zinc-700 hover:text-zinc-950 cursor-pointer'
+                    : 'text-zinc-300 cursor-not-allowed'
+                    }`}
+                  title={rightPaneCanGoBack ? 'Go back in Pane 2' : 'No history in Pane 2'}
+                >
+                  <ArrowLeft className="h-3.5 w-3.5" />
+                </button>
+              )}
               {getPaneIcon(rightPane)}
               <span className="truncate">{rightPane.title || 'Detail View'}</span>
               <button
