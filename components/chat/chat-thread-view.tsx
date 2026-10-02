@@ -79,7 +79,7 @@ export const ChatThreadView: React.FC<ChatThreadViewProps> = ({ paneIndex = 1 })
     return () => container.removeEventListener('scroll', checkScrollPosition);
   }, [checkScrollPosition, messages.length]);
 
-  // Track unread messages arriving when user is scrolled up (NEVER auto-scroll)
+  // Track unread messages arriving when user is scrolled up, or stay at bottom when user is at bottom
   useEffect(() => {
     const messageCountIncreased = messages.length > prevMessagesLengthRef.current;
     const aiStartedStreaming = Boolean(aiStreamingText) && !prevAiStreamingRef.current;
@@ -87,10 +87,27 @@ export const ChatThreadView: React.FC<ChatThreadViewProps> = ({ paneIndex = 1 })
     prevMessagesLengthRef.current = messages.length;
     prevAiStreamingRef.current = Boolean(aiStreamingText);
 
-    if ((messageCountIncreased || aiStartedStreaming) && isScrolledUp) {
-      setHasUnreadAtBottom(true);
+    if (isScrolledUp) {
+      if (messageCountIncreased || aiStartedStreaming) {
+        setHasUnreadAtBottom(true);
+      }
+    } else {
+      if (messageCountIncreased || aiStartedStreaming) {
+        bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }
     }
   }, [messages.length, aiStreamingText, isScrolledUp]);
+
+  // Scroll to bottom immediately when user submits a new prompt turn
+  const prevAiStreamingPromptRef = useRef(aiStreamingPrompt);
+  useEffect(() => {
+    if (aiStreamingPrompt && aiStreamingPrompt !== prevAiStreamingPromptRef.current) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+      setIsScrolledUp(false);
+      setHasUnreadAtBottom(false);
+    }
+    prevAiStreamingPromptRef.current = aiStreamingPrompt;
+  }, [aiStreamingPrompt]);
 
   const scrollToBottom = () => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -129,15 +146,33 @@ export const ChatThreadView: React.FC<ChatThreadViewProps> = ({ paneIndex = 1 })
     };
   }, [openSaveMenuNoteId]);
 
-  // 1. Navigation effect: Scroll to specific message / mention reliably over multiple layout frames
+  const lastScrolledTargetRef = useRef<string | null>(null);
+  const pagesRef = useRef(pages);
+  pagesRef.current = pages;
+
+  // Reset lastScrolledTargetRef if chat pane target id is cleared
+  useEffect(() => {
+    if (!currentPane.id) {
+      lastScrolledTargetRef.current = null;
+    }
+  }, [currentPane.id]);
+
+  // 1. Navigation effect: Scroll to specific message / mention reliably over multiple layout frames ONLY ONCE per navigation
   useEffect(() => {
     if ((currentPane.type === 'message' || currentPane.type === 'chat') && currentPane.id) {
       const targetId = currentPane.id;
       const targetHighlightSpan = currentPane.highlightSpan;
+      const triggerTime = currentPane.scrollTriggerTime || 0;
+      const triggerKey = `${currentPane.type}:${targetId}:${targetHighlightSpan || ''}:${triggerTime}`;
+
+      if (lastScrolledTargetRef.current === triggerKey) {
+        return;
+      }
+      lastScrolledTargetRef.current = triggerKey;
 
       let canceled = false;
       let attempts = 0;
-      const maxAttempts = 10;
+      const maxAttempts = 12;
 
       const attemptScroll = () => {
         if (canceled) return;
@@ -149,7 +184,8 @@ export const ChatThreadView: React.FC<ChatThreadViewProps> = ({ paneIndex = 1 })
         }
 
         const cleanTargetId = targetId.toLowerCase().replace(/^page-/, '');
-        const matchedPage = pages.find(
+        const currentPages = pagesRef.current;
+        const matchedPage = currentPages.find(
           (p) => p.id === targetId || p.id === cleanTargetId || (p.short_id && p.short_id.toLowerCase() === cleanTargetId)
         );
         const resolvedId = matchedPage?.id || targetId;
@@ -186,10 +222,7 @@ export const ChatThreadView: React.FC<ChatThreadViewProps> = ({ paneIndex = 1 })
         clearTimeout(timer);
       };
     }
-  }, [currentPane.type, currentPane.id, currentPane.highlightSpan, currentPane, pages]);
-
-  // 2. PRESERVED: Navigation scroll to mentions handled by Effect #1 above.
-  // Automatic scroll to bottom is disabled to prevent scroll displacement.
+  }, [currentPane.type, currentPane.id, currentPane.highlightSpan, currentPane.scrollTriggerTime]);
 
   const sortedNotes = [...messages].sort(
     (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()

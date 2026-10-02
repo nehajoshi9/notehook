@@ -70,6 +70,7 @@ export interface PaneState {
   autofocusTitle?: boolean;
   initialSearchQuery?: string;
   searchTriggerTime?: number;
+  scrollTriggerTime?: number;
 }
 
 export interface AISettings {

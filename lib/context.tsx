@@ -46,8 +46,8 @@ export interface NotehookContextType {
   // 2-Pane Split View State
   leftPane: PaneState;
   rightPane: PaneState;
-  openInPane2: (type: PaneState['type'], id: string | null, title?: string, highlightSpan?: string, targetVersionNum?: number, targetVersionId?: string, autofocusTitle?: boolean, initialSearchQuery?: string) => void;
-  openInPane1: (type: PaneState['type'], id: string | null, title?: string, highlightSpan?: string, targetVersionNum?: number, targetVersionId?: string, autofocusTitle?: boolean, initialSearchQuery?: string) => void;
+  openInPane2: (type: PaneState['type'], id: string | null, title?: string, highlightSpan?: string, targetVersionNum?: number, targetVersionId?: string, autofocusTitle?: boolean, initialSearchQuery?: string, scrollTriggerTime?: number) => void;
+  openInPane1: (type: PaneState['type'], id: string | null, title?: string, highlightSpan?: string, targetVersionNum?: number, targetVersionId?: string, autofocusTitle?: boolean, initialSearchQuery?: string, scrollTriggerTime?: number) => void;
   closePane1: () => void;
   closePane2: () => void;
   openChat: () => void;
@@ -583,7 +583,7 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const decisions = pages.filter((p) => p.type === 'decision').reverse();
 
   // Pane Navigation Handlers
-  const openInPane2 = (type: PaneState['type'], id: string | null, title?: string, highlightSpan?: string, targetVersionNum?: number, targetVersionId?: string, autofocusTitle?: boolean, initialSearchQuery?: string) => {
+  const openInPane2 = (type: PaneState['type'], id: string | null, title?: string, highlightSpan?: string, targetVersionNum?: number, targetVersionId?: string, autofocusTitle?: boolean, initialSearchQuery?: string, scrollTriggerTime?: number) => {
     const newState: PaneState = {
       type,
       id,
@@ -594,13 +594,14 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       autofocusTitle,
       initialSearchQuery,
       searchTriggerTime: initialSearchQuery ? Date.now() : undefined,
+      scrollTriggerTime: scrollTriggerTime ?? (id && (type === 'chat' || type === 'message') ? Date.now() : undefined),
     };
     setRightHistory((prev) => [...prev, newState]);
     setNavigationHistory((prev) => [...prev, newState]);
     setRightPane(newState);
   };
 
-  const openInPane1 = (type: PaneState['type'], id: string | null, title?: string, highlightSpan?: string, targetVersionNum?: number, targetVersionId?: string, autofocusTitle?: boolean, initialSearchQuery?: string) => {
+  const openInPane1 = (type: PaneState['type'], id: string | null, title?: string, highlightSpan?: string, targetVersionNum?: number, targetVersionId?: string, autofocusTitle?: boolean, initialSearchQuery?: string, scrollTriggerTime?: number) => {
     const newState: PaneState = {
       type,
       id,
@@ -611,6 +612,7 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       autofocusTitle,
       initialSearchQuery,
       searchTriggerTime: initialSearchQuery ? Date.now() : undefined,
+      scrollTriggerTime: scrollTriggerTime ?? (id && (type === 'chat' || type === 'message') ? Date.now() : undefined),
     };
     setLeftHistory((prev) => [...prev, newState]);
     setNavigationHistory((prev) => [...prev, newState]);
@@ -736,15 +738,16 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const scrollToMessageInChat = (messageId: string, highlightSpan?: string) => {
+    const triggerTime = Date.now();
     // 1. If leftPane is already 'chat', update leftPane and scroll to message
     if (leftPane.type === 'chat') {
-      openInPane1('chat', messageId, 'Chat Thread', highlightSpan);
+      openInPane1('chat', messageId, 'Chat Thread', highlightSpan, undefined, undefined, false, undefined, triggerTime);
       return;
     }
 
     // 2. If rightPane is already 'chat', update rightPane and scroll to message
     if (rightPane.type === 'chat') {
-      openInPane2('chat', messageId, 'Chat Thread', highlightSpan);
+      openInPane2('chat', messageId, 'Chat Thread', highlightSpan, undefined, undefined, false, undefined, triggerTime);
       return;
     }
 
@@ -763,6 +766,7 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       id: messageId,
       title: 'Chat Thread',
       highlightSpan,
+      scrollTriggerTime: triggerTime,
     };
     setLeftPane(chatState);
     setLeftHistory((prev) => [...prev, chatState]);
@@ -1351,6 +1355,14 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // Submit User Turn & Assistant AI Response (Single message page per turn containing user_prompt and body content)
   const submitUserTurn = async (prompt: string) => {
     if (!prompt.trim() || isAiGenerating) return;
+
+    // Reset any lingering target scroll ID or highlight span on chat panes
+    if (leftPane.type === 'chat' && (leftPane.id || leftPane.highlightSpan)) {
+      setLeftPane((prev) => ({ ...prev, id: null, highlightSpan: undefined, scrollTriggerTime: undefined }));
+    }
+    if (rightPane.type === 'chat' && (rightPane.id || rightPane.highlightSpan)) {
+      setRightPane((prev) => ({ ...prev, id: null, highlightSpan: undefined, scrollTriggerTime: undefined }));
+    }
 
     setIsAiGenerating(true);
     setAiStreamingPrompt(prompt.trim());
