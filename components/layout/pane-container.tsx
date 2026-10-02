@@ -170,7 +170,7 @@ export const PaneContainer: React.FC = () => {
                   className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-zinc-700 hover:text-zinc-950 bg-white hover:bg-zinc-50 border border-zinc-200 hover:border-zinc-300 rounded-md shadow-2xs transition-all cursor-pointer"
                   title="Open chat"
                 >
-                  <MessageSquare className="w-3.5 h-3.5 text-sky-600" />
+                  <MessageSquare className="w-3.5 h-3.5 text-zinc-400" />
                   <span>Open chat</span>
                 </button>
               )}
@@ -259,7 +259,7 @@ export const PaneContainer: React.FC = () => {
                     className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-zinc-700 hover:text-zinc-950 bg-white hover:bg-zinc-50 border border-zinc-200 hover:border-zinc-300 rounded-md shadow-2xs transition-all cursor-pointer"
                     title="Open chat"
                   >
-                    <MessageSquare className="w-3.5 h-3.5 text-sky-600" />
+                    <MessageSquare className="w-3.5 h-3.5 text-zinc-400" />
                     <span>Open chat</span>
                   </button>
                 )}
