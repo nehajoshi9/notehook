@@ -582,8 +582,30 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const todos = pages.filter((p) => p.type === 'todo').reverse();
   const decisions = pages.filter((p) => p.type === 'decision').reverse();
 
+  const [lastPagePaneState, setLastPagePaneState] = useState<PaneState | null>({
+    type: 'note',
+    id: 'seed-welcome-note',
+    title: 'Welcome to Notehook! 👋',
+  });
+
+  useEffect(() => {
+    if (rightPane.type !== 'empty' && rightPane.type !== 'chat') {
+      setLastPagePaneState(rightPane);
+    } else if (leftPane.type !== 'empty' && leftPane.type !== 'chat') {
+      setLastPagePaneState(leftPane);
+    }
+  }, [leftPane, rightPane]);
+
   // Pane Navigation Handlers
   const openInPane2 = (type: PaneState['type'], id: string | null, title?: string, highlightSpan?: string, targetVersionNum?: number, targetVersionId?: string, autofocusTitle?: boolean, initialSearchQuery?: string, scrollTriggerTime?: number) => {
+    // If chat is closed (neither pane is 'chat'), we are in full-screen page view mode.
+    // Opening any page (from sidebar, pills, etc.) must update the single active full-screen page (leftPane)
+    // and keep rightPane empty, so we never spawn two page view panes side-by-side!
+    if (leftPane.type !== 'chat' && rightPane.type !== 'chat' && type !== 'chat') {
+      openInPane1(type, id, title, highlightSpan, targetVersionNum, targetVersionId, autofocusTitle, initialSearchQuery, scrollTriggerTime);
+      return;
+    }
+
     const newState: PaneState = {
       type,
       id,
@@ -637,14 +659,49 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const closePane1 = () => {
+    if (leftPane.type === 'chat') {
+      // Closing Chat view from Pane 1: Page view takes up the whole screen
+      if (rightPane.type !== 'empty' && rightPane.type !== 'chat') {
+        setLeftPane(rightPane);
+        setLeftHistory(rightHistory);
+        setRightPane({ type: 'empty', id: null });
+        setRightHistory([]);
+      } else {
+        // If rightPane was empty or not a page, restore page view to take up the whole screen
+        let targetState = lastPagePaneState;
+        if (targetState && targetState.id) {
+          const pageExists = pages.some((p) => p.id === targetState?.id);
+          if (!pageExists) targetState = null;
+        }
+        if (!targetState) {
+          const firstPage = pages[0];
+          targetState = firstPage
+            ? { type: firstPage.type, id: firstPage.id, title: firstPage.title }
+            : { type: 'todo_board', id: null, title: 'Todo Board' };
+        }
+        setLeftPane(targetState);
+        setLeftHistory([targetState]);
+        setRightPane({ type: 'empty', id: null });
+        setRightHistory([]);
+      }
+      return;
+    }
+
+    // Closing Page view from Pane 1 (e.g. if swapped):
     if (rightPane.type !== 'empty') {
       setLeftPane(rightPane);
       setLeftHistory(rightHistory);
       setRightPane({ type: 'empty', id: null });
       setRightHistory([]);
     } else {
-      setLeftPane({ type: 'empty', id: null });
-      setLeftHistory([]);
+      // If only page view was open and closed, restore default Chat Thread
+      const chatState: PaneState = {
+        type: 'chat',
+        id: null,
+        title: 'Chat Thread',
+      };
+      setLeftPane(chatState);
+      setLeftHistory([chatState]);
     }
   };
 
@@ -662,20 +719,6 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setLeftHistory(rightHistory);
     setRightHistory(tempHistory);
   };
-
-  const [lastPagePaneState, setLastPagePaneState] = useState<PaneState | null>({
-    type: 'note',
-    id: 'seed-welcome-note',
-    title: 'Welcome to Notehook! 👋',
-  });
-
-  useEffect(() => {
-    if (rightPane.type !== 'empty' && rightPane.type !== 'chat') {
-      setLastPagePaneState(rightPane);
-    } else if (leftPane.type !== 'empty' && leftPane.type !== 'chat') {
-      setLastPagePaneState(leftPane);
-    }
-  }, [leftPane, rightPane]);
 
   const openChat = () => {
     // If chat is already open, do nothing
