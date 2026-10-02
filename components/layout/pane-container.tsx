@@ -17,6 +17,8 @@ export const PaneContainer: React.FC = () => {
     rightPane,
     closePane1,
     closePane2,
+    openChat,
+    openPageView,
     leftPaneCanGoBack,
     rightPaneCanGoBack,
     goBackPane1,
@@ -147,6 +149,33 @@ export const PaneContainer: React.FC = () => {
               <X className="h-3 w-3" />
             </button>
           </div>
+
+          {/* When only one pane is active (full width), show light-colored button in the top right to open the other view */}
+          {!isRightPaneActive && (
+            <div className="flex items-center pb-1">
+              {leftPane.type === 'chat' ? (
+                <button
+                  type="button"
+                  onClick={openPageView}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-zinc-700 hover:text-zinc-950 bg-white hover:bg-zinc-50 border border-zinc-200 hover:border-zinc-300 rounded-md shadow-2xs transition-all cursor-pointer"
+                  title="Open page view"
+                >
+                  <FileText className="w-3.5 h-3.5 text-zinc-500" />
+                  <span>Open page view</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={openChat}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-zinc-700 hover:text-zinc-950 bg-white hover:bg-zinc-50 border border-zinc-200 hover:border-zinc-300 rounded-md shadow-2xs transition-all cursor-pointer"
+                  title="Open chat"
+                >
+                  <MessageSquare className="w-3.5 h-3.5 text-sky-600" />
+                  <span>Open chat</span>
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="flex-1 min-h-0 bg-white">{renderPaneContent(leftPane, 1)}</div>
@@ -209,6 +238,33 @@ export const PaneContainer: React.FC = () => {
                 <X className="h-3 w-3" />
               </button>
             </div>
+
+            {/* When only right pane is active (full width), show button in the top right to open the other view */}
+            {!isLeftPaneActive && (
+              <div className="flex items-center pb-1">
+                {rightPane.type === 'chat' ? (
+                  <button
+                    type="button"
+                    onClick={openPageView}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-zinc-700 hover:text-zinc-950 bg-white hover:bg-zinc-50 border border-zinc-200 hover:border-zinc-300 rounded-md shadow-2xs transition-all cursor-pointer"
+                    title="Open page view"
+                  >
+                    <FileText className="w-3.5 h-3.5 text-zinc-500" />
+                    <span>Open page view</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={openChat}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-zinc-700 hover:text-zinc-950 bg-white hover:bg-zinc-50 border border-zinc-200 hover:border-zinc-300 rounded-md shadow-2xs transition-all cursor-pointer"
+                    title="Open chat"
+                  >
+                    <MessageSquare className="w-3.5 h-3.5 text-sky-600" />
+                    <span>Open chat</span>
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="flex-1 min-h-0 bg-white">{renderPaneContent(rightPane, 2)}</div>

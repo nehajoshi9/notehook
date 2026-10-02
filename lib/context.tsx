@@ -50,6 +50,8 @@ export interface NotehookContextType {
   openInPane1: (type: PaneState['type'], id: string | null, title?: string, highlightSpan?: string, targetVersionNum?: number, targetVersionId?: string, autofocusTitle?: boolean, initialSearchQuery?: string) => void;
   closePane1: () => void;
   closePane2: () => void;
+  openChat: () => void;
+  openPageView: () => void;
   swapPanes: () => void;
   navigateToMessage: (messageId: string, highlightSpan?: string, title?: string, initialSearchQuery?: string) => void;
   scrollToMessageInChat: (messageId: string, highlightSpan?: string) => void;
@@ -657,6 +659,80 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const tempHistory = leftHistory;
     setLeftHistory(rightHistory);
     setRightHistory(tempHistory);
+  };
+
+  const [lastPagePaneState, setLastPagePaneState] = useState<PaneState | null>({
+    type: 'note',
+    id: 'seed-welcome-note',
+    title: 'Welcome to Notehook! 👋',
+  });
+
+  useEffect(() => {
+    if (rightPane.type !== 'empty' && rightPane.type !== 'chat') {
+      setLastPagePaneState(rightPane);
+    } else if (leftPane.type !== 'empty' && leftPane.type !== 'chat') {
+      setLastPagePaneState(leftPane);
+    }
+  }, [leftPane, rightPane]);
+
+  const openChat = () => {
+    // If chat is already open, do nothing
+    if (leftPane.type === 'chat' || rightPane.type === 'chat') return;
+
+    // If leftPane has the active page and rightPane is empty:
+    // Move the active page to rightPane and open Chat Thread in leftPane
+    if (leftPane.type !== 'empty') {
+      if (rightPane.type === 'empty') {
+        setRightPane(leftPane);
+        setRightHistory(leftHistory.length > 0 ? leftHistory : [leftPane]);
+      }
+    }
+
+    const chatState: PaneState = {
+      type: 'chat',
+      id: null,
+      title: 'Chat Thread',
+    };
+    setLeftPane(chatState);
+    setLeftHistory((prev) => [...prev, chatState]);
+    setNavigationHistory((prev) => [...prev, chatState]);
+  };
+
+  const openPageView = () => {
+    // If page view is already open in right or left pane, do nothing
+    if (
+      (rightPane.type !== 'empty' && rightPane.type !== 'chat') ||
+      (leftPane.type !== 'empty' && leftPane.type !== 'chat')
+    ) {
+      return;
+    }
+
+    let targetState = lastPagePaneState;
+    if (targetState && targetState.id) {
+      const pageExists = pages.some((p) => p.id === targetState?.id);
+      if (!pageExists) targetState = null;
+    }
+
+    if (!targetState) {
+      const firstPage = pages[0];
+      if (firstPage) {
+        targetState = {
+          type: firstPage.type,
+          id: firstPage.id,
+          title: firstPage.title,
+        };
+      } else {
+        targetState = {
+          type: 'todo_board',
+          id: null,
+          title: 'Todo Board',
+        };
+      }
+    }
+
+    setRightPane(targetState);
+    setRightHistory([targetState]);
+    setNavigationHistory((prev) => [...prev, targetState]);
   };
 
   const scrollToMessageInChat = (messageId: string, highlightSpan?: string) => {
@@ -1607,6 +1683,8 @@ export const NotehookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         openInPane1,
         closePane1,
         closePane2,
+        openChat,
+        openPageView,
         swapPanes,
         navigateToMessage,
         scrollToMessageInChat,
